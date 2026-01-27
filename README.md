@@ -37,8 +37,8 @@ MeetSummarizer is a real-time video conferencing application that translates you
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/summarizer.git
-   cd summarizer
+   git clone https://github.com/khuongngoduc0310/Summarizer.git
+   cd Summarizer
    ```
 
 2. Setup Environment Variables:
