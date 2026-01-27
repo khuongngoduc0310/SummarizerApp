@@ -1,0 +1,106 @@
+// =====================
+// Generator & Datasource
+// =====================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // or "sqlite" for local dev
+  url      = env("DATABASE_URL")
+}
+
+// =====================
+// User Model
+// =====================
+
+model User {
+  id          String   @id @default(uuid())
+  displayName String
+  email       String?  @unique
+  createdAt   DateTime @default(now())
+
+  meetingsHosted Meeting[]    @relation("HostedMeetings")
+  transcripts    Transcript[]
+  summaries      Summary[]
+}
+
+// =====================
+// Meeting Model
+// =====================
+
+model Meeting {
+  id        String    @id @default(uuid())
+  title     String?
+  createdAt DateTime  @default(now())
+  startedAt DateTime?
+  endedAt   DateTime?
+
+  hostId String?
+  host   User?   @relation("HostedMeetings", fields: [hostId], references: [id])
+
+  transcripts Transcript[]
+  summaries   Summary[]
+}
+
+// =====================
+// Transcript Metadata
+// =====================
+
+model Transcript {
+  id String @id @default(uuid())
+
+  meetingId String
+  meeting   Meeting @relation(fields: [meetingId], references: [id])
+
+  ownerUserId String
+  owner       User   @relation(fields: [ownerUserId], references: [id])
+
+  language    String  @default("en")
+  durationSec Int     @default(0)
+  localOnly   Boolean @default(true)
+  createdAt   DateTime @default(now())
+
+  segments    TranscriptSegment[]
+  summaries   Summary[]
+}
+
+// =====================
+// Transcript Segments (For real-time captions)
+// =====================
+
+model TranscriptSegment {
+  id           String     @id @default(uuid())
+  transcriptId String
+  transcript   Transcript @relation(fields: [transcriptId], references: [id])
+  
+  speakerId    String
+  text         String
+  start        Float
+  end          Float
+  createdAt    DateTime   @default(now())
+}
+
+// =====================
+// AI Summary Model
+// =====================
+
+model Summary {
+  id String @id @default(uuid())
+
+  meetingId String
+  meeting   Meeting @relation(fields: [meetingId], references: [id])
+
+  transcriptId String
+  transcript   Transcript @relation(fields: [transcriptId], references: [id])
+
+  requestedById String
+  requestedBy   User   @relation(fields: [requestedById], references: [id])
+
+  model    String // e.g. gpt-4o, claude, llama
+  provider String // e.g. openai, anthropic, local
+
+  summaryText String
+  createdAt   DateTime @default(now())
+}
