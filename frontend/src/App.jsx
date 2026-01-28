@@ -123,23 +123,6 @@ function App() {
     const saved = storage.get('recent_rooms') || [];
     setRecentRooms(saved);
 
-    // Check for existing session
-    const savedRoom = storage.get('meet_session');
-    if (savedRoom) {
-      console.log('Restoring existing session:', savedRoom.meetingId);
-      setMeetingId(savedRoom.meetingId);
-      setUserDisplayName(savedRoom.displayName);
-      setIsMuted(savedRoom.isMuted);
-      setIsVideoOff(savedRoom.isVideoOff);
-
-      newSocket.emit('join-meeting', {
-        meetingId: savedRoom.meetingId,
-        displayName: savedRoom.displayName,
-        isMuted: savedRoom.isMuted,
-        isVideoOff: savedRoom.isVideoOff
-      });
-    }
-
     return () => newSocket.close();
   }, []);
 
@@ -171,7 +154,6 @@ function App() {
   const clearRecentRooms = () => {
     setRecentRooms([]);
     storage.remove('recent_rooms');
-    storage.remove('meet_session');
   };
 
   const handleCreateMeeting = async (userData) => {
@@ -190,7 +172,6 @@ function App() {
 
       // Track as recent and active
       addRecentRoom(data.meetingId);
-      storage.set('meet_session', { meetingId: data.meetingId, displayName: userData.displayName, isMuted: userData.isMuted, isVideoOff: userData.isVideoOff }, 24);
 
       // Join the room via socket
       socket.emit('join-meeting', {
@@ -217,7 +198,6 @@ function App() {
 
     // Track as recent and active
     addRecentRoom(userData.meetingId);
-    storage.set('meet_session', { meetingId: userData.meetingId, displayName: userData.displayName, isMuted: userData.isMuted, isVideoOff: userData.isVideoOff }, 24);
 
     // Join the room via socket
     socket.emit('join-meeting', {
@@ -234,7 +214,6 @@ function App() {
   };
 
   const handleLeave = () => {
-    storage.remove('meet_session');
     leave();
     setMeetingId(null);
     setCaptions([]);

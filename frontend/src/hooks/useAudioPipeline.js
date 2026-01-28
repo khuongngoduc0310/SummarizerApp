@@ -50,6 +50,9 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId) => {
         }
     }, [socket, userId]);
 
+    const OVERLAP_DURATION = 3; // 3 seconds overlap
+    const OVERLAP_SAMPLES = OVERLAP_DURATION * SAMPLE_RATE;
+
     const flushAudio = useCallback(() => {
         if (samplesRef.current.length === 0 || !workerRef.current) return;
 
@@ -74,13 +77,18 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId) => {
                 speakerId: userId,
                 startTs
             });
-        } else {
-            console.log("[AudioPipeline] Skipping silent chunk.");
         }
 
-        samplesRef.current = [];
-        startTimeRef.current = Date.now() / 1000;
-    }, [meetingId, userId]);
+        // Keep last 3s for overlap to prevent word cutting
+        if (samplesRef.current.length > OVERLAP_SAMPLES) {
+            samplesRef.current = samplesRef.current.slice(-OVERLAP_SAMPLES);
+            // Adjust start time for next chunk to account for overlap
+            startTimeRef.current = (Date.now() / 1000) - OVERLAP_DURATION;
+        } else {
+            samplesRef.current = [];
+            startTimeRef.current = Date.now() / 1000;
+        }
+    }, [meetingId, userId, OVERLAP_SAMPLES, OVERLAP_DURATION]);
 
     useEffect(() => {
         if (!localStream || !meetingId || !userId) return;

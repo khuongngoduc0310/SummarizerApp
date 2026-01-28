@@ -80,6 +80,16 @@ MeetSummarizer is a real-time video conferencing application that translates you
 - `backend/`: Express server, Socket handlers, and LLM integrations.
 - `backend/prisma/`: Database schema and migrations.
 
+
+## Sequence Diagram
+
+![Sequence Diagram](SequenceDiagram.png)
+
+
+## Browser Logic
+
+![Browser Logic](Browser.png)
+
 ## Contributing
 
 Contributions are welcomed. Please feel free to submit a Pull Request.
