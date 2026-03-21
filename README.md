@@ -17,7 +17,7 @@ MeetSummarizer is a real-time video conferencing application that translates you
 - Framework: React
 - Styling: Tailwind CSS + Vanilla CSS
 - Transcription: @huggingface/transformers (WebGPU / Whisper)
-- Signaling/RTC: Socket.io-client, Simple-Peer (WebRTC)
+- Signaling/RTC: Socket.io, WebRTC
 
 ### Backend
 - Runtime: Node.js + Express
@@ -31,7 +31,7 @@ MeetSummarizer is a real-time video conferencing application that translates you
 
 - Docker & Docker Compose
 - Node.js (v18+)
-- A modern browser with WebGPU support (Chrome 113+, Edge 113+)
+- A browser with WebGPU support (Chrome 113+, Edge 113+)
 
 ### Installation
 
