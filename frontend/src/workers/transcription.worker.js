@@ -44,10 +44,26 @@ class AutomaticSpeechRecognitionPipeline {
 }
 
 let processing = false;
+let droppedChunkCount = 0;
+let modelLoadStartedAt = performance.now();
+let modelReadyAt = null;
 
-async function generate({ audio, meetingId, speakerId, startTs }) {
-    if (processing) return;
+async function generate({ audio, meetingId, speakerId, startTs, chunkId, chunkCreatedAt, chunkDuration }) {
+    if (processing) {
+        droppedChunkCount += 1;
+        self.postMessage({
+            type: 'telemetry',
+            event: 'chunk-dropped',
+            chunkId,
+            droppedChunkCount,
+            reason: 'worker-busy'
+        });
+        return;
+    }
     processing = true;
+
+    const receivedAt = performance.now();
+    const audioDuration = chunkDuration ?? (audio.length / 16000);
 
     self.postMessage({ type: 'status', status: "start" });
 
@@ -69,7 +85,21 @@ async function generate({ audio, meetingId, speakerId, startTs }) {
         });
 
         const duration = performance.now() - startTime;
+        const realtimeFactor = duration / (audioDuration * 1000);
+        const queueLatency = typeof chunkCreatedAt === 'number' ? receivedAt - chunkCreatedAt : null;
         const text = decoded[0].trim();
+
+        self.postMessage({
+            type: 'telemetry',
+            event: 'inference-complete',
+            chunkId,
+            chunkDuration: audioDuration,
+            inferenceTimeMs: duration,
+            realtimeFactor,
+            queueLatencyMs: queueLatency,
+            droppedChunkCount,
+            modelLoadTimeMs: modelReadyAt ? modelReadyAt - modelLoadStartedAt : null
+        });
 
         if (text && text.length > 0) {
             console.log(`[Whisper WebGPU] Generated: "${text}" (${duration.toFixed(0)}ms)`);
@@ -80,7 +110,12 @@ async function generate({ audio, meetingId, speakerId, startTs }) {
                 meetingId,
                 speakerId,
                 startTs,
+                chunkId,
+                chunkCreatedAt,
+                chunkDuration: audioDuration,
                 processingTime: duration,
+                realtimeFactor,
+                droppedChunkCount,
                 segments: [{
                     text: text,
                     start: startTs,
@@ -100,6 +135,7 @@ async function generate({ audio, meetingId, speakerId, startTs }) {
 (async function load() {
     self.postMessage({ type: 'progress', status: 'loading', progress: 0 });
     try {
+        modelLoadStartedAt = performance.now();
         await AutomaticSpeechRecognitionPipeline.getInstance((x) => {
              self.postMessage({ type: 'progress', ...x });
         });
@@ -113,7 +149,16 @@ async function generate({ audio, meetingId, speakerId, startTs }) {
             input_features: full([1, 80, 3000], 0.0),
             max_new_tokens: 1,
         });
-        console.log("[WebGPU] Ready!");
+        modelReadyAt = performance.now();
+        const modelLoadTimeMs = modelReadyAt - modelLoadStartedAt;
+        console.log(`[WebGPU] Ready! modelLoadTime=${modelLoadTimeMs.toFixed(0)}ms`);
+        self.postMessage({
+            type: 'telemetry',
+            event: 'model-ready',
+            modelLoadTimeMs,
+            backend: 'webgpu',
+            model: AutomaticSpeechRecognitionPipeline.model_id
+        });
         self.postMessage({ type: 'status', status: "ready" });
     } catch (e) {
         console.error("WebGPU Load Failed:", e);
@@ -122,9 +167,9 @@ async function generate({ audio, meetingId, speakerId, startTs }) {
 })();
 
 self.addEventListener('message', async (event) => {
-    const { type, audio, meetingId, speakerId, startTs } = event.data;
+    const { type, audio, meetingId, speakerId, startTs, chunkId, chunkCreatedAt, chunkDuration } = event.data;
 
     if (type === 'transcribe') {
-        await generate({ audio, meetingId, speakerId, startTs });
+        await generate({ audio, meetingId, speakerId, startTs, chunkId, chunkCreatedAt, chunkDuration });
     }
 });

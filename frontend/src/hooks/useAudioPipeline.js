@@ -1,19 +1,138 @@
 import { useEffect, useRef, useCallback } from 'react';
 
-export const useAudioPipeline = (socket, meetingId, localStream, userId) => {
+const IGNORED_CAPTIONS = new Set([
+    "(Coughing)", "(sighing)", "(laughing)", "(crying)",
+    "(sneezing)", "(breathing)", "(snoring)", "[BLANK_AUDIO]", "[ Pause ]", "[INAUDIBLE]", "(sad music)", "[Crying]", "[ Inaudible Remark ]", "(panting)", "(audience murmurs)", "(audience laughing)",
+    "(audience chantering)", "(coughing)", "[Coughing]"
+]);
+
+const recordBenchmarkEvent = (event) => {
+    if (typeof window === 'undefined') return;
+
+    window.__MEETSUMMARIZER_STT_BENCHMARKS__ ??= [];
+    window.__MEETSUMMARIZER_STT_BENCHMARKS__.push({
+        recordedAt: new Date().toISOString(),
+        ...event
+    });
+
+    window.exportMeetSummarizerSttBenchmarks ??= () => {
+        const data = window.__MEETSUMMARIZER_STT_BENCHMARKS__ || [];
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `meetsummarizer-stt-benchmark-${Date.now()}.json`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+    };
+};
+
+export const useAudioPipeline = (socket, meetingId, localStream, userId, runtimeConfig = null, sttConfig = null) => {
     const workerRef = useRef(null);
     const audioContextRef = useRef(null);
     const processorRef = useRef(null);
-    const samplesRef = useRef([]); // Use standard array for better performance
-    const CHUNK_DURATION = 15; // Set to 15s for faster feedback
+    const nativeTranscriptUnsubscribeRef = useRef(null);
+    const samplesRef = useRef([]); // Browser WebGPU chunk buffer
+    const nativeFrameBufferRef = useRef([]); // Native STT short-frame buffer
+    const chunkSequenceRef = useRef(0);
+    const nativeFrameSequenceRef = useRef(0);
+    const telemetryRef = useRef({
+        droppedChunkCount: 0,
+        lastRealtimeFactor: null,
+        lastInferenceTimeMs: null,
+        lastCaptionLatencyMs: null
+    });
+    const CHUNK_DURATION = 15; // Browser WebGPU fallback chunk size
+    const NATIVE_FRAME_DURATION = 0.1; // 100ms frames for native STT
+    const NATIVE_FRAME_SAMPLES = Math.round(16000 * NATIVE_FRAME_DURATION);
     const SAMPLE_RATE = 16000;
+    const useNativeStt = Boolean(
+        runtimeConfig?.features?.nativeStt &&
+        typeof window !== 'undefined' &&
+        window.desktopStt?.sendAudioFrame &&
+        window.desktopStt?.onTranscript
+    );
     
     const startTimeRef = useRef(Date.now() / 1000);
-    const IGNORED_CAPTIONS = new Set([
-        "(Coughing)", "(sighing)", "(laughing)", "(crying)", 
-        "(sneezing)", "(breathing)", "(snoring)", "[BLANK_AUDIO]", "[ Pause ]","[INAUDIBLE]", "(sad music)", "[Crying]","[ Inaudible Remark ]", "(panting)", "(audience murmurs)","(audience laughing)",
-        "(audience chantering)", "(coughing)", "[Coughing]"
-    ]);
+
+    const shouldIgnoreCaption = useCallback((text) => {
+        const cleanText = text.trim();
+        return !cleanText || IGNORED_CAPTIONS.has(cleanText) || cleanText.includes("[");
+    }, []);
+
+    const initializeNativeStt = useCallback(() => {
+        if (!useNativeStt || nativeTranscriptUnsubscribeRef.current) return;
+
+        nativeTranscriptUnsubscribeRef.current = window.desktopStt.onTranscript((event) => {
+            if (!event || event.type !== 'final') return;
+            if (shouldIgnoreCaption(event.text || '')) return;
+
+            const payload = {
+                meetingId: event.meetingId || meetingId,
+                speakerId: event.speakerId || userId,
+                utteranceId: event.utteranceId,
+                isFinal: true,
+                text: event.text,
+                start: event.start,
+                end: event.end
+            };
+            console.log('[Native STT] final caption', {
+                utteranceId: payload.utteranceId,
+                text: payload.text,
+                metrics: event.metrics
+            });
+            socket.emit('caption', payload);
+        });
+
+        window.desktopStt.getStatus?.().then((status) => {
+            console.log('[Native STT] status', status);
+        }).catch((error) => {
+            console.warn('[Native STT] status failed; browser WebGPU fallback may be used', error);
+        });
+    }, [meetingId, shouldIgnoreCaption, socket, useNativeStt, userId]);
+
+    const sendNativeAudioSamples = useCallback((inputData) => {
+        for (let i = 0; i < inputData.length; i++) {
+            nativeFrameBufferRef.current.push(inputData[i]);
+        }
+
+        while (nativeFrameBufferRef.current.length >= NATIVE_FRAME_SAMPLES) {
+            const frame = nativeFrameBufferRef.current.slice(0, NATIVE_FRAME_SAMPLES);
+            nativeFrameBufferRef.current = nativeFrameBufferRef.current.slice(NATIVE_FRAME_SAMPLES);
+            const sequence = ++nativeFrameSequenceRef.current;
+
+            const windowSec = Number(sttConfig?.windowSec ?? 4);
+            // Important: use ?? instead of || so overlapSec=0 is preserved.
+            const overlapSec = Math.min(Number(sttConfig?.overlapSec ?? 1), windowSec - 0.5);
+            const stepSec = Math.max(0.5, windowSec - overlapSec);
+            const maxBufferSec = Number(sttConfig?.maxBufferSec ?? 8);
+
+            window.desktopStt.sendAudioFrame({
+                meetingId,
+                speakerId: userId,
+                sequence,
+                sampleRate: SAMPLE_RATE,
+                format: 'f32le',
+                durationSec: NATIVE_FRAME_DURATION,
+                capturedAt: Date.now(),
+                sttConfig: {
+                    windowSec,
+                    overlapSec,
+                    stepSec,
+                    maxBufferSec,
+                    vadThreshold: Number(sttConfig?.vadThreshold ?? 0.008),
+                    highPassCutoffHz: Number(sttConfig?.highPassCutoffHz ?? 100),
+                    dcOffsetRemoval: sttConfig?.dcOffsetRemoval ?? true,
+                    highPassFilter: sttConfig?.highPassFilter ?? true,
+                    normalizeAudio: sttConfig?.normalizeAudio ?? true,
+                    silenceTrim: sttConfig?.silenceTrim ?? true
+                },
+                audio: frame
+            }).catch((error) => {
+                console.warn('[Native STT] sendAudioFrame failed; future work should fallback to WebGPU', error);
+            });
+        }
+    }, [NATIVE_FRAME_SAMPLES, meetingId, sttConfig, userId]);
 
     const initializeWorker = useCallback(() => {
         if (!workerRef.current) {
@@ -23,41 +142,86 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId) => {
             );
 
             workerRef.current.onmessage = (event) => {
-                const { type, segments, meetingId: mid, speakerId, error, status, progress } = event.data;
+                const {
+                    type,
+                    segments,
+                    meetingId: mid,
+                    error,
+                    chunkId,
+                    chunkCreatedAt,
+                    chunkDuration,
+                    processingTime,
+                    realtimeFactor,
+                    droppedChunkCount
+                } = event.data;
 
                 if (type === 'result' && segments) {
+                    const captionLatencyMs = typeof chunkCreatedAt === 'number'
+                        ? performance.now() - chunkCreatedAt
+                        : null;
+
+                    telemetryRef.current = {
+                        droppedChunkCount: droppedChunkCount ?? telemetryRef.current.droppedChunkCount,
+                        lastRealtimeFactor: realtimeFactor ?? telemetryRef.current.lastRealtimeFactor,
+                        lastInferenceTimeMs: processingTime ?? telemetryRef.current.lastInferenceTimeMs,
+                        lastCaptionLatencyMs: captionLatencyMs ?? telemetryRef.current.lastCaptionLatencyMs
+                    };
+
+                    const benchmarkEvent = {
+                        event: 'caption-result',
+                        backend: 'webgpu',
+                        chunkId,
+                        chunkDurationSec: chunkDuration,
+                        inferenceTimeMs: processingTime,
+                        realtimeFactor,
+                        droppedChunkCount: telemetryRef.current.droppedChunkCount,
+                        captionLatencyMs
+                    };
+                    recordBenchmarkEvent(benchmarkEvent);
+                    console.log('[STT Baseline]', benchmarkEvent);
 
                     segments.forEach(segment => {
-                        const cleanText = segment.text.trim();
-                        
-                        if (IGNORED_CAPTIONS.has(cleanText)) return;
-                        if (cleanText.includes("[")) return;
+                        if (shouldIgnoreCaption(segment.text)) return;
 
                         socket.emit('caption', {
                             meetingId: mid,
                             speakerId: userId,
+                            utteranceId: `webgpu-${chunkId}-${segment.start}-${segment.end}`,
+                            isFinal: true,
                             text: segment.text,
                             start: segment.start,
                             end: segment.end
                         });
                     });
+                } else if (type === 'telemetry') {
+                    if (event.data.event === 'chunk-dropped') {
+                        telemetryRef.current.droppedChunkCount = event.data.droppedChunkCount;
+                    }
+                    recordBenchmarkEvent({ backend: 'webgpu', ...event.data });
+                    console.log('[STT Telemetry]', event.data);
                 } else if (type === 'progress') {
-                    // console.log(`[Whisper] ${status}: ${Math.round(progress * 100)}%`);
+                    // Keep progress events quiet by default; telemetry events carry baseline measurements.
                 } else if (type === 'error') {
                     console.error('[Whisper Error]', error);
                 }
             };
         }
-    }, [socket, userId]);
+    }, [shouldIgnoreCaption, socket, userId]);
 
-    const OVERLAP_DURATION = 3; // 3 seconds overlap
-    const OVERLAP_SAMPLES = OVERLAP_DURATION * SAMPLE_RATE;
+    const getBrowserFallbackOverlapDuration = useCallback(() => {
+        const configuredOverlap = Number(sttConfig?.overlapSec);
+        if (Number.isFinite(configuredOverlap)) return Math.max(0, configuredOverlap);
+        return 3;
+    }, [sttConfig]);
 
     const flushAudio = useCallback(() => {
         if (samplesRef.current.length === 0 || !workerRef.current) return;
 
         const audioData = new Float32Array(samplesRef.current);
         const startTs = startTimeRef.current;
+        const chunkId = ++chunkSequenceRef.current;
+        const chunkCreatedAt = performance.now();
+        const chunkDuration = audioData.length / SAMPLE_RATE;
         
         // Calculate RMS (Volume) for diagnostics
         let sum = 0;
@@ -66,7 +230,7 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId) => {
         }
         const rms = Math.sqrt(sum / audioData.length);
         
-        console.log(`[AudioPipeline] Processing ${audioData.length} samples (RMS: ${rms.toFixed(4)})`);
+        console.log(`[AudioPipeline] Processing chunk=${chunkId} duration=${chunkDuration.toFixed(2)}s samples=${audioData.length} RMS=${rms.toFixed(4)}`);
 
         // Only transcribe if there is actual sound
         if (rms > 0.01) {
@@ -75,26 +239,49 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId) => {
                 audio: audioData,
                 meetingId,
                 speakerId: userId,
-                startTs
+                startTs,
+                chunkId,
+                chunkCreatedAt,
+                chunkDuration
             });
         }
 
-        // Keep last 3s for overlap to prevent word cutting
-        if (samplesRef.current.length > OVERLAP_SAMPLES) {
-            samplesRef.current = samplesRef.current.slice(-OVERLAP_SAMPLES);
-            // Adjust start time for next chunk to account for overlap
-            startTimeRef.current = (Date.now() / 1000) - OVERLAP_DURATION;
+        const overlapDuration = getBrowserFallbackOverlapDuration();
+        const overlapSamples = Math.round(overlapDuration * SAMPLE_RATE);
+
+        // Keep configured overlap for the browser WebGPU fallback. Handle 0s explicitly:
+        // Array.slice(-0) equals slice(0), which would accidentally keep the entire buffer.
+        if (overlapSamples > 0 && samplesRef.current.length > overlapSamples) {
+            samplesRef.current = samplesRef.current.slice(-overlapSamples);
+            startTimeRef.current = (Date.now() / 1000) - overlapDuration;
         } else {
             samplesRef.current = [];
             startTimeRef.current = Date.now() / 1000;
         }
-    }, [meetingId, userId, OVERLAP_SAMPLES, OVERLAP_DURATION]);
+    }, [getBrowserFallbackOverlapDuration, meetingId, userId]);
 
     useEffect(() => {
         if (!localStream || !meetingId || !userId) return;
 
-        initializeWorker();
+        if (useNativeStt) {
+            if (workerRef.current) {
+                workerRef.current.terminate();
+                workerRef.current = null;
+            }
+            console.log('[AudioPipeline] Using native Whisper.cpp STT');
+            initializeNativeStt();
+        } else {
+            if (nativeTranscriptUnsubscribeRef.current) {
+                nativeTranscriptUnsubscribeRef.current();
+                nativeTranscriptUnsubscribeRef.current = null;
+            }
+            nativeFrameBufferRef.current = [];
+            console.log('[AudioPipeline] Using browser WebGPU STT');
+            initializeWorker();
+        }
 
+        let cancelled = false;
+        let workletNode = null;
         const audioContext = new (window.AudioContext || window.webkitAudioContext)({
             sampleRate: SAMPLE_RATE
         });
@@ -109,13 +296,19 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId) => {
                 const workletUrl = new URL('../workers/audio-processor.js', import.meta.url);
                 await audioContext.audioWorklet.addModule(workletUrl);
                 
-                if (!audioContextRef.current) return;
+                if (cancelled || audioContextRef.current !== audioContext) return;
 
-                const workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
+                workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
                 processorRef.current = workletNode;
 
                 workletNode.port.onmessage = (event) => {
                     const inputData = event.data;
+
+                    if (useNativeStt) {
+                        sendNativeAudioSamples(inputData);
+                        return;
+                    }
+
                     for (let i = 0; i < inputData.length; i++) {
                         samplesRef.current.push(inputData[i]);
                     }
@@ -136,21 +329,31 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId) => {
         setupWorklet();
 
         return () => {
-            if (processorRef.current) {
-                processorRef.current.port.onmessage = null;
-                processorRef.current.disconnect();
-                processorRef.current = null;
+            cancelled = true;
+            if (workletNode) {
+                workletNode.port.onmessage = null;
+                workletNode.disconnect();
+                if (processorRef.current === workletNode) {
+                    processorRef.current = null;
+                }
             }
-            if (audioContextRef.current) {
-                audioContextRef.current.close();
+            if (audioContextRef.current === audioContext) {
                 audioContextRef.current = null;
+            }
+            if (audioContext.state !== 'closed') {
+                audioContext.close();
             }
             if (workerRef.current) {
                 workerRef.current.terminate();
                 workerRef.current = null;
             }
+            if (nativeTranscriptUnsubscribeRef.current) {
+                nativeTranscriptUnsubscribeRef.current();
+                nativeTranscriptUnsubscribeRef.current = null;
+            }
+            nativeFrameBufferRef.current = [];
         };
-    }, [localStream, meetingId, userId, initializeWorker, flushAudio]);
+    }, [localStream, meetingId, userId, useNativeStt, initializeNativeStt, initializeWorker, sendNativeAudioSamples, flushAudio]);
 
     return {};
 };

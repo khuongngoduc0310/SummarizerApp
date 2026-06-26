@@ -40,3 +40,9 @@ backend/prisma/*.db-journal
 
 # Docker
 .docker/
+
+# Local caches and native STT assets
+.cache/
+desktop/stt/bin/
+desktop/stt/models/
+desktop/stt/samples/

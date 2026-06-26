@@ -1,0 +1,14 @@
+{
+  "name": "meetsummarizer-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "dev": "electron .",
+    "start": "electron .",
+    "benchmark:whisper": "node stt/benchmark-whisper.cpp.js"
+  },
+  "devDependencies": {
+    "electron": "^33.4.11"
+  }
+}

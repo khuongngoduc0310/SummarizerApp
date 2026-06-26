@@ -37,8 +37,16 @@ export const useWebRTC = (socket, meetingId, displayName, isMuted, isVideoOff, s
                 return;
             }
 
-            // Define constraints based on selection
-            const audioConstraints = selectedAudioDeviceId ? { deviceId: { exact: selectedAudioDeviceId } } : true;
+            // Define constraints based on selection. Enable browser/Electron Chromium
+            // audio processing before the stream reaches WebRTC and STT.
+            const baseAudioConstraints = {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            };
+            const audioConstraints = selectedAudioDeviceId
+                ? { ...baseAudioConstraints, deviceId: { exact: selectedAudioDeviceId } }
+                : baseAudioConstraints;
             const videoConstraints = selectedVideoDeviceId ? { deviceId: { exact: selectedVideoDeviceId } } : true;
 
             // If we already have a stream, check if we need to switch tracks

@@ -1,52 +1,47 @@
 import React from 'react';
-import { Mic, MicOff, Video as VideoIcon, VideoOff, PhoneOff, Settings, Shield } from 'lucide-react';
+import { Mic, MicOff, PhoneOff, Settings, Video as VideoIcon, VideoOff } from 'lucide-react';
+
+const ControlButton = ({ active, danger, label, onClick, children }) => (
+    <div className="flex flex-col items-center gap-1.5">
+        <button
+            onClick={onClick}
+            aria-label={label}
+            title={label}
+            className={`flex size-12 items-center justify-center rounded-2xl border transition hover:-translate-y-0.5 active:translate-y-0 sm:size-14 ${danger
+                ? 'border-red-400/30 bg-red-500 text-white shadow-lg shadow-red-500/20 hover:bg-red-400'
+                : active
+                    ? 'border-red-400/25 bg-red-500/12 text-red-300 hover:bg-red-500/18'
+                    : 'border-white/10 bg-white/[0.07] text-slate-100 hover:bg-white/[0.12] hover:text-white'
+            }`}
+        >
+            {children}
+        </button>
+        <span className={`select-none text-[10px] font-black uppercase tracking-[0.18em] ${danger ? 'text-red-300' : 'text-slate-500'}`}>
+            {label}
+        </span>
+    </div>
+);
 
 const MeetingControls = ({ isMuted, isVideoOff, onToggleMute, onToggleVideo, onLeave, onSettingsClick }) => {
     return (
-        <div className="flex items-center px-4 py-1.5 gap-2">
-            <div className="flex flex-col items-center group">
-                <button
-                    onClick={onToggleMute}
-                    className={`p-3 rounded-xl transition-all flex items-center justify-center ${isMuted ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'text-gray-200 hover:bg-white/5'
-                        }`}
-                >
-                    {isMuted ? <MicOff size={22} /> : <Mic size={22} />}
-                </button>
-                <span className="text-[10px] font-bold text-gray-500 mt-1 select-none">Mute</span>
-            </div>
+        <div className="flex items-center gap-2 rounded-[1.75rem] border border-white/10 bg-slate-950/75 p-2.5 shadow-[0_24px_80px_rgba(0,0,0,0.55)] backdrop-blur-2xl sm:gap-3">
+            <ControlButton active={isMuted} label={isMuted ? 'Unmute' : 'Mute'} onClick={onToggleMute}>
+                {isMuted ? <MicOff size={22} /> : <Mic size={22} />}
+            </ControlButton>
 
-            <div className="flex flex-col items-center">
-                <button
-                    onClick={onToggleVideo}
-                    className={`p-3 rounded-xl transition-all flex items-center justify-center ${isVideoOff ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'text-gray-200 hover:bg-white/5'
-                        }`}
-                >
-                    {isVideoOff ? <VideoOff size={22} /> : <VideoIcon size={22} />}
-                </button>
-                <span className="text-[10px] font-bold text-gray-500 mt-1 select-none">Video</span>
-            </div>
+            <ControlButton active={isVideoOff} label={isVideoOff ? 'Camera' : 'Video'} onClick={onToggleVideo}>
+                {isVideoOff ? <VideoOff size={22} /> : <VideoIcon size={22} />}
+            </ControlButton>
 
-            <div className="w-px h-8 bg-white/10 mx-2 self-start mt-3"></div>
+            <div className="mx-1 h-10 w-px bg-white/10" />
 
-            <div className="flex flex-col items-center">
-                <button
-                    onClick={onSettingsClick}
-                    className="p-3 text-gray-200 hover:bg-white/5 rounded-xl transition-all"
-                >
-                    <Settings size={22} />
-                </button>
-                <span className="text-[10px] font-bold text-gray-500 mt-1 select-none">Settings</span>
-            </div>
+            <ControlButton label="Settings" onClick={onSettingsClick}>
+                <Settings size={22} />
+            </ControlButton>
 
-            <div className="flex flex-col items-center">
-                <button
-                    onClick={onLeave}
-                    className="p-3 text-[#ff4d4d] hover:bg-red-500/10 rounded-xl transition-all"
-                >
-                    <PhoneOff size={22} />
-                </button>
-                <span className="text-[10px] font-bold text-red-500/80 mt-1 select-none">End</span>
-            </div>
+            <ControlButton danger label="Leave" onClick={onLeave}>
+                <PhoneOff size={22} />
+            </ControlButton>
         </div>
     );
 };

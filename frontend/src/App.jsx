@@ -25,7 +25,28 @@ import { useWebRTC } from './hooks/useWebRTC';
 import { useAudioPipeline } from './hooks/useAudioPipeline';
 
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+const DEFAULT_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+
+const getRuntimeConfig = async () => {
+  if (window.desktopConfig?.getRuntimeConfig) {
+    try {
+      const config = await window.desktopConfig.getRuntimeConfig();
+      if (config?.apiBaseUrl) return config;
+    } catch (error) {
+      console.warn('Failed to load Electron runtime config, falling back to Vite config:', error);
+    }
+  }
+
+  return {
+    apiBaseUrl: DEFAULT_API_URL,
+    socketUrl: DEFAULT_API_URL,
+    appMode: 'browser-dev',
+    features: {
+      nativeStt: false,
+      browserSttFallback: true
+    }
+  };
+};
 
 // Storage Utilities (LocalStorage with Expiry)
 const storage = {
@@ -46,7 +67,7 @@ const storage = {
         return null;
       }
       return item.value;
-    } catch (e) {
+    } catch {
       return null;
     }
   },
@@ -68,6 +89,21 @@ function App() {
   const [pinnedId, setPinnedId] = useState('local');
   const [showSettings, setShowSettings] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [runtimeConfig, setRuntimeConfig] = useState(null);
+  const [sttConfig, setSttConfig] = useState(() => {
+    return storage.get('stt_config') || {
+      windowSec: 4,
+      overlapSec: 1,
+      maxBufferSec: 8,
+      vadThreshold: 0.008,
+      highPassCutoffHz: 100,
+      dcOffsetRemoval: true,
+      highPassFilter: true,
+      normalizeAudio: true,
+      silenceTrim: true
+    };
+  });
+  const [sttStatus, setSttStatus] = useState(null);
 
   // Device Management
   const [devices, setDevices] = useState({ video: [], audio: [], output: [] });
@@ -92,7 +128,7 @@ function App() {
   } = useWebRTC(socket, meetingId, userDisplayName, isMuted, isVideoOff, selectedDevices.video, selectedDevices.audio);
 
   // Initialize Audio Pipeline for transcription
-  useAudioPipeline(socket, meetingId, localStream, userId);
+  useAudioPipeline(socket, meetingId, localStream, userId, runtimeConfig, sttConfig);
 
   const toggleMute = () => {
     setIsMuted(prev => !prev);
@@ -103,7 +139,21 @@ function App() {
   };
 
   useEffect(() => {
-    const newSocket = io(API_URL);
+    let cancelled = false;
+
+    getRuntimeConfig().then((config) => {
+      if (!cancelled) setRuntimeConfig(config);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!runtimeConfig) return;
+
+    const newSocket = io(runtimeConfig.socketUrl || runtimeConfig.apiBaseUrl);
     setSocket(newSocket);
 
     newSocket.on('caption', (data) => {
@@ -123,13 +173,48 @@ function App() {
     const saved = storage.get('recent_rooms') || [];
     setRecentRooms(saved);
 
-    return () => newSocket.close();
-  }, []);
+    return () => {
+      newSocket.close();
+      setSocket(null);
+    };
+  }, [runtimeConfig]);
 
   // Persist LLM Config
   useEffect(() => {
     storage.set('llm_config', llmConfig);
   }, [llmConfig]);
+
+  // Persist STT Config and notify native sidecar when available
+  useEffect(() => {
+    storage.set('stt_config', sttConfig);
+    if (window.desktopStt?.updateConfig) {
+      window.desktopStt.updateConfig(sttConfig).catch((error) => {
+        console.warn('Failed to update native STT config:', error);
+      });
+    }
+  }, [sttConfig]);
+
+  useEffect(() => {
+    if (!runtimeConfig) return;
+
+    let cancelled = false;
+    const refreshSttStatus = async () => {
+      try {
+        const nativeStatus = await window.desktopStt?.getStatus?.();
+        if (!cancelled) setSttStatus(nativeStatus || runtimeConfig.stt || null);
+      } catch {
+        if (!cancelled) setSttStatus(runtimeConfig.stt || null);
+      }
+    };
+
+    refreshSttStatus();
+    const interval = setInterval(refreshSttStatus, 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [runtimeConfig]);
 
   // Poll for devices when settings are opened
   useEffect(() => {
@@ -158,7 +243,7 @@ function App() {
 
   const handleCreateMeeting = async (userData) => {
     try {
-      const res = await fetch(`${API_URL}/meetings`, {
+      const res = await fetch(`${runtimeConfig.apiBaseUrl}/meetings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ displayName: userData.displayName })
@@ -228,6 +313,22 @@ function App() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const nativeSttRunning = runtimeConfig?.features?.nativeStt && sttStatus?.status === 'running';
+  const sttModeLabel = nativeSttRunning
+    ? `Whisper.cpp ${sttStatus?.selectedBackend ? `(${sttStatus.selectedBackend.toUpperCase()})` : ''}`
+    : 'WebGPU';
+  const sttModeDetail = nativeSttRunning
+    ? (sttStatus?.selectedModel?.split(/[\\/]/).pop() || 'Native model')
+    : 'Browser fallback';
+
+  if (!runtimeConfig || !socket) {
+    return (
+      <div className="h-screen bg-[#0a0a0a] text-white flex items-center justify-center font-sans">
+        <div className="text-sm font-bold uppercase tracking-widest text-gray-500">Starting MeetSummarizer...</div>
+      </div>
+    );
+  }
+
   if (!meetingId) {
     return (
       <JoinScreen
@@ -237,17 +338,18 @@ function App() {
         onClearHistory={clearRecentRooms}
         llmConfig={llmConfig}
         setLlmConfig={setLllmConfig}
+        runtimeConfig={runtimeConfig}
       />
     );
   }
 
   return (
-    <div className="h-screen bg-[#0a0a0a] text-white flex flex-col font-sans overflow-hidden">
-      {/* Top Header - Unified Professional Style */}
-      <header className="h-16 bg-[#111] border-b border-white/5 flex items-center justify-between px-6 shrink-0 z-50">
+    <div className="h-screen bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.16),transparent_30%),#080a10] text-white flex flex-col font-sans overflow-hidden">
+      {/* Top Header */}
+      <header className="min-h-16 bg-slate-950/70 backdrop-blur-xl border-b border-white/10 flex items-center justify-between px-4 sm:px-6 shrink-0 z-50 gap-4">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-[#0E71EB] to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-violet-500 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20">
               <Video size={20} className="text-white" />
             </div>
             <div className="flex flex-col">
@@ -259,7 +361,7 @@ function App() {
           <div className="h-8 w-px bg-white/5 mx-2"></div>
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 group cursor-pointer bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl border border-white/5 transition-all" onClick={copyToClipboard}>
+            <div className="hidden sm:flex items-center gap-2 group cursor-pointer bg-white/[0.06] hover:bg-white/10 px-4 py-2 rounded-2xl border border-white/10 transition-all" onClick={copyToClipboard}>
               <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">ID: <span className="text-gray-200 font-mono tracking-normal ml-1">{meetingId}</span></span>
               {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} className="text-gray-500 group-hover:text-blue-400 transition-colors" />}
             </div>
@@ -267,7 +369,11 @@ function App() {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
+          <div className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border ${nativeSttRunning ? 'bg-purple-500/10 border-purple-500/20' : 'bg-blue-500/10 border-blue-500/20'}`} title={sttModeDetail}>
+            <MessageSquare size={14} className={nativeSttRunning ? 'text-purple-400' : 'text-blue-400'} />
+            <span className={`text-[10px] font-black uppercase tracking-widest ${nativeSttRunning ? 'text-purple-400' : 'text-blue-400'}`}>STT: {sttModeLabel}</span>
+          </div>
+          <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
             <ShieldCheck size={14} className="text-emerald-400" />
             <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">End-to-End Encrypted</span>
           </div>
@@ -312,8 +418,8 @@ function App() {
           return (
             <>
               {/* Main Side: Video Feed */}
-              <main className={`flex-1 flex flex-col relative bg-[#0a0a0a] transition-all duration-300 ease-in-out`}>
-                <div className="flex-1 flex p-4 md:p-8 gap-4 md:gap-6 overflow-hidden min-h-0">
+              <main className={`flex-1 flex flex-col relative transition-all duration-300 ease-in-out min-w-0`}>
+                <div className="flex-1 flex p-3 sm:p-5 md:p-7 gap-4 md:gap-6 overflow-hidden min-h-0 pb-28">
                   {!main && participants.length === 0 ? (
                     <div className="flex-1 flex items-center justify-center">
                       <div className="flex flex-col items-center space-y-4 opacity-20">
@@ -370,8 +476,8 @@ function App() {
                 </div>
 
                 {/* Floating Controls - Bottom Centered */}
-                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20">
-                  <div className="bg-[#111]/80 backdrop-blur-2xl border border-white/10 rounded-[24px] p-2.5 flex items-center gap-2 shadow-[0_30px_70px_rgba(0,0,0,0.6)]">
+                <div className="absolute bottom-5 sm:bottom-7 left-1/2 -translate-x-1/2 z-20">
+                  <div>
                     <MeetingControls
                       isMuted={isMuted}
                       isVideoOff={isVideoOff}
@@ -385,26 +491,26 @@ function App() {
               </main>
 
               {/* Sidebar: Integrated Design */}
-              <aside className={`bg-[#0d0d0d] border-l border-white/5 flex flex-col transition-all duration-500 ease-in-out ${showSidebar ? 'w-[450px]' : 'w-0 opacity-0 pointer-events-none overflow-hidden'}`}>
+              <aside className={`h-full min-h-0 bg-slate-950/80 backdrop-blur-xl border-l border-white/10 flex flex-col transition-all duration-500 ease-in-out ${showSidebar ? 'w-[min(420px,40vw)] max-lg:absolute max-lg:right-0 max-lg:top-0 max-lg:bottom-0 max-lg:w-[min(390px,100vw)] max-lg:z-30' : 'w-0 opacity-0 pointer-events-none overflow-hidden'}`}>
                 {/* Tabs */}
-                <div className="flex border-b border-white/5 bg-[#111]">
+                <div className="shrink-0 flex border-b border-white/10 bg-slate-950/80 p-1.5 gap-1.5">
                   <button
                     onClick={() => setSidebarTab('summary')}
-                    className={`flex-1 py-5 text-[11px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 ${sidebarTab === 'summary' ? 'text-[#0E71EB] bg-[#0E71EB]/5 border-b-2 border-[#0E71EB]' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+                    className={`flex-1 rounded-xl py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all flex items-center justify-center gap-2 ${sidebarTab === 'summary' ? 'text-blue-200 bg-blue-500/15 border border-blue-400/20' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent'}`}
                   >
                     <FileText size={16} />
                     Summary
                   </button>
                   <button
                     onClick={() => setSidebarTab('transcript')}
-                    className={`flex-1 py-5 text-[11px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 ${sidebarTab === 'transcript' ? 'text-[#0E71EB] bg-[#0E71EB]/5 border-b-2 border-[#0E71EB]' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+                    className={`flex-1 rounded-xl py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all flex items-center justify-center gap-2 ${sidebarTab === 'transcript' ? 'text-blue-200 bg-blue-500/15 border border-blue-400/20' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent'}`}
                   >
                     <MessageSquare size={16} />
                     Transcript
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-8 scrollbar-thin">
+                <div className="flex-1 min-h-0 overflow-hidden p-3 sm:p-4">
                   {sidebarTab === 'summary' ? (
                     <SummaryPanel
                       summary={summary}
@@ -414,7 +520,7 @@ function App() {
                       onGenerate={async () => {
                         setGenerating(true);
                         try {
-                          const res = await fetch(`${API_URL}/meetings/${meetingId}/summary`, {
+                          const res = await fetch(`${runtimeConfig.apiBaseUrl}/meetings/${meetingId}/summary`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -444,17 +550,10 @@ function App() {
                 </div>
 
                 {/* Sidebar Footer */}
-                <div className="p-6 border-t border-white/5 bg-[#111]/30">
-                  <div className="flex items-start gap-4 p-4 bg-blue-500/5 border border-blue-500/10 rounded-[20px]">
-                    <div className="p-2 bg-blue-500/10 rounded-lg">
-                      <ShieldCheck size={18} className="text-[#0E71EB]" />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-black text-[#0E71EB] uppercase tracking-wider">Privacy Guaranteed</p>
-                      <p className="text-[11px] font-medium text-gray-500 leading-relaxed">
-                        Audio is processed on your local hardware. Only text summaries are sent to secure cloud servers.
-                      </p>
-                    </div>
+                <div className="shrink-0 border-t border-white/10 bg-white/[0.03] px-4 py-3">
+                  <div className="flex items-center gap-2 text-[11px] font-bold text-emerald-200/80">
+                    <ShieldCheck size={14} className="text-emerald-300" />
+                    <span>Audio local · Text-only AI summaries</span>
                   </div>
                 </div>
               </aside>
@@ -466,7 +565,7 @@ function App() {
       {/* Settings Modal (Overlay) */}
       {showSettings && (
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-2xl bg-[#111] border border-white/10 rounded-2xl shadow-2xl p-8 animate-in zoom-in-95 duration-200">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-[#111] border border-white/10 rounded-2xl shadow-2xl p-8 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-400">
@@ -524,6 +623,142 @@ function App() {
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 appearance-none"
                   >
                     {devices.output.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Speaker ${d.deviceId.slice(0, 4)}`}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* STT Configuration */}
+            <div className="pt-6 border-t border-white/5 space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-emerald-500/10 rounded-lg flex items-center justify-center text-emerald-400">
+                  <MessageSquare size={16} />
+                </div>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400">Speech-to-Text Settings</h3>
+              </div>
+
+              <div className="p-4 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Active STT Engine</p>
+                  <p className="text-sm font-bold text-white mt-1">{sttModeLabel}</p>
+                  <p className="text-[11px] text-gray-500 mt-1">{sttModeDetail}</p>
+                </div>
+                <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${nativeSttRunning ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'}`}>
+                  {nativeSttRunning ? 'Native' : 'Fallback'}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Window</label>
+                  <select
+                    value={sttConfig.windowSec}
+                    onChange={e => setSttConfig(prev => ({
+                      ...prev,
+                      windowSec: Number(e.target.value),
+                      overlapSec: Math.min(prev.overlapSec, Number(e.target.value) - 0.5)
+                    }))}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none"
+                  >
+                    <option value={3}>3.0 sec</option>
+                    <option value={4}>4.0 sec</option>
+                    <option value={5}>5.0 sec</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Overlap</label>
+                  <select
+                    value={sttConfig.overlapSec}
+                    onChange={e => setSttConfig(prev => ({
+                      ...prev,
+                      overlapSec: Math.min(Number(e.target.value), prev.windowSec - 0.5)
+                    }))}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none"
+                  >
+                    <option value={0}>0.0 sec (none)</option>
+                    <option value={0.25}>0.25 sec</option>
+                    <option value={0.5}>0.5 sec</option>
+                    <option value={0.75}>0.75 sec</option>
+                    <option value={1}>1.0 sec</option>
+                    <option value={1.25}>1.25 sec</option>
+                    <option value={1.5}>1.5 sec</option>
+                    <option value={2}>2.0 sec</option>
+                    <option value={2.5}>2.5 sec</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Step</label>
+                  <div className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-gray-300">
+                    {Math.max(0.5, sttConfig.windowSec - sttConfig.overlapSec).toFixed(1)} sec
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-[10px] text-gray-600 font-medium leading-relaxed italic">
+                Lower overlap reduces repeated captions. Higher overlap can protect words at chunk boundaries but may increase duplicate text.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <label className="flex items-center gap-3 text-xs font-bold text-gray-400">
+                  <input
+                    type="checkbox"
+                    checked={sttConfig.highPassFilter ?? true}
+                    onChange={e => setSttConfig(prev => ({ ...prev, highPassFilter: e.target.checked }))}
+                  />
+                  High-pass filter
+                </label>
+                <label className="flex items-center gap-3 text-xs font-bold text-gray-400">
+                  <input
+                    type="checkbox"
+                    checked={sttConfig.silenceTrim ?? true}
+                    onChange={e => setSttConfig(prev => ({ ...prev, silenceTrim: e.target.checked }))}
+                  />
+                  Trim silence
+                </label>
+                <label className="flex items-center gap-3 text-xs font-bold text-gray-400">
+                  <input
+                    type="checkbox"
+                    checked={sttConfig.normalizeAudio ?? true}
+                    onChange={e => setSttConfig(prev => ({ ...prev, normalizeAudio: e.target.checked }))}
+                  />
+                  Normalize quiet speech
+                </label>
+                <label className="flex items-center gap-3 text-xs font-bold text-gray-400">
+                  <input
+                    type="checkbox"
+                    checked={sttConfig.dcOffsetRemoval ?? true}
+                    onChange={e => setSttConfig(prev => ({ ...prev, dcOffsetRemoval: e.target.checked }))}
+                  />
+                  Remove DC offset
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">VAD threshold</label>
+                  <select
+                    value={sttConfig.vadThreshold ?? 0.008}
+                    onChange={e => setSttConfig(prev => ({ ...prev, vadThreshold: Number(e.target.value) }))}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none"
+                  >
+                    <option value={0.004}>Low</option>
+                    <option value={0.008}>Medium</option>
+                    <option value={0.014}>High</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">High-pass cutoff</label>
+                  <select
+                    value={sttConfig.highPassCutoffHz ?? 100}
+                    onChange={e => setSttConfig(prev => ({ ...prev, highPassCutoffHz: Number(e.target.value) }))}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none"
+                  >
+                    <option value={80}>80 Hz</option>
+                    <option value={100}>100 Hz</option>
+                    <option value={120}>120 Hz</option>
+                    <option value={150}>150 Hz</option>
                   </select>
                 </div>
               </div>

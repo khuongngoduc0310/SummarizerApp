@@ -1,27 +1,72 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-    Video,
-    VideoOff,
+    AlertCircle,
+    ArrowRight,
+    Camera,
+    CheckCircle2,
+    ChevronDown,
+    History,
+    LogIn,
     Mic,
     MicOff,
+    MonitorCog,
+    Plus,
     Settings,
     ShieldCheck,
-    AlertCircle,
-    Camera,
-    Speaker,
-    ArrowRight,
-    Check,
-    ChevronDown,
     Sparkles,
-    Zap,
+    Speaker,
+    Trash2,
     User,
-    Plus,
-    LogIn,
-    History,
-    Trash2
+    Video,
+    VideoOff,
+    X,
+    Zap
 } from 'lucide-react';
 
-const JoinScreen = ({ onCreateMeeting, onJoinMeeting, recentRooms = [], onClearHistory, llmConfig, setLlmConfig }) => {
+const providerLabels = {
+    openai: 'OpenAI GPT-4o',
+    anthropic: 'Claude 3.5',
+    deepseek: 'DeepSeek V3'
+};
+
+const FieldLabel = ({ icon: Icon, children }) => (
+    <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+        {Icon && <Icon size={13} />}
+        {children}
+    </label>
+);
+
+const DeviceSelect = ({ icon: Icon, label, type, devices, selectedDevices, onDeviceChange }) => (
+    <div className="space-y-2">
+        <FieldLabel icon={Icon}>{label}</FieldLabel>
+        <div className="relative">
+            <select
+                value={selectedDevices[type]}
+                onChange={(e) => onDeviceChange(type, e.target.value)}
+                className="w-full appearance-none rounded-xl border border-white/10 bg-slate-950/75 px-3 py-3 pr-9 text-sm text-slate-200 transition hover:border-white/20 focus:border-blue-400/70 focus:ring-2 focus:ring-blue-500/20"
+                aria-label={`Select ${label.toLowerCase()}`}
+            >
+                {devices.map((device) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                        {device.label || `${label} ${device.deviceId.slice(0, 5)}`}
+                    </option>
+                ))}
+                {devices.length === 0 && <option>No {label.toLowerCase()} detected</option>}
+            </select>
+            <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
+        </div>
+    </div>
+);
+
+const JoinScreen = ({
+    onCreateMeeting,
+    onJoinMeeting,
+    recentRooms = [],
+    onClearHistory,
+    llmConfig,
+    setLlmConfig,
+    runtimeConfig
+}) => {
     const [displayName, setDisplayName] = useState('');
     const [meetingId, setMeetingId] = useState('');
     const [isMuted, setIsMuted] = useState(true);
@@ -36,37 +81,28 @@ const JoinScreen = ({ onCreateMeeting, onJoinMeeting, recentRooms = [], onClearH
     useEffect(() => {
         const initMedia = async () => {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: true,
-                    audio: true
-                });
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 streamRef.current = stream;
                 if (videoRef.current) videoRef.current.srcObject = stream;
 
-                // Physical Sync: If preferences are OFF, stop the tracks entirely (turns off hardware light)
-                if (isMuted) {
-                    stream.getAudioTracks().forEach(t => { t.enabled = false; });
-                }
-                if (isVideoOff) {
-                    stream.getVideoTracks().forEach(t => { t.stop(); });
-                }
+                if (isMuted) stream.getAudioTracks().forEach((track) => { track.enabled = false; });
+                if (isVideoOff) stream.getVideoTracks().forEach((track) => track.stop());
 
                 const allDevices = await navigator.mediaDevices.enumerateDevices();
                 const organized = {
-                    video: allDevices.filter(d => d.kind === 'videoinput'),
-                    audio: allDevices.filter(d => d.kind === 'audioinput'),
-                    output: allDevices.filter(d => d.kind === 'audiooutput')
+                    video: allDevices.filter((device) => device.kind === 'videoinput'),
+                    audio: allDevices.filter((device) => device.kind === 'audioinput'),
+                    output: allDevices.filter((device) => device.kind === 'audiooutput')
                 };
                 setDevices(organized);
-
                 setSelectedDevices({
                     video: organized.video[0]?.deviceId || '',
                     audio: organized.audio[0]?.deviceId || '',
                     output: organized.output[0]?.deviceId || ''
                 });
             } catch (err) {
-                console.error("Permission error:", err);
-                setPermissionError("Camera or microphone access was denied. Please check your browser permissions.");
+                console.error('Permission error:', err);
+                setPermissionError('Camera or microphone access was denied. Check browser permissions to preview devices.');
                 setIsVideoOff(true);
                 setIsMuted(true);
             }
@@ -75,469 +111,331 @@ const JoinScreen = ({ onCreateMeeting, onJoinMeeting, recentRooms = [], onClearH
         initMedia();
 
         return () => {
-            if (streamRef.current) {
-                streamRef.current.getTracks().forEach(track => track.stop());
-            }
+            streamRef.current?.getTracks().forEach((track) => track.stop());
         };
     }, []);
 
     const handleDeviceChange = async (kind, deviceId) => {
-        setSelectedDevices(prev => ({ ...prev, [kind]: deviceId }));
+        setSelectedDevices((prev) => ({ ...prev, [kind]: deviceId }));
 
-        if (kind === 'video' || kind === 'audio') {
-            if (streamRef.current) {
-                streamRef.current.getTracks().forEach(track => track.stop());
-            }
+        if (kind !== 'video' && kind !== 'audio') return;
+        streamRef.current?.getTracks().forEach((track) => track.stop());
 
-            try {
-                const newStream = await navigator.mediaDevices.getUserMedia({
-                    video: kind === 'video' ? { deviceId: { exact: deviceId } } : !isVideoOff,
-                    audio: kind === 'audio' ? { deviceId: { exact: deviceId } } : !isMuted
-                });
-                streamRef.current = newStream;
-                if (videoRef.current) videoRef.current.srcObject = newStream;
-            } catch (err) {
-                console.error("Device switch error:", err);
-            }
+        try {
+            const newStream = await navigator.mediaDevices.getUserMedia({
+                video: kind === 'video' ? { deviceId: { exact: deviceId } } : !isVideoOff,
+                audio: kind === 'audio' ? { deviceId: { exact: deviceId } } : !isMuted
+            });
+            streamRef.current = newStream;
+            if (videoRef.current) videoRef.current.srcObject = newStream;
+        } catch (err) {
+            console.error('Device switch error:', err);
         }
     };
 
     const toggleMute = async () => {
         if (isMuted) {
-            // Turning Mic ON
             try {
                 const newStream = await navigator.mediaDevices.getUserMedia({
                     audio: selectedDevices.audio ? { deviceId: { exact: selectedDevices.audio } } : true
                 });
                 const audioTrack = newStream.getAudioTracks()[0];
                 if (streamRef.current) {
-                    streamRef.current.getAudioTracks().forEach(t => { t.stop(); streamRef.current.removeTrack(t); });
+                    streamRef.current.getAudioTracks().forEach((track) => {
+                        track.stop();
+                        streamRef.current.removeTrack(track);
+                    });
                     streamRef.current.addTrack(audioTrack);
                 }
                 setIsMuted(false);
             } catch (err) {
-                console.error("Error starting audio:", err);
+                console.error('Error starting audio:', err);
             }
         } else {
-            // Turning Mic OFF
-            if (streamRef.current) {
-                streamRef.current.getAudioTracks().forEach(t => { t.stop(); });
-            }
+            streamRef.current?.getAudioTracks().forEach((track) => track.stop());
             setIsMuted(true);
         }
     };
 
     const toggleVideo = async () => {
         if (isVideoOff) {
-            // Turning Camera ON
             try {
                 const newStream = await navigator.mediaDevices.getUserMedia({
                     video: selectedDevices.video ? { deviceId: { exact: selectedDevices.video } } : true
                 });
                 const videoTrack = newStream.getVideoTracks()[0];
                 if (streamRef.current) {
-                    streamRef.current.getVideoTracks().forEach(t => { t.stop(); streamRef.current.removeTrack(t); });
+                    streamRef.current.getVideoTracks().forEach((track) => {
+                        track.stop();
+                        streamRef.current.removeTrack(track);
+                    });
                     streamRef.current.addTrack(videoTrack);
-                    // Re-assign srcObject to ensure the video element picks up the new track
                     if (videoRef.current) videoRef.current.srcObject = streamRef.current;
                 }
                 setIsVideoOff(false);
             } catch (err) {
-                console.error("Error starting video:", err);
+                console.error('Error starting video:', err);
             }
         } else {
-            // Turning Camera OFF
-            if (streamRef.current) {
-                streamRef.current.getVideoTracks().forEach(t => { t.stop(); });
-            }
+            streamRef.current?.getVideoTracks().forEach((track) => track.stop());
             setIsVideoOff(true);
         }
     };
 
     const handleCreateRoom = () => {
         if (!displayName.trim()) return;
-        onCreateMeeting({
-            displayName,
-            isMuted,
-            isVideoOff,
-            selectedDevices
-        });
+        onCreateMeeting({ displayName, isMuted, isVideoOff, selectedDevices });
     };
 
     const handleJoinRoom = () => {
         if (!displayName.trim() || !meetingId.trim()) return;
-        onJoinMeeting({
-            meetingId,
-            displayName,
-            isMuted,
-            isVideoOff,
-            selectedDevices
-        });
+        onJoinMeeting({ meetingId, displayName, isMuted, isVideoOff, selectedDevices });
     };
 
+    const runtimeLabel = runtimeConfig?.appMode === 'desktop' ? 'Desktop app' : 'Browser mode';
+    const sttLabel = runtimeConfig?.features?.nativeStt ? 'Native STT' : 'WebGPU STT';
+
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white flex flex-col font-sans selection:bg-blue-500/30 overflow-hidden relative">
-            {/* Animated Background */}
-            <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-40">
-                <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-[128px] animate-pulse-slow"></div>
-                <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-[128px] animate-pulse-slow" style={{ animationDelay: '3s' }}></div>
-            </div>
-
-            {/* Navigation */}
-            <nav className="h-16 border-b border-white/10 px-8 flex justify-between items-center glass-card-strong shrink-0 z-50 relative">
+        <div className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.22),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(124,58,237,0.18),transparent_34%),#090b12] text-white selection:bg-blue-500/30">
+            <header className="relative z-10 flex h-14 items-center justify-between border-b border-white/10 bg-slate-950/55 px-4 backdrop-blur-xl sm:px-6">
                 <div className="flex items-center gap-3">
-                    <div className="relative w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/30">
-                        <Video size={20} className="text-white" />
+                    <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 shadow-lg shadow-blue-500/20">
+                        <Video size={19} />
                     </div>
-                    <div className="flex flex-col">
-                        <span className="font-bold text-lg tracking-tight">MeetSummarizer</span>
-                        <span className="text-[9px] font-semibold text-blue-400 tracking-wider uppercase">Preview Room</span>
+                    <div>
+                        <p className="text-sm font-black tracking-tight">MeetSummarizer</p>
+                        <p className="hidden text-[9px] font-bold uppercase tracking-[0.22em] text-slate-500 sm:block">Private meeting intelligence</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-full">
-                    <ShieldCheck size={14} className="text-emerald-400" />
-                    <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Secure</span>
+                <div className="flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-[11px] font-bold text-emerald-300">
+                    <ShieldCheck size={13} /> Audio local
                 </div>
-            </nav>
+            </header>
 
-            {/* Main Content - Centered with proper padding */}
-            <main className="flex-1 flex items-center justify-center px-8 py-16 overflow-y-auto relative z-10">
-                <div className="w-full max-w-7xl mx-auto flex flex-col items-center space-y-12">
+            <main className="relative z-10 mx-auto grid h-[calc(100vh-3.5rem)] w-full max-w-7xl gap-4 overflow-hidden px-4 py-4 lg:grid-cols-[minmax(0,1fr)_390px] xl:grid-cols-[minmax(0,1.05fr)_400px]">
+                <section className="flex min-h-0 flex-col gap-3">
+                    <div className="min-h-0 flex-1 rounded-3xl border border-white/10 bg-white/[0.04] p-2 shadow-2xl shadow-black/30 backdrop-blur-xl">
+                        <div className="relative h-full min-h-[260px] max-h-[calc(100vh-11rem)] overflow-hidden rounded-[1.35rem] bg-slate-950">
+                            <video
+                                ref={videoRef}
+                                autoPlay
+                                muted
+                                playsInline
+                                className={`mirror h-full w-full object-cover transition-opacity duration-500 ${isVideoOff || permissionError ? 'opacity-0' : 'opacity-100'}`}
+                                aria-label="Camera preview"
+                            />
 
-                    {/* Video Preview - Perfectly Centered */}
-                    <div className="w-full max-w-5xl">
-                        <div className="relative bg-slate-950 rounded-[2rem] shadow-2xl overflow-hidden group border border-white/10 aspect-video w-full">
-                            <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-blue-500/20 rounded-[2rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-
-                            <div className="relative w-full h-full rounded-3xl overflow-hidden bg-gradient-to-br from-slate-900 to-slate-950">
-                                <video
-                                    ref={videoRef}
-                                    autoPlay
-                                    muted
-                                    playsInline
-                                    className={`w-full h-full object-contain mirror transition-opacity duration-500 ${isVideoOff || permissionError ? 'opacity-0' : 'opacity-100'}`}
-                                    aria-label="Camera preview"
-                                />
-
-                                {(isVideoOff || permissionError) && (
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center animate-in fade-in duration-500">
-                                        <div className="w-32 h-32 rounded-full bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-white/10 flex items-center justify-center shadow-2xl">
-                                            <User size={64} className="text-slate-600" />
-                                        </div>
-                                        {permissionError && (
-                                            <div className="mt-8 px-8 text-center max-w-md">
-                                                <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-full mb-3">
-                                                    <AlertCircle size={16} className="text-red-400" />
-                                                    <p className="text-red-400 text-xs font-bold uppercase tracking-wider">Permission Required</p>
-                                                </div>
-                                                <p className="text-slate-400 text-sm font-medium leading-relaxed">{permissionError}</p>
-                                            </div>
-                                        )}
+                            {(isVideoOff || permissionError) && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[radial-gradient(circle_at_center,rgba(30,41,59,0.95),#020617)] px-5 text-center">
+                                    <div className="mb-3 flex size-20 items-center justify-center rounded-full border border-white/10 bg-white/5 shadow-2xl">
+                                        <User size={38} className="text-slate-500" />
                                     </div>
-                                )}
-
-                                {/* Status Badges */}
-                                <div className="absolute top-6 left-6 flex gap-2">
-                                    {isMuted && (
-                                        <div className="px-4 py-2 bg-red-500/90 backdrop-blur-md text-white text-xs font-bold uppercase rounded-lg flex items-center gap-2 shadow-lg">
-                                            <MicOff size={14} /> Muted
+                                    <p className="text-sm font-bold text-slate-200">Camera preview is off</p>
+                                    {permissionError && (
+                                        <div className="mt-3 flex max-w-md gap-2 rounded-xl border border-amber-400/20 bg-amber-400/10 p-3 text-left text-xs leading-5 text-amber-100">
+                                            <AlertCircle size={15} className="mt-0.5 shrink-0 text-amber-300" />
+                                            <span>{permissionError}</span>
                                         </div>
                                     )}
-                                    {isVideoOff && !permissionError && (
-                                        <div className="px-4 py-2 bg-slate-800/90 backdrop-blur-md text-white text-xs font-bold uppercase rounded-lg flex items-center gap-2 shadow-lg">
-                                            <VideoOff size={14} /> Camera Off
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Floating Controls */}
-                                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-3">
-                                    <button
-                                        onClick={toggleMute}
-                                        aria-label={isMuted ? "Unmute microphone" : "Mute microphone"}
-                                        className={`p-4 rounded-xl transition-all shadow-xl transform hover:scale-105 active:scale-95 ${isMuted
-                                            ? 'bg-red-500 text-white'
-                                            : 'glass-card text-white hover:bg-white/20'
-                                            }`}
-                                    >
-                                        {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
-                                    </button>
-                                    <button
-                                        onClick={toggleVideo}
-                                        aria-label={isVideoOff ? "Start camera" : "Stop camera"}
-                                        className={`p-4 rounded-xl transition-all shadow-xl transform hover:scale-105 active:scale-95 ${isVideoOff
-                                            ? 'bg-red-500 text-white'
-                                            : 'glass-card text-white hover:bg-white/20'
-                                            }`}
-                                    >
-                                        {isVideoOff ? <VideoOff size={24} /> : <Video size={24} />}
-                                    </button>
-                                    <button
-                                        onClick={() => setShowSettings(!showSettings)}
-                                        aria-label="Settings"
-                                        className={`p-4 rounded-xl transition-all shadow-xl transform hover:scale-105 active:scale-95 ${showSettings
-                                            ? 'bg-blue-500 text-white'
-                                            : 'glass-card text-white hover:bg-white/20'
-                                            }`}
-                                    >
-                                        <Settings size={24} />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Device Settings - Centered */}
-                    {showSettings && (
-                        <div className="w-full max-w-5xl glass-card-strong rounded-2xl p-10 shadow-2xl border border-white/10 animate-in slide-in-from-top-4 fade-in">
-                            <div className="flex items-center gap-3 mb-8">
-                                <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-400">
-                                    <Settings size={22} />
-                                </div>
-                                <h3 className="text-2xl font-bold tracking-tight">Device Settings</h3>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                {[
-                                    { icon: Camera, label: 'Camera', type: 'video', devices: devices.video },
-                                    { icon: Mic, label: 'Microphone', type: 'audio', devices: devices.audio },
-                                    { icon: Speaker, label: 'Speakers', type: 'output', devices: devices.output }
-                                ].map((item, idx) => (
-                                    <div key={idx} className="space-y-3">
-                                        <label className="text-sm font-bold text-slate-300 uppercase tracking-wider ml-1 flex items-center gap-2">
-                                            <item.icon size={14} /> {item.label}
-                                        </label>
-                                        <div className="relative">
-                                            <select
-                                                value={selectedDevices[item.type]}
-                                                onChange={(e) => handleDeviceChange(item.type, e.target.value)}
-                                                className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-5 py-4 text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer hover:bg-slate-900/70 transition-all"
-                                                aria-label={`Select ${item.label.toLowerCase()}`}
-                                            >
-                                                {item.devices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `${item.label} ${d.deviceId.slice(0, 5)}`}</option>)}
-                                                {item.devices.length === 0 && <option>No {item.label.toLowerCase()} detected</option>}
-                                            </select>
-                                            <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* LLM Configuration */}
-                            {llmConfig && (
-                                <div className="mt-10 pt-10 border-t border-white/10 space-y-8">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center text-purple-400">
-                                            <Sparkles size={22} />
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <h3 className="text-2xl font-bold tracking-tight">AI Summary Settings</h3>
-                                            <p className="text-slate-500 text-sm font-medium italic">Configure your AI provider for meeting notes</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        <div className="space-y-3">
-                                            <label className="text-sm font-bold text-slate-300 uppercase tracking-wider ml-1 flex items-center gap-2">
-                                                Provider
-                                            </label>
-                                            <div className="relative">
-                                                <select
-                                                    value={llmConfig.provider}
-                                                    onChange={(e) => setLlmConfig(prev => ({ ...prev, provider: e.target.value }))}
-                                                    className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-5 py-4 text-sm text-slate-200 focus:outline-none focus:border-purple-500/50 appearance-none cursor-pointer hover:bg-slate-900/70 transition-all font-semibold"
-                                                >
-                                                    <option value="openai">OpenAI (GPT-4o)</option>
-                                                    <option value="anthropic">Anthropic (Claude 3.5)</option>
-                                                    <option value="deepseek">DeepSeek (V3)</option>
-                                                </select>
-                                                <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-                                            </div>
-                                        </div>
-                                        <div className="space-y-3">
-                                            <label className="text-sm font-bold text-slate-300 uppercase tracking-wider ml-1 flex items-center gap-2">
-                                                API Key
-                                            </label>
-                                            <input
-                                                type="password"
-                                                value={llmConfig.apiKey}
-                                                onChange={(e) => setLlmConfig(prev => ({ ...prev, apiKey: e.target.value }))}
-                                                placeholder="sk-..."
-                                                className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-6 py-4 text-white placeholder-slate-700 focus:outline-none focus:border-purple-500/50 transition-all font-mono"
-                                            />
-                                        </div>
-                                    </div>
-                                    <p className="text-[11px] text-slate-600 font-bold uppercase tracking-widest pl-1">
-                                        * Keys are stored locally in your browser and never touch our database.
-                                    </p>
                                 </div>
                             )}
-                        </div>
-                    )}
 
-                    {/* Join/Create Form - Perfectly Centered with Better Padding */}
-                    <div className="w-full max-w-4xl glass-card-strong rounded-3xl p-14 shadow-2xl border border-white/10 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
-                        <div className="space-y-5 relative z-10 text-center mb-12">
-                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-full text-xs font-bold uppercase tracking-wider text-slate-400">
-                                <Sparkles size={14} className="text-blue-400" />
-                                Ready to connect
-                            </div>
-                            <h1 className="text-6xl font-black tracking-tight leading-tight">
-                                Join the <span className="gradient-text">conversation</span>
-                            </h1>
-                            <p className="text-slate-400 font-medium text-lg leading-relaxed max-w-2xl mx-auto">
-                                Configure your identity and choose how to join.
-                            </p>
-                        </div>
-
-                        <div className="space-y-10 relative z-10">
-                            {/* Display Name */}
-                            <div className="space-y-4">
-                                <label htmlFor="display-name" className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center justify-center gap-2">
-                                    <User size={14} />
-                                    Your Display Name
-                                </label>
-                                <input
-                                    id="display-name"
-                                    type="text"
-                                    value={displayName}
-                                    onChange={(e) => setDisplayName(e.target.value)}
-                                    placeholder="e.g. Alex Johnson"
-                                    className="w-full bg-slate-900/50 border border-white/10 rounded-2xl px-8 py-6 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all text-xl font-semibold text-center"
-                                    aria-required="true"
-                                />
+                            <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+                                <span className="rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-[10px] font-bold text-slate-200 backdrop-blur-md">Preview</span>
+                                {isMuted && <span className="rounded-full bg-red-500 px-2.5 py-1 text-[10px] font-bold text-white">Muted</span>}
+                                {isVideoOff && <span className="rounded-full bg-slate-800 px-2.5 py-1 text-[10px] font-bold text-white">Camera off</span>}
                             </div>
 
-                            {/* Divider */}
-                            <div className="relative py-6">
-                                <div className="absolute inset-0 flex items-center">
-                                    <div className="w-full border-t border-white/10"></div>
-                                </div>
-                                <div className="relative flex justify-center">
-                                    <span className="px-6 text-sm font-bold text-slate-500 uppercase tracking-wider bg-slate-900/80 rounded-full py-2">Choose an option</span>
-                                </div>
-                            </div>
-
-                            {/* Two Column Layout for Actions */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                {/* Create Room */}
-                                <div className="space-y-5">
-                                    <div className="text-center space-y-3">
-                                        <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-500/10 rounded-2xl mb-2 border border-blue-500/20">
-                                            <Plus size={32} className="text-blue-400" />
-                                        </div>
-                                        <h3 className="text-2xl font-bold">Create Room</h3>
-                                        <p className="text-sm text-slate-400 leading-relaxed">Start a new meeting instantly</p>
-                                    </div>
-                                    <button
-                                        onClick={handleCreateRoom}
-                                        disabled={!displayName.trim()}
-                                        className="w-full relative group overflow-hidden py-6 rounded-2xl font-bold text-lg transition-all transform active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed shadow-2xl"
-                                    >
-                                        <div className={`absolute inset-0 bg-gradient-to-r from-blue-500 to-blue-600 transition-all ${!displayName.trim() ? 'opacity-40' : 'opacity-100 group-hover:from-blue-600 group-hover:to-blue-500'}`}></div>
-                                        <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-blue-600 opacity-0 group-hover:opacity-50 blur-xl transition-opacity"></div>
-                                        <span className="relative flex items-center justify-center gap-3 text-white">
-                                            <Zap size={20} className="fill-current" />
-                                            Create Meeting
-                                        </span>
-                                    </button>
-                                </div>
-
-                                {/* Join Room */}
-                                <div className="space-y-5">
-                                    <div className="text-center space-y-3">
-                                        <div className="inline-flex items-center justify-center w-16 h-16 bg-purple-500/10 rounded-2xl mb-2 border border-purple-500/20">
-                                            <LogIn size={32} className="text-purple-400" />
-                                        </div>
-                                        <h3 className="text-2xl font-bold">Join Room</h3>
-                                        <p className="text-sm text-slate-400 leading-relaxed">Enter an existing meeting ID</p>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <input
-                                            type="text"
-                                            value={meetingId}
-                                            onChange={(e) => setMeetingId(e.target.value)}
-                                            placeholder="Meeting ID (e.g. abc-123-xyz)"
-                                            className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-6 py-5 text-white placeholder-slate-600 focus:outline-none focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 transition-all text-center font-mono tracking-wider text-base"
-                                        />
-                                        <button
-                                            onClick={handleJoinRoom}
-                                            disabled={!displayName.trim() || !meetingId.trim()}
-                                            className="w-full relative group overflow-hidden py-6 rounded-2xl font-bold text-lg transition-all transform active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed shadow-2xl"
-                                        >
-                                            <div className={`absolute inset-0 bg-gradient-to-r from-purple-500 to-purple-600 transition-all ${(!displayName.trim() || !meetingId.trim()) ? 'opacity-40' : 'opacity-100 group-hover:from-purple-600 group-hover:to-purple-500'}`}></div>
-                                            <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-purple-600 opacity-0 group-hover:opacity-50 blur-xl transition-opacity"></div>
-                                            <span className="relative flex items-center justify-center gap-3 text-white">
-                                                Join Meeting
-                                                <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
-                                            </span>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Privacy Notice */}
-                            <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-7 flex gap-5 mt-10">
-                                <div className="w-14 h-14 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400 shrink-0">
-                                    <ShieldCheck size={26} />
-                                </div>
-                                <div className="space-y-2">
-                                    <p className="text-sm font-bold text-emerald-400 uppercase tracking-wider">Local Processing</p>
-                                    <p className="text-sm text-slate-400 font-medium leading-relaxed">
-                                        Your audio is transcribed on your device. Only text summaries are sent to the cloud.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="mt-8 flex items-center justify-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                <Check size={14} className="text-emerald-400" />
-                                <span>No account required • Free forever</span>
+                            <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-2 rounded-2xl border border-white/10 bg-black/40 p-1.5 backdrop-blur-xl">
+                                <button
+                                    onClick={toggleMute}
+                                    aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
+                                    className={`flex size-11 items-center justify-center rounded-xl transition hover:scale-105 active:scale-95 ${isMuted ? 'bg-red-500 text-white' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                                >
+                                    {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
+                                </button>
+                                <button
+                                    onClick={toggleVideo}
+                                    aria-label={isVideoOff ? 'Start camera' : 'Stop camera'}
+                                    className={`flex size-11 items-center justify-center rounded-xl transition hover:scale-105 active:scale-95 ${isVideoOff ? 'bg-red-500 text-white' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                                >
+                                    {isVideoOff ? <VideoOff size={20} /> : <Video size={20} />}
+                                </button>
+                                <button
+                                    onClick={() => setShowSettings(true)}
+                                    aria-label="Open device and AI settings"
+                                    className="flex size-11 items-center justify-center rounded-xl bg-white/10 text-white transition hover:scale-105 hover:bg-white/20 active:scale-95"
+                                >
+                                    <Settings size={20} />
+                                </button>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Recent Rooms Sidebar */}
-                {recentRooms.length > 0 && (
-                    <div className="fixed right-8 top-1/2 -translate-y-1/2 w-72 space-y-4 z-40 hidden xl:block">
-                        <div className="flex items-center justify-between px-2">
-                            <div className="flex items-center gap-2 text-[#0E71EB]">
-                                <History size={16} />
-                                <span className="text-[10px] font-black uppercase tracking-wider">Recent Rooms</span>
-                            </div>
+                    <div className="shrink-0 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-bold text-slate-400 backdrop-blur-xl">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                            <span className="inline-flex items-center gap-1.5"><ShieldCheck size={14} className="text-emerald-300" /> Local audio</span>
+                            <span className="inline-flex items-center gap-1.5"><Zap size={14} className="text-blue-300" /> {sttLabel}</span>
+                            <span className="inline-flex items-center gap-1.5"><MonitorCog size={14} className="text-violet-300" /> {runtimeLabel}</span>
+                        </div>
+                    </div>
+                </section>
+
+                <aside className="flex min-h-0 flex-col rounded-3xl border border-white/10 bg-slate-950/75 p-4 shadow-2xl shadow-black/30 backdrop-blur-xl">
+                    <div className="shrink-0">
+                        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1.5 text-[10px] font-bold text-blue-200">
+                            <Sparkles size={13} /> AI meeting notes
+                        </div>
+                        <h1 className="text-3xl font-black tracking-tight text-white">Join with clarity.</h1>
+                        <p className="mt-2 text-sm leading-5 text-slate-400">Live captions and action-focused summaries for every meeting.</p>
+                    </div>
+
+                    <div className="mt-4 shrink-0 space-y-3">
+                        <div className="space-y-2">
+                            <FieldLabel icon={User}>Your name</FieldLabel>
+                            <input
+                                id="display-name"
+                                type="text"
+                                value={displayName}
+                                onChange={(e) => setDisplayName(e.target.value)}
+                                placeholder="e.g. Alex Johnson"
+                                className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white placeholder:text-slate-600 focus:border-blue-400/70 focus:ring-2 focus:ring-blue-500/20"
+                                aria-required="true"
+                            />
+                        </div>
+
+                        <button
+                            onClick={handleCreateRoom}
+                            disabled={!displayName.trim()}
+                            className="group flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-blue-500 to-violet-500 px-4 py-3.5 text-left text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                            <span className="flex items-center gap-2"><Plus size={18} /> Create new meeting</span>
+                            <ArrowRight size={18} className="transition group-hover:translate-x-1" />
+                        </button>
+
+                        <div className="flex items-center gap-3 py-0.5">
+                            <div className="h-px flex-1 bg-white/10" />
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">or</span>
+                            <div className="h-px flex-1 bg-white/10" />
+                        </div>
+
+                        <div className="space-y-2">
+                            <FieldLabel icon={LogIn}>Meeting ID</FieldLabel>
+                            <input
+                                type="text"
+                                value={meetingId}
+                                onChange={(e) => setMeetingId(e.target.value)}
+                                placeholder="abc-123-xyz"
+                                className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-center font-mono text-sm tracking-wider text-white placeholder:text-slate-600 focus:border-violet-400/70 focus:ring-2 focus:ring-violet-500/20"
+                            />
                             <button
-                                onClick={onClearHistory}
-                                className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
-                                title="Clear all history"
+                                onClick={handleJoinRoom}
+                                disabled={!displayName.trim() || !meetingId.trim()}
+                                className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.1] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
                             >
-                                <Trash2 size={14} />
+                                Join meeting <ArrowRight size={16} />
                             </button>
                         </div>
 
-                        <div className="space-y-2 max-h-[400px] overflow-y-auto no-scrollbar pr-1">
-                            {recentRooms.map((id) => (
-                                <button
-                                    key={id}
-                                    onClick={() => setMeetingId(id)}
-                                    className="w-full text-left p-4 bg-white/5 border border-white/5 rounded-2xl hover:bg-[#0E71EB]/5 hover:border-[#0E71EB]/30 transition-all group relative overflow-hidden"
-                                >
-                                    <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <ArrowRight size={14} className="text-[#0E71EB]" />
-                                    </div>
-                                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Meeting ID</p>
-                                    <p className="text-xs font-mono text-slate-300 truncate">{id}</p>
-                                </button>
-                            ))}
+                        <div className="flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2.5 text-xs font-semibold text-emerald-100/80">
+                            <CheckCircle2 size={15} className="shrink-0 text-emerald-300" />
+                            <span>Audio local · summaries use {providerLabels[llmConfig?.provider] || 'selected AI'}</span>
                         </div>
                     </div>
-                )}
+
+                    <div className="mt-4 min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                                <History size={14} /> Recent
+                            </div>
+                            {recentRooms.length > 0 && (
+                                <button
+                                    onClick={onClearHistory}
+                                    className="rounded-lg p-1.5 text-slate-500 transition hover:bg-red-500/10 hover:text-red-300"
+                                    title="Clear room history"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            )}
+                        </div>
+
+                        {recentRooms.length === 0 ? (
+                            <p className="rounded-xl border border-dashed border-white/10 p-3 text-xs leading-5 text-slate-500">Recent rooms appear here.</p>
+                        ) : (
+                            <div className="space-y-1.5 overflow-hidden">
+                                {recentRooms.slice(0, 4).map((id) => (
+                                    <button
+                                        key={id}
+                                        onClick={() => setMeetingId(id)}
+                                        className="group flex w-full items-center justify-between rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-left transition hover:border-blue-400/40 hover:bg-blue-500/10"
+                                    >
+                                        <span className="truncate font-mono text-xs text-slate-300">{id}</span>
+                                        <ArrowRight size={14} className="text-slate-600 transition group-hover:translate-x-1 group-hover:text-blue-300" />
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </aside>
             </main>
 
-            <footer className="h-16 border-t border-white/10 px-8 flex items-center justify-center glass-card-strong relative z-10">
-                <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">© 2026 MeetSummarizer • Enterprise-Grade Privacy</p>
-            </footer>
+            {showSettings && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+                    <div className="max-h-[min(720px,92vh)] w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl">
+                        <div className="mb-5 flex items-center justify-between gap-4">
+                            <div>
+                                <p className="text-xl font-black tracking-tight">Setup</p>
+                                <p className="text-sm text-slate-500">Devices and AI summary provider.</p>
+                            </div>
+                            <button onClick={() => setShowSettings(false)} className="rounded-xl p-2 text-slate-400 transition hover:bg-white/10 hover:text-white">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-3">
+                            <DeviceSelect icon={Camera} label="Camera" type="video" devices={devices.video} selectedDevices={selectedDevices} onDeviceChange={handleDeviceChange} />
+                            <DeviceSelect icon={Mic} label="Microphone" type="audio" devices={devices.audio} selectedDevices={selectedDevices} onDeviceChange={handleDeviceChange} />
+                            <DeviceSelect icon={Speaker} label="Speaker" type="output" devices={devices.output} selectedDevices={selectedDevices} onDeviceChange={handleDeviceChange} />
+                        </div>
+
+                        {llmConfig && (
+                            <div className="mt-5 grid gap-4 border-t border-white/10 pt-5 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <FieldLabel icon={Sparkles}>AI provider</FieldLabel>
+                                    <div className="relative">
+                                        <select
+                                            value={llmConfig.provider}
+                                            onChange={(e) => setLlmConfig((prev) => ({ ...prev, provider: e.target.value }))}
+                                            className="w-full appearance-none rounded-xl border border-white/10 bg-slate-950/75 px-3 py-3 pr-9 text-sm font-semibold text-slate-200 focus:border-violet-400/70 focus:ring-2 focus:ring-violet-500/20"
+                                        >
+                                            <option value="openai">OpenAI (GPT-4o)</option>
+                                            <option value="anthropic">Anthropic (Claude 3.5)</option>
+                                            <option value="deepseek">DeepSeek (V3)</option>
+                                        </select>
+                                        <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <FieldLabel>API key</FieldLabel>
+                                    <input
+                                        type="password"
+                                        value={llmConfig.apiKey}
+                                        onChange={(e) => setLlmConfig((prev) => ({ ...prev, apiKey: e.target.value }))}
+                                        placeholder="Stored locally in this browser"
+                                        className="w-full rounded-xl border border-white/10 bg-slate-950/75 px-3 py-3 font-mono text-sm text-slate-200 placeholder:text-slate-600 focus:border-violet-400/70 focus:ring-2 focus:ring-violet-500/20"
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="mt-5 flex justify-end">
+                            <button onClick={() => setShowSettings(false)} className="rounded-xl bg-blue-500 px-5 py-2.5 text-sm font-black text-white transition hover:bg-blue-400">
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

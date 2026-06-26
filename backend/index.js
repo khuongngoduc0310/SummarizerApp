@@ -9,20 +9,35 @@ const Anthropic = require('@anthropic-ai/sdk');
 
 const app = express();
 const server = http.createServer(app);
+const configuredCorsOrigin = process.env.CORS_ORIGIN || "*";
+const localOriginPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+const resolveCorsOrigin = (origin, callback) => {
+  if (configuredCorsOrigin === "*") return callback(null, true);
+  if (!origin || origin === 'null' || origin === configuredCorsOrigin || localOriginPattern.test(origin)) {
+    return callback(null, true);
+  }
+  return callback(new Error(`Origin ${origin} is not allowed by CORS`));
+};
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: resolveCorsOrigin,
   }
 });
 
 const prisma = new PrismaClient();
 
-app.use(cors());
+app.use(cors({ origin: resolveCorsOrigin }));
 app.use(express.json());
 
 // Health Check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', database: 'connected' });
+app.get('/health', async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ok', database: 'connected' });
+  } catch (error) {
+    console.error('Health check failed:', error);
+    res.status(503).json({ status: 'error', database: 'disconnected', error: error.message });
+  }
 });
 
 // =====================
@@ -192,6 +207,7 @@ app.post('/meetings/:id/summary', async (req, res) => {
 
 // In-memory host tracking
 const meetingHosts = new Map(); // meetingId -> hostSocketId
+const persistedCaptionKeys = new Set(); // idempotency keys for final caption events
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
@@ -280,7 +296,26 @@ io.on('connection', (socket) => {
 
   // Real-time Captions
   socket.on('caption', async (data) => {
-    const { meetingId, speakerId, text, start, end } = data;
+    const { meetingId, speakerId, text, start, end, utteranceId, isFinal } = data;
+
+    if (isFinal === false) {
+      socket.emit('caption-rejected', { reason: 'partial-caption-not-persisted', utteranceId });
+      return;
+    }
+
+    const idempotencyKey = utteranceId
+      ? `${meetingId}:${speakerId}:${utteranceId}`
+      : null;
+
+    if (idempotencyKey && persistedCaptionKeys.has(idempotencyKey)) {
+      return;
+    }
+
+    // Reserve the key before async DB work so duplicate client emits from
+    // multiple listeners cannot race and create duplicate transcript rows.
+    if (idempotencyKey) {
+      persistedCaptionKeys.add(idempotencyKey);
+    }
     
     try {
       // 1. Ensure Transcript Metadata exists for this user in this meeting
@@ -315,13 +350,16 @@ io.on('connection', (socket) => {
       // 3. Update total duration (simplified for now)
       await prisma.transcript.update({
         where: { id: transcript.id },
-        data: { durationSec: { increment: Math.max(0, end - start) } }
+        data: { durationSec: { increment: Math.round(Math.max(0, end - start)) } }
       });
 
 
       // 4. Broadcast to the meeting room
       io.to(meetingId).emit('caption', data);
     } catch (error) {
+      if (idempotencyKey) {
+        persistedCaptionKeys.delete(idempotencyKey);
+      }
       console.error('Error saving transcript segment:', error);
     }
   });
