@@ -34,19 +34,35 @@ class NativeSttManager extends EventEmitter {
       {
         id: 'cpu',
         label: 'CPU',
-        binary: path.join(this.baseDir, 'bin', 'cpu', process.platform === 'win32' ? 'whisper-cli.exe' : 'whisper-cli')
+        acceleration: 'cpu',
+        priority: 5,
+        binary: path.join(this.baseDir, 'bin', 'cpu', process.platform === 'win32' ? 'whisper-cli.exe' : 'whisper-cli'),
+        requiredFiles: [process.platform === 'win32' ? 'whisper-cli.exe' : 'whisper-cli']
       },
       {
         id: 'vulkan',
         label: 'Vulkan GPU',
-        binary: path.join(this.baseDir, 'bin', 'vulkan', process.platform === 'win32' ? 'whisper-cli.exe' : 'whisper-cli')
+        acceleration: 'gpu',
+        priority: 10,
+        binary: path.join(this.baseDir, 'bin', 'vulkan', process.platform === 'win32' ? 'whisper-cli.exe' : 'whisper-cli'),
+        requiredFiles: process.platform === 'win32'
+          ? ['whisper-cli.exe', 'ggml-vulkan.dll']
+          : ['whisper-cli']
       }
     ];
 
-    this.backends = candidates.map((candidate) => ({
-      ...candidate,
-      available: fs.existsSync(candidate.binary)
-    }));
+    this.backends = candidates.map((candidate) => {
+      const binaryDir = path.dirname(candidate.binary);
+      const missingFiles = candidate.requiredFiles.filter((name) => !fs.existsSync(path.join(binaryDir, name)));
+      const available = missingFiles.length === 0;
+      return {
+        ...candidate,
+        available,
+        missingFiles,
+        validationStatus: available ? 'not-run' : 'missing-files',
+        validationError: available ? null : `Missing ${missingFiles.join(', ')}`
+      };
+    });
 
     const modelsDir = path.join(this.baseDir, 'models');
     this.models = fs.existsSync(modelsDir)
@@ -82,7 +98,17 @@ class NativeSttManager extends EventEmitter {
       selectedBackend: this.selectedBackend,
       selectedModel: this.selectedModel,
       fallbackReason: this.fallbackReason,
-      backends: this.backends.map(({ id, label, binary, available }) => ({ id, label, binary, available })),
+      backends: this.backends.map(({ id, label, acceleration, priority, binary, available, missingFiles, validationStatus, validationError }) => ({
+        id,
+        label,
+        acceleration,
+        priority,
+        binary,
+        available,
+        missingFiles,
+        validationStatus,
+        validationError
+      })),
       models: this.models,
       realtimeFactor: null,
       config: this.config
@@ -158,9 +184,12 @@ class NativeSttManager extends EventEmitter {
       return { ok: false, error: `STT backend is not installed: ${backendId}` };
     }
 
+    const wasRunning = this.status === 'running';
+    this.stop();
     this.selectedBackend = backendId;
     this.fallbackReason = null;
     this.status = 'detected';
+    if (wasRunning) return this.startSidecar();
     return { ok: true, status: this.getStatus() };
   }
 
@@ -174,7 +203,10 @@ class NativeSttManager extends EventEmitter {
       return { ok: false, error: `Model not found: ${resolved}` };
     }
 
+    const wasRunning = this.status === 'running';
+    this.stop();
     this.selectedModel = resolved;
+    if (wasRunning) return this.startSidecar();
     return { ok: true, status: this.getStatus() };
   }
 
@@ -220,20 +252,23 @@ class NativeSttManager extends EventEmitter {
       '--highPassCutoffHz', String(this.config.highPassCutoffHz)
     ];
 
-    this.process = spawn(nodeBinary, args, {
+    const child = spawn(nodeBinary, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true
     });
+    this.process = child;
 
-    this.process.stdout.on('data', (data) => this.handleStdout(data));
-    this.process.stderr.on('data', (data) => process.stderr.write(`[stt] ${data}`));
-    this.process.on('error', (error) => {
+    child.stdout.on('data', (data) => this.handleStdout(data));
+    child.stderr.on('data', (data) => process.stderr.write(`[stt] ${data}`));
+    child.on('error', (error) => {
+      if (this.process !== child) return;
       this.status = 'unavailable';
       this.fallbackReason = `Failed to start STT sidecar: ${error.message}`;
       this.process = null;
       this.emit('status', this.getStatus());
     });
-    this.process.on('exit', (code, signal) => {
+    child.on('exit', (code, signal) => {
+      if (this.process !== child) return;
       this.status = 'stopped';
       this.fallbackReason = `STT sidecar exited: code=${code} signal=${signal}`;
       this.process = null;
@@ -254,7 +289,7 @@ class NativeSttManager extends EventEmitter {
       try {
         const event = JSON.parse(line);
         if (event?.type === 'partial' || event?.type === 'final') {
-          this.emit('transcript', event);
+          this.emit('transcript', { backend: this.selectedBackend, ...event });
         } else if (event?.type === 'status') {
           this.emit('status', this.getStatus());
         } else if (event?.type === 'telemetry') {

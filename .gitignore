@@ -43,6 +43,8 @@ backend/prisma/*.db-journal
 
 # Local caches and native STT assets
 .cache/
+.native-build/
+benchmark-results/
 desktop/stt/bin/
 desktop/stt/models/
 desktop/stt/samples/

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "electron .",
     "start": "electron .",
-    "benchmark:whisper": "node stt/benchmark-whisper.cpp.js"
+    "benchmark:whisper": "node stt/benchmark-whisper.cpp.js",
+    "validate:vulkan": "node stt/validate-vulkan.js"
   },
   "devDependencies": {
     "electron": "^33.4.11"

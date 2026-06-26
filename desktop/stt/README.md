@@ -28,11 +28,30 @@ The `bin/`, `models/`, and `samples/` folders are intentionally not committed by
 
 ## Getting whisper.cpp
 
-Build or download `whisper.cpp` from:
+Build or download `whisper.cpp` from the official project:
 
 ```text
 https://github.com/ggml-org/whisper.cpp
 ```
+
+Official releases usually include Windows CPU/BLAS/CUDA binaries, but may not include a Windows Vulkan artifact. For Vulkan, use the local build helper:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File desktop/stt/setup-vulkan-whisper.ps1 -InstallPrereqs
+```
+
+If prerequisites are already installed, omit `-InstallPrereqs`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File desktop/stt/setup-vulkan-whisper.ps1
+```
+
+Prerequisites for Vulkan builds:
+
+- CMake
+- Visual Studio Build Tools with Desktop development with C++
+- Vulkan SDK
+- Git
 
 Recommended first binaries:
 
@@ -56,7 +75,21 @@ node desktop/stt/benchmark-whisper.cpp.js \
   --out benchmark-results/native-cpu.json
 ```
 
-## Run Vulkan benchmark
+## Validate and run Vulkan benchmark
+
+Copy a Vulkan-enabled `whisper.cpp` build into `desktop/stt/bin/vulkan/`. On Windows, keep `whisper-cli.exe` and `ggml-vulkan.dll` in the same folder. Electron will only mark Vulkan available when those files exist.
+
+Quick validation against one WAV sample:
+
+```bash
+node desktop/stt/validate-vulkan.js \
+  --binary desktop/stt/bin/vulkan/whisper-cli.exe \
+  --model desktop/stt/models/ggml-base.en.bin \
+  --sample desktop/stt/samples/clean.wav \
+  --out benchmark-results/vulkan-validation.json
+```
+
+Full Vulkan benchmark:
 
 ```bash
 node desktop/stt/benchmark-whisper.cpp.js \
@@ -76,11 +109,14 @@ desktop/stt/bin/cpu/whisper-cli.exe
 desktop/stt/models/<any .bin or .gguf model>
 ```
 
-If a Vulkan binary is also present, it is preferred:
+If a Vulkan binary and required runtime DLL are also present, Vulkan is preferred:
 
 ```text
 desktop/stt/bin/vulkan/whisper-cli.exe
+desktop/stt/bin/vulkan/ggml-vulkan.dll
 ```
+
+The Settings modal also exposes a Native Backend selector so you can switch between CPU and Vulkan at runtime.
 
 The Electron main process starts:
 

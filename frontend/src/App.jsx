@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import io from 'socket.io-client';
 import {
   Video,
@@ -104,6 +104,7 @@ function App() {
     };
   });
   const [sttStatus, setSttStatus] = useState(null);
+  const [sttMetrics, setSttMetrics] = useState([]);
 
   // Device Management
   const [devices, setDevices] = useState({ video: [], audio: [], output: [] });
@@ -127,8 +128,12 @@ function App() {
     leave
   } = useWebRTC(socket, meetingId, userDisplayName, isMuted, isVideoOff, selectedDevices.video, selectedDevices.audio);
 
+  const handleSttMetric = useCallback((metric) => {
+    setSttMetrics((prev) => [...prev.slice(-199), { id: `${Date.now()}-${Math.random()}`, ...metric }]);
+  }, []);
+
   // Initialize Audio Pipeline for transcription
-  useAudioPipeline(socket, meetingId, localStream, userId, runtimeConfig, sttConfig);
+  useAudioPipeline(socket, meetingId, localStream, userId, runtimeConfig, sttConfig, handleSttMetric);
 
   const toggleMute = () => {
     setIsMuted(prev => !prev);
@@ -304,6 +309,7 @@ function App() {
     setCaptions([]);
     setSummary(null);
     setUserId(null);
+    setSttMetrics([]);
   };
 
   const copyToClipboard = () => {
@@ -313,6 +319,40 @@ function App() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const sttBenchmarkSummary = useMemo(() => {
+    const numeric = (key) => sttMetrics
+      .map((metric) => metric[key])
+      .filter((value) => Number.isFinite(value))
+      .sort((a, b) => a - b);
+    const percentile = (values, p) => {
+      if (!values.length) return null;
+      return values[Math.min(values.length - 1, Math.floor((values.length - 1) * p))];
+    };
+    const captionEvents = sttMetrics.filter((metric) => metric.event === 'caption-result');
+    const lastCaption = captionEvents[captionEvents.length - 1];
+    const rtf = numeric('realtimeFactor');
+    const latency = numeric('captionLatencyMs');
+    const inference = numeric('inferenceTimeMs');
+    const droppedChunkCount = sttMetrics.reduce((max, metric) => Math.max(max, Number(metric.droppedChunkCount || 0)), 0);
+    const duplicateSuppressedCount = sttMetrics.reduce((max, metric) => Math.max(max, Number(metric.duplicateSuppressedCount || 0)), 0);
+    const errorCount = sttMetrics.filter((metric) => metric.event === 'error' || metric.event === 'send-failed').length;
+
+    return {
+      sampleCount: sttMetrics.length,
+      captionCount: captionEvents.length,
+      lastBackend: lastCaption?.backend || sttMetrics[sttMetrics.length - 1]?.backend || 'n/a',
+      rtfP50: percentile(rtf, 0.5),
+      rtfP95: percentile(rtf, 0.95),
+      latencyP50: percentile(latency, 0.5),
+      latencyP95: percentile(latency, 0.95),
+      inferenceP50: percentile(inference, 0.5),
+      inferenceP95: percentile(inference, 0.95),
+      droppedChunkCount,
+      duplicateSuppressedCount,
+      errorCount
+    };
+  }, [sttMetrics]);
+
   const nativeSttRunning = runtimeConfig?.features?.nativeStt && sttStatus?.status === 'running';
   const sttModeLabel = nativeSttRunning
     ? `Whisper.cpp ${sttStatus?.selectedBackend ? `(${sttStatus.selectedBackend.toUpperCase()})` : ''}`
@@ -320,6 +360,9 @@ function App() {
   const sttModeDetail = nativeSttRunning
     ? (sttStatus?.selectedModel?.split(/[\\/]/).pop() || 'Native model')
     : 'Browser fallback';
+  const formatMetric = (value, suffix = '', digits = 2) => (
+    Number.isFinite(value) ? `${value.toFixed(digits)}${suffix}` : '—'
+  );
 
   if (!runtimeConfig || !socket) {
     return (
@@ -508,6 +551,13 @@ function App() {
                     <MessageSquare size={16} />
                     Transcript
                   </button>
+                  <button
+                    onClick={() => setSidebarTab('benchmarks')}
+                    className={`flex-1 rounded-xl py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all flex items-center justify-center gap-2 ${sidebarTab === 'benchmarks' ? 'text-blue-200 bg-blue-500/15 border border-blue-400/20' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent'}`}
+                  >
+                    <Monitor size={16} />
+                    Bench
+                  </button>
                 </div>
 
                 <div className="flex-1 min-h-0 overflow-hidden p-3 sm:p-4">
@@ -541,11 +591,76 @@ function App() {
                         }
                       }}
                     />
-                  ) : (
+                  ) : sidebarTab === 'transcript' ? (
                     <CaptionPanel
                       captions={captions}
                       participantNames={participantNames}
                     />
+                  ) : (
+                    <div className="h-full overflow-y-auto no-scrollbar space-y-4">
+                      <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">STT Benchmark Monitor</p>
+                            <p className="text-sm font-bold text-white mt-1">{sttModeLabel}</p>
+                            <p className="text-[11px] text-gray-500 mt-1">{sttBenchmarkSummary.sampleCount} telemetry events · {sttBenchmarkSummary.captionCount} captions</p>
+                          </div>
+                          <button
+                            onClick={() => setSttMetrics([])}
+                            className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-black uppercase tracking-widest text-gray-400"
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          ['RTF p50', formatMetric(sttBenchmarkSummary.rtfP50, 'x')],
+                          ['RTF p95', formatMetric(sttBenchmarkSummary.rtfP95, 'x')],
+                          ['Latency p50', formatMetric(sttBenchmarkSummary.latencyP50, 'ms', 0)],
+                          ['Latency p95', formatMetric(sttBenchmarkSummary.latencyP95, 'ms', 0)],
+                          ['Infer p50', formatMetric(sttBenchmarkSummary.inferenceP50, 'ms', 0)],
+                          ['Infer p95', formatMetric(sttBenchmarkSummary.inferenceP95, 'ms', 0)],
+                          ['Dropped', sttBenchmarkSummary.droppedChunkCount],
+                          ['Errors', sttBenchmarkSummary.errorCount]
+                        ].map(([label, value]) => (
+                          <div key={label} className="p-4 rounded-2xl bg-slate-900/70 border border-white/10">
+                            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{label}</p>
+                            <p className="text-xl font-black text-white mt-1">{value}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/20">
+                        <p className="text-[10px] font-black text-purple-300 uppercase tracking-widest">Resume Metrics</p>
+                        <ul className="mt-3 space-y-2 text-xs text-purple-100/80 leading-relaxed list-disc pl-4">
+                          <li>Realtime factor p50/p95 across WebGPU and whisper.cpp.</li>
+                          <li>Caption latency p50/p95 from audio chunk to transcript.</li>
+                          <li>Dropped chunks, inference time, duplicate suppression, and fallback errors.</li>
+                        </ul>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-1">Recent Events</p>
+                        {sttMetrics.slice(-12).reverse().map((metric) => (
+                          <div key={metric.id} className="p-3 rounded-xl bg-white/[0.03] border border-white/10">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-xs font-bold text-white">{metric.event || 'metric'}</span>
+                              <span className="text-[10px] font-black uppercase text-blue-300">{metric.backend || 'n/a'}</span>
+                            </div>
+                            <p className="text-[11px] text-gray-500 mt-1">
+                              RTF {formatMetric(metric.realtimeFactor, 'x')} · Infer {formatMetric(metric.inferenceTimeMs, 'ms', 0)} · Latency {formatMetric(metric.captionLatencyMs, 'ms', 0)}
+                            </p>
+                          </div>
+                        ))}
+                        {sttMetrics.length === 0 && (
+                          <div className="p-6 rounded-2xl border border-dashed border-white/10 text-center text-xs text-gray-500 font-bold">
+                            Start speaking to collect STT benchmark events.
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -645,6 +760,40 @@ function App() {
                 </div>
                 <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${nativeSttRunning ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'}`}>
                   {nativeSttRunning ? 'Native' : 'Fallback'}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Native Backend</label>
+                <select
+                  value={sttStatus?.selectedBackend || ''}
+                  onChange={async (e) => {
+                    const backendId = e.target.value;
+                    if (!backendId || !window.desktopStt?.setBackend) return;
+                    const result = await window.desktopStt.setBackend(backendId);
+                    if (!result?.ok) {
+                      alert(result?.error || 'Failed to switch STT backend');
+                    }
+                    const status = await window.desktopStt.getStatus?.();
+                    if (status) setSttStatus(status);
+                  }}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none"
+                >
+                  {(sttStatus?.backends || []).map((backend) => (
+                    <option key={backend.id} value={backend.id} disabled={!backend.available}>
+                      {backend.label} {backend.available ? 'available' : `missing ${backend.missingFiles?.join(', ') || 'files'}`}
+                    </option>
+                  ))}
+                </select>
+                <div className="grid grid-cols-1 gap-2">
+                  {(sttStatus?.backends || []).map((backend) => (
+                    <div key={backend.id} className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] border border-white/10 px-3 py-2">
+                      <span className="text-xs font-bold text-gray-300">{backend.label}</span>
+                      <span className={`text-[10px] font-black uppercase tracking-widest ${backend.available ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {backend.available ? backend.validationStatus || 'available' : backend.validationError || 'missing'}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
 

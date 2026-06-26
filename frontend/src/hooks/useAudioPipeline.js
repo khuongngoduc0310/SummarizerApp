@@ -27,7 +27,7 @@ const recordBenchmarkEvent = (event) => {
     };
 };
 
-export const useAudioPipeline = (socket, meetingId, localStream, userId, runtimeConfig = null, sttConfig = null) => {
+export const useAudioPipeline = (socket, meetingId, localStream, userId, runtimeConfig = null, sttConfig = null, onSttMetric = null) => {
     const workerRef = useRef(null);
     const audioContextRef = useRef(null);
     const processorRef = useRef(null);
@@ -81,6 +81,21 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
                 text: payload.text,
                 metrics: event.metrics
             });
+            onSttMetric?.({
+                event: 'caption-result',
+                backend: event.backend ? `native-${event.backend}` : 'native',
+                timestamp: Date.now(),
+                inferenceTimeMs: event.metrics?.inferenceTimeMs ?? null,
+                realtimeFactor: event.metrics?.realtimeFactor ?? null,
+                audioDurationSec: event.metrics?.audioDurationSec ?? null,
+                processedAudioDurationSec: event.metrics?.processedAudioDurationSec ?? null,
+                duplicateSuppressedCount: event.metrics?.duplicateSuppressedCount ?? 0,
+                overlapPrefixTrimCount: event.metrics?.overlapPrefixTrimCount ?? 0,
+                rmsBefore: event.metrics?.rmsBefore ?? null,
+                rmsAfter: event.metrics?.rmsAfter ?? null,
+                trimmedMs: event.metrics?.trimmedMs ?? null,
+                textLength: event.text?.length ?? 0
+            });
             socket.emit('caption', payload);
         });
 
@@ -89,7 +104,7 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
         }).catch((error) => {
             console.warn('[Native STT] status failed; browser WebGPU fallback may be used', error);
         });
-    }, [meetingId, shouldIgnoreCaption, socket, useNativeStt, userId]);
+    }, [meetingId, onSttMetric, shouldIgnoreCaption, socket, useNativeStt, userId]);
 
     const sendNativeAudioSamples = useCallback((inputData) => {
         for (let i = 0; i < inputData.length; i++) {
@@ -130,9 +145,15 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
                 audio: frame
             }).catch((error) => {
                 console.warn('[Native STT] sendAudioFrame failed; future work should fallback to WebGPU', error);
+                onSttMetric?.({
+                    event: 'send-failed',
+                    backend: 'native',
+                    timestamp: Date.now(),
+                    error: error.message
+                });
             });
         }
-    }, [NATIVE_FRAME_SAMPLES, meetingId, sttConfig, userId]);
+    }, [NATIVE_FRAME_SAMPLES, meetingId, onSttMetric, sttConfig, userId]);
 
     const initializeWorker = useCallback(() => {
         if (!workerRef.current) {
@@ -178,6 +199,7 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
                         captionLatencyMs
                     };
                     recordBenchmarkEvent(benchmarkEvent);
+                    onSttMetric?.({ timestamp: Date.now(), ...benchmarkEvent });
                     console.log('[STT Baseline]', benchmarkEvent);
 
                     segments.forEach(segment => {
@@ -197,16 +219,19 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
                     if (event.data.event === 'chunk-dropped') {
                         telemetryRef.current.droppedChunkCount = event.data.droppedChunkCount;
                     }
-                    recordBenchmarkEvent({ backend: 'webgpu', ...event.data });
+                    const telemetryEvent = { backend: 'webgpu', timestamp: Date.now(), ...event.data };
+                    recordBenchmarkEvent(telemetryEvent);
+                    onSttMetric?.(telemetryEvent);
                     console.log('[STT Telemetry]', event.data);
                 } else if (type === 'progress') {
                     // Keep progress events quiet by default; telemetry events carry baseline measurements.
                 } else if (type === 'error') {
+                    onSttMetric?.({ event: 'error', backend: 'webgpu', timestamp: Date.now(), error });
                     console.error('[Whisper Error]', error);
                 }
             };
         }
-    }, [shouldIgnoreCaption, socket, userId]);
+    }, [onSttMetric, shouldIgnoreCaption, socket, userId]);
 
     const getBrowserFallbackOverlapDuration = useCallback(() => {
         const configuredOverlap = Number(sttConfig?.overlapSec);

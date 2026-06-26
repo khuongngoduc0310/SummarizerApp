@@ -385,6 +385,7 @@ async function main() {
   const binary = args.binary && path.resolve(args.binary);
   const model = args.model && path.resolve(args.model);
   const language = args.language || 'en';
+  const backend = args.backend || 'native';
   let activeConfig = validateConfig({
     windowSec: Number(args.windowSec || 4),
     overlapSec: args.overlapSec !== undefined ? Number(args.overlapSec) : undefined,
@@ -409,7 +410,7 @@ async function main() {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'meetsummarizer-stt-'));
 
   const emit = (event) => process.stdout.write(`${JSON.stringify(event)}\n`);
-  emit({ type: 'status', status: 'ready', backend: args.backend || 'native', model, binary, config: activeConfig });
+  emit({ type: 'status', status: 'ready', backend, model, binary, config: activeConfig });
 
   async function maybeInfer(session) {
     if (!session.shouldRun()) return;
@@ -425,6 +426,7 @@ async function main() {
         emit({
           type: 'telemetry',
           event: 'vad-skip',
+          backend,
           meetingId: session.meetingId,
           speakerId: session.speakerId,
           metrics: preprocessed.metrics
@@ -435,7 +437,7 @@ async function main() {
       writeWav(wavPath, preprocessed.samples, session.sampleRate);
       const result = await runWhisper({ binary, model, wavPath, language });
       if (!result.ok) {
-        emit({ type: 'error', error: result.error || result.stderr || `whisper.cpp exited ${result.code}` });
+        emit({ type: 'error', backend, error: result.error || result.stderr || `whisper.cpp exited ${result.code}` });
         return;
       }
 
@@ -447,6 +449,7 @@ async function main() {
       session.sequence += 1;
       emit({
         type: 'final',
+        backend,
         utteranceId: `${session.meetingId}-${session.speakerId}-${session.sequence}`,
         meetingId: session.meetingId,
         speakerId: session.speakerId,
@@ -457,6 +460,7 @@ async function main() {
         confidence: null,
         isFinal: true,
         metrics: {
+          backend,
           inferenceTimeMs: result.elapsedMs,
           audioDurationSec: samples.length / session.sampleRate,
           processedAudioDurationSec: preprocessed.samples.length / session.sampleRate,
@@ -481,7 +485,7 @@ async function main() {
     try {
       message = JSON.parse(line);
     } catch {
-      emit({ type: 'error', error: 'Invalid JSON message' });
+      emit({ type: 'error', backend, error: 'Invalid JSON message' });
       return;
     }
 
@@ -491,9 +495,9 @@ async function main() {
         for (const session of sessions.values()) {
           session.applyConfig(activeConfig);
         }
-        emit({ type: 'status', status: 'config-updated', config: activeConfig });
+        emit({ type: 'status', status: 'config-updated', backend, config: activeConfig });
       } catch (error) {
-        emit({ type: 'error', error: error.message });
+        emit({ type: 'error', backend, error: error.message });
       }
       return;
     }
@@ -505,7 +509,7 @@ async function main() {
       try {
         activeConfig = validateConfig(message.sttConfig, activeConfig);
       } catch (error) {
-        emit({ type: 'error', error: error.message });
+        emit({ type: 'error', backend, error: error.message });
       }
     }
 
@@ -525,7 +529,7 @@ async function main() {
     }
 
     session.push(message.audio);
-    maybeInfer(session).catch((error) => emit({ type: 'error', error: error.message }));
+    maybeInfer(session).catch((error) => emit({ type: 'error', backend, error: error.message }));
   });
 
   process.on('exit', () => {
