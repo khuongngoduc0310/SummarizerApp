@@ -4,9 +4,10 @@ const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
 
 class NativeSttManager extends EventEmitter {
-  constructor({ baseDir }) {
+  constructor({ baseDir, modelDirs = [] }) {
     super();
     this.baseDir = baseDir;
+    this.modelDirs = [path.join(baseDir, 'models'), ...modelDirs];
     this.process = null;
     this.selectedBackend = null;
     this.selectedModel = null;
@@ -64,17 +65,34 @@ class NativeSttManager extends EventEmitter {
       };
     });
 
-    const modelsDir = path.join(this.baseDir, 'models');
-    this.models = fs.existsSync(modelsDir)
-      ? fs.readdirSync(modelsDir)
+    const seenModelPaths = new Set();
+    this.models = this.modelDirs.flatMap((modelsDir) => {
+      if (!fs.existsSync(modelsDir)) return [];
+      return fs.readdirSync(modelsDir)
         .filter((name) => /\.(bin|gguf)$/i.test(name))
-        .map((name) => ({ id: name, path: path.join(modelsDir, name), available: true }))
-      : [];
+        .map((name) => {
+          const modelPath = path.join(modelsDir, name);
+          return {
+            id: name,
+            path: modelPath,
+            available: true,
+            source: path.resolve(modelsDir) === path.resolve(path.join(this.baseDir, 'models')) ? 'bundled' : 'downloaded'
+          };
+        });
+    }).filter((model) => {
+      const resolved = path.resolve(model.path);
+      if (seenModelPaths.has(resolved)) return false;
+      seenModelPaths.add(resolved);
+      return true;
+    });
 
     const preferred = this.backends.find((backend) => backend.id === 'vulkan' && backend.available)
       || this.backends.find((backend) => backend.id === 'cpu' && backend.available);
 
     this.selectedBackend = preferred?.id || null;
+    if (this.selectedModel && !fs.existsSync(this.selectedModel)) {
+      this.selectedModel = null;
+    }
     this.selectedModel = this.selectedModel || this.models[0]?.path || null;
 
     if (!preferred) {
@@ -206,8 +224,15 @@ class NativeSttManager extends EventEmitter {
     const wasRunning = this.status === 'running';
     this.stop();
     this.selectedModel = resolved;
+    this.fallbackReason = null;
+    this.status = this.selectedBackend ? 'detected' : 'unavailable';
     if (wasRunning) return this.startSidecar();
     return { ok: true, status: this.getStatus() };
+  }
+
+  refreshModels() {
+    this.detectBackends();
+    return this.getStatus();
   }
 
   startSidecar() {

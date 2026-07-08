@@ -1,126 +1,113 @@
 # MeetSummarizer
 
-MeetSummarizer is a real-time video conferencing application that can run either as a website during development or as an Electron desktop executable shell. It translates conversations into actionable insights with a privacy-first philosophy: transcription happens directly on your device using WebGPU-accelerated Whisper models, ensuring your audio remains local and secure.
+MeetSummarizer is an Electron desktop app for real-time meeting captions and AI summaries. The desktop app bundles the React UI, runs local speech-to-text, and connects to a deployed Node/Express backend for meetings, signaling, transcripts, and summaries.
 
-## Features
+## Architecture
 
-- **WebGPU-Accelerated STT**: Fast, on-device transcription using Whisper-small via Transformers.js.
-- **Multi-LLM Summarization**: Integration with OpenAI (GPT-4o), Anthropic (Claude 3.5), and DeepSeek (V3).
-- **Privacy Guaranteed**: Audio is processed locally. Only text transcripts are sent to your chosen AI provider for summarization.
-- **Responsive Video Mesh**: High-performance WebRTC video grid with dynamic pinning and aspect-ratio control.
-- **Device Management**: Hot-swap cameras, microphones, and speakers mid-meeting.
-- **Real-time Signaling**: Instant caption broadcasting and participant synchronization via Socket.io.
-- **Desktop Executable Shell**: Electron wrapper for the website UI with automatic local backend startup and runtime backend configuration.
+- `desktop/` - Electron shell, runtime configuration, native STT sidecar lifecycle.
+- `frontend/` - React renderer source. It is built into `frontend/dist` and loaded by Electron; it is not deployed as a website.
+- `backend/` - Deployable Express + Socket.io API backed by PostgreSQL/Prisma.
+- `docker-compose.yml` - Local backend/Postgres testing only.
 
-## Tech Stack
+Production flow:
 
-### Frontend
-- Framework: React
-- Styling: Tailwind CSS + Vanilla CSS
-- Transcription: @huggingface/transformers (WebGPU / Whisper)
-- Signaling/RTC: Socket.io, WebRTC
+```txt
+Electron app -> deployed backend API -> PostgreSQL
+             -> local STT sidecar / browser STT fallback
+```
 
-### Backend
-- Runtime: Node.js + Express
-- Database: PostgreSQL (Prisma ORM)
-- Real-time: Socket.io
-- Providers: OpenAI SDK & Anthropic SDK
+## Prerequisites
 
-### Desktop
-- Shell: Electron
-- Mode: local desktop wrapper for the React website
-- Runtime config: Electron preload provides backend URL/port to the renderer
-- Backend lifecycle: Electron starts the local backend automatically in desktop mode
+- Node.js 18+
+- Docker + Docker Compose for local backend testing
+- A deployed backend URL for production desktop builds
 
-## Getting Started
+## Desktop development with deployed backend
 
-### Prerequisites
+Set the deployed API URL, build the renderer, and launch Electron:
 
-- Docker & Docker Compose
-- Node.js (v18+)
-- A browser with WebGPU support (Chrome 113+, Edge 113+)
-- Electron dependencies when running desktop mode
+```bash
+# PowerShell
+$env:MEETSUMMARIZER_API_URL="https://api.yourdomain.com"
+npm install
+npm --prefix frontend install
+npm --prefix desktop install
+npm run dev
+```
 
-### Installation
+`npm run dev` builds `frontend/dist` and launches the Electron app. The renderer is not served as a standalone website.
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/khuongngoduc0310/Summarizer.git
-   cd Summarizer
-   ```
+## Local backend testing
 
-2. Setup Environment Variables:
-   Create a `.env` file in the `backend` directory:
-   ```env
-   DATABASE_URL="postgresql://postgres:password@localhost:5433/summarizer?schema=public"
-   PORT=4000
-   CORS_ORIGIN="http://localhost:5173"
-   ```
+1. Create `backend/.env`:
 
-3. Spin up the database services:
-   ```bash
-   docker compose up -d db redis
-   ```
+```env
+DATABASE_URL="postgresql://postgres:password@localhost:5433/summarizer?schema=public"
+PORT=4000
+CORS_ORIGIN="null"
+```
 
-4. Install Dependencies:
-   ```bash
-   # Backend
-   cd backend
-   npm install
-   npm run prisma:migrate
+2. Start Postgres and run migrations:
 
-   # Frontend
-   cd ../frontend
-   npm install
+```bash
+docker compose up -d db
+npm --prefix backend install
+npm --prefix backend run prisma:migrate
+```
 
-   # Desktop executable shell
-   cd ../desktop
-   npm install
-   ```
+3. Launch Electron with the local backend enabled:
 
-5. Run the website in browser mode:
-   ```bash
-   # Start Backend (from /backend)
-   npm run dev
+```bash
+npm run dev:local
+```
 
-   # Start Frontend (from /frontend)
-   npm run dev
-   ```
+For two local Electron windows sharing one backend port:
 
-6. Run the website as an Electron executable app:
-   ```bash
-   # Start Frontend dev server first
-   cd frontend
-   npm run dev
+```bash
+npm run dev:two-electron
+```
 
-   # In another terminal, launch Electron
-   cd desktop
-   npm run dev
-   ```
+## Backend deployment
 
-   In Electron mode, the desktop shell starts the backend automatically and passes the selected local backend URL to the React app at runtime.
+The backend remains a normal deployable service.
 
-### Testing
+Required environment variables:
 
-See [`TESTING.md`](./TESTING.md) for local, Docker, and manual smoke test steps.
+```env
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/summarizer?schema=public"
+PORT=4000
+CORS_ORIGIN="null"
+```
 
-## Project Structure
+Deploy migrations before starting the server:
 
-- `frontend/`: React website UI and WebGPU transcription workers.
-- `backend/`: Express server, Socket handlers, and LLM integrations.
-- `backend/prisma/`: Database schema and migrations.
-- `desktop/`: Electron executable shell, preload bridge, and local backend launcher.
+```bash
+npx prisma migrate deploy
+npm start
+```
 
+The included `backend/Dockerfile` and `docker-compose.yml` are intended for backend/local testing, not website deployment.
 
-## Sequence Diagram
+## Build desktop app
 
-![Sequence Diagram](SequenceDiagram.png)
+```bash
+npm run build:desktop
+```
 
+Packaged installers are written under:
 
-## Browser Logic
+```txt
+desktop/release/
+```
 
-![Browser Logic](Browser.png)
+Configure the production backend URL at build/runtime with:
 
-## Contributing
+```env
+MEETSUMMARIZER_API_URL=https://api.yourdomain.com
+```
 
-Contributions are welcomed. Please feel free to submit a Pull Request.
+## Notes
+
+- The React app intentionally requires Electron runtime config. Opening `frontend/dist/index.html` directly in a browser shows a desktop-launch error.
+- Audio transcription remains local where possible. Summary generation sends text transcripts to the selected LLM provider.
+- User LLM provider keys are stored locally by the desktop renderer.

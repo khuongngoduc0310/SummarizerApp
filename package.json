@@ -1,5 +1,15 @@
 {
-  "dependencies": {
+  "scripts": {
+    "dev": "npm run build:renderer && npm --prefix desktop run dev",
+    "dev:local": "node scripts/run-electron-local-backend.js",
+    "dev:two-electron": "node scripts/run-two-electron.js",
+    "desktop:1": "node scripts/run-electron-instance.js 1",
+    "desktop:2": "node scripts/run-electron-instance.js 2",
+    "build:renderer": "npm --prefix frontend run build",
+    "build:desktop": "npm run build:renderer && npm --prefix desktop run build",
+    "start": "npm run dev"
+  },
+  "devDependencies": {
     "electron": "^42.5.0"
   }
 }

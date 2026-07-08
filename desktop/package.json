@@ -6,10 +6,43 @@
   "scripts": {
     "dev": "electron .",
     "start": "electron .",
+    "build": "electron-builder",
     "benchmark:whisper": "node stt/benchmark-whisper.cpp.js",
     "validate:vulkan": "node stt/validate-vulkan.js"
   },
+  "build": {
+    "appId": "com.meetsummarizer.app",
+    "productName": "MeetSummarizer",
+    "files": [
+      "main.js",
+      "preload.js",
+      "package.json",
+      "stt/sidecar-manager.js"
+    ],
+    "extraResources": [
+      {
+        "from": "stt",
+        "to": "stt",
+        "filter": [
+          "**/*",
+          "!models/*.bin",
+          "!models/*.gguf"
+        ]
+      },
+      {
+        "from": "../frontend/dist",
+        "to": "frontend/dist"
+      }
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "signAndEditExecutable": false
+    }
+  },
   "devDependencies": {
-    "electron": "^33.4.11"
+    "electron": "^33.4.11",
+    "electron-builder": "^26.0.12"
   }
 }
