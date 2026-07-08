@@ -13,19 +13,7 @@ export const useWebRTC = (socket, meetingId, displayName, isMuted, isVideoOff, s
     const statusRef = useRef({ isMuted: isMuted, isVideoOff: isVideoOff, displayName: displayName });
     const pendingCandidates = useRef({}); // socketId -> RTCIceCandidate[]
 
-    // 1. Media Track Synchronization (Physical Hardware Toggle & Device Switch)
-    useEffect(() => {
-        const syncMedia = async () => {
-            // Initial load or device switch might happen here
-            // But we need to be careful not to re-create stream if just toggling mute
-            // Ideally, we handle "device change" separately from "mute/unmute"
-            
-            // For now, valid logic: 
-            // If current stream deviceId != selectedDeviceId, get new stream.
-        };
-    }, []); 
-
-    // Re-implementing the main effect to handle constraints
+    // Media stream effect handles physical hardware toggles and device switches.
     useEffect(() => {
         const updateStream = async () => {
             if (!meetingId) {

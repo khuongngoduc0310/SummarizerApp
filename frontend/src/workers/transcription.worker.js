@@ -142,7 +142,7 @@ async function generate({ audio, meetingId, speakerId, startTs, chunkId, chunkCr
         
         // Warmup
         console.log("[WebGPU] Warming up...");
-        const [tokenizer, processor, model] = await AutomaticSpeechRecognitionPipeline.getInstance();
+        const [, , model] = await AutomaticSpeechRecognitionPipeline.getInstance();
         // TODO: Remove this warmup
         // Dummy input features for warmup
         await model.generate({

@@ -6,46 +6,34 @@ import {
   Users,
   Copy,
   Check,
-  LogOut,
-  Settings,
   MessageSquare,
   FileText,
   PanelRightClose,
   PanelRightOpen,
-  Monitor,
-  Sparkles
+  Monitor
 } from 'lucide-react';
 
 import JoinScreen from './components/JoinScreen';
 import MeetingControls from './components/MeetingControls';
 import CaptionPanel from './components/CaptionPanel';
 import SummaryPanel from './components/SummaryPanel';
+import SettingsModal from './components/SettingsModal';
 import VideoView from './components/VideoView';
 import { useWebRTC } from './hooks/useWebRTC';
 import { useAudioPipeline } from './hooks/useAudioPipeline';
 
 
-const DEFAULT_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
-
 const getRuntimeConfig = async () => {
-  if (window.desktopConfig?.getRuntimeConfig) {
-    try {
-      const config = await window.desktopConfig.getRuntimeConfig();
-      if (config?.apiBaseUrl) return config;
-    } catch (error) {
-      console.warn('Failed to load Electron runtime config, falling back to Vite config:', error);
-    }
+  if (!window.desktopConfig?.getRuntimeConfig) {
+    throw new Error('MeetSummarizer must be launched from the desktop app.');
   }
 
-  return {
-    apiBaseUrl: DEFAULT_API_URL,
-    socketUrl: DEFAULT_API_URL,
-    appMode: 'browser-dev',
-    features: {
-      nativeStt: false,
-      browserSttFallback: true
-    }
-  };
+  const config = await window.desktopConfig.getRuntimeConfig();
+  if (!config?.apiBaseUrl) {
+    throw new Error('Desktop runtime config did not include an API URL.');
+  }
+
+  return config;
 };
 
 // Storage Utilities (LocalStorage with Expiry)
@@ -90,6 +78,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [runtimeConfig, setRuntimeConfig] = useState(null);
+  const [startupError, setStartupError] = useState(null);
   const [sttConfig, setSttConfig] = useState(() => {
     return storage.get('stt_config') || {
       windowSec: 4,
@@ -105,6 +94,8 @@ function App() {
   });
   const [sttStatus, setSttStatus] = useState(null);
   const [sttMetrics, setSttMetrics] = useState([]);
+  const [modelCatalog, setModelCatalog] = useState([]);
+  const [modelDownloadProgress, setModelDownloadProgress] = useState({});
 
   // Device Management
   const [devices, setDevices] = useState({ video: [], audio: [], output: [] });
@@ -119,6 +110,19 @@ function App() {
   const [isVideoOff, setIsVideoOff] = useState(true);
   const [recentRooms, setRecentRooms] = useState([]);
 
+  const effectiveRuntimeConfig = useMemo(() => (
+    runtimeConfig
+      ? {
+        ...runtimeConfig,
+        features: {
+          ...runtimeConfig.features,
+          nativeStt: sttStatus?.status === 'running'
+        },
+        stt: sttStatus || runtimeConfig.stt
+      }
+      : runtimeConfig
+  ), [runtimeConfig, sttStatus]);
+
   const {
     localStream,
     remoteStreams,
@@ -132,8 +136,14 @@ function App() {
     setSttMetrics((prev) => [...prev.slice(-199), { id: `${Date.now()}-${Math.random()}`, ...metric }]);
   }, []);
 
+  const refreshModelCatalog = useCallback(async () => {
+    const catalog = await window.desktopStt?.listModelCatalog?.();
+    if (catalog) setModelCatalog(catalog);
+    return catalog;
+  }, []);
+
   // Initialize Audio Pipeline for transcription
-  useAudioPipeline(socket, meetingId, localStream, userId, runtimeConfig, sttConfig, handleSttMetric);
+  useAudioPipeline(socket, meetingId, localStream, userId, effectiveRuntimeConfig, sttConfig, handleSttMetric);
 
   const toggleMute = () => {
     setIsMuted(prev => !prev);
@@ -146,9 +156,13 @@ function App() {
   useEffect(() => {
     let cancelled = false;
 
-    getRuntimeConfig().then((config) => {
-      if (!cancelled) setRuntimeConfig(config);
-    });
+    getRuntimeConfig()
+      .then((config) => {
+        if (!cancelled) setRuntimeConfig(config);
+      })
+      .catch((error) => {
+        if (!cancelled) setStartupError(error.message || 'Failed to start MeetSummarizer.');
+      });
 
     return () => {
       cancelled = true;
@@ -207,6 +221,7 @@ function App() {
       try {
         const nativeStatus = await window.desktopStt?.getStatus?.();
         if (!cancelled) setSttStatus(nativeStatus || runtimeConfig.stt || null);
+        if (!cancelled) await refreshModelCatalog();
       } catch {
         if (!cancelled) setSttStatus(runtimeConfig.stt || null);
       }
@@ -214,12 +229,24 @@ function App() {
 
     refreshSttStatus();
     const interval = setInterval(refreshSttStatus, 5000);
+    const unsubscribeStatus = window.desktopStt?.onStatus?.((status) => {
+      setSttStatus(status);
+      refreshModelCatalog().catch(() => {});
+    });
+    const unsubscribeProgress = window.desktopStt?.onModelDownloadProgress?.((progress) => {
+      setModelDownloadProgress((prev) => ({ ...prev, [progress.modelId]: progress }));
+      if (progress.state === 'done' || progress.state === 'error') {
+        refreshSttStatus();
+      }
+    });
 
     return () => {
       cancelled = true;
       clearInterval(interval);
+      unsubscribeStatus?.();
+      unsubscribeProgress?.();
     };
-  }, [runtimeConfig]);
+  }, [runtimeConfig, refreshModelCatalog]);
 
   // Poll for devices when settings are opened
   useEffect(() => {
@@ -353,7 +380,7 @@ function App() {
     };
   }, [sttMetrics]);
 
-  const nativeSttRunning = runtimeConfig?.features?.nativeStt && sttStatus?.status === 'running';
+  const nativeSttRunning = sttStatus?.status === 'running';
   const sttModeLabel = nativeSttRunning
     ? `Whisper.cpp ${sttStatus?.selectedBackend ? `(${sttStatus.selectedBackend.toUpperCase()})` : ''}`
     : 'WebGPU';
@@ -363,6 +390,49 @@ function App() {
   const formatMetric = (value, suffix = '', digits = 2) => (
     Number.isFinite(value) ? `${value.toFixed(digits)}${suffix}` : '—'
   );
+
+  const handleDownloadModel = async (modelId) => {
+    const result = await window.desktopStt?.downloadModel?.(modelId);
+    if (!result?.ok) {
+      alert(result?.error || 'Failed to download model');
+    }
+    const status = await window.desktopStt?.getStatus?.();
+    if (status) setSttStatus(status);
+    await refreshModelCatalog();
+  };
+
+  const handleUseModel = async (modelPath) => {
+    const result = await window.desktopStt?.setModel?.(modelPath);
+    if (!result?.ok) {
+      alert(result?.error || 'Failed to switch Whisper model');
+    }
+    const status = await window.desktopStt?.getStatus?.();
+    if (status) setSttStatus(status);
+    await refreshModelCatalog();
+  };
+
+  const handleDeleteModel = async (modelId) => {
+    const confirmed = window.confirm('Delete this downloaded model from this computer?');
+    if (!confirmed) return;
+    const result = await window.desktopStt?.deleteModel?.(modelId);
+    if (!result?.ok) {
+      alert(result?.error || 'Failed to delete model');
+    }
+    const status = await window.desktopStt?.getStatus?.();
+    if (status) setSttStatus(status);
+    await refreshModelCatalog();
+  };
+
+  if (startupError) {
+    return (
+      <div className="h-screen bg-[#0a0a0a] text-white flex items-center justify-center font-sans p-6">
+        <div className="max-w-md rounded-3xl border border-red-500/20 bg-red-500/10 p-6 text-center shadow-2xl shadow-red-950/30">
+          <div className="text-sm font-black uppercase tracking-widest text-red-300">Desktop launch required</div>
+          <p className="mt-3 text-sm leading-6 text-red-100/80">{startupError}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!runtimeConfig || !socket) {
     return (
@@ -382,6 +452,18 @@ function App() {
         llmConfig={llmConfig}
         setLlmConfig={setLllmConfig}
         runtimeConfig={runtimeConfig}
+        sttConfig={sttConfig}
+        setSttConfig={setSttConfig}
+        sttStatus={sttStatus}
+        setSttStatus={setSttStatus}
+        modelCatalog={modelCatalog}
+        modelDownloadProgress={modelDownloadProgress}
+        onDownloadModel={handleDownloadModel}
+        onUseModel={handleUseModel}
+        onDeleteModel={handleDeleteModel}
+        sttModeLabel={sttModeLabel}
+        sttModeDetail={sttModeDetail}
+        nativeSttRunning={nativeSttRunning}
       />
     );
   }
@@ -461,8 +543,8 @@ function App() {
           return (
             <>
               {/* Main Side: Video Feed */}
-              <main className={`flex-1 flex flex-col relative transition-all duration-300 ease-in-out min-w-0`}>
-                <div className="flex-1 flex p-3 sm:p-5 md:p-7 gap-4 md:gap-6 overflow-hidden min-h-0 pb-28">
+              <main className={`flex-1 flex flex-col relative transition-all duration-300 ease-in-out min-w-0 min-h-0 overflow-hidden`}>
+                <div className="flex-1 flex p-3 sm:p-4 md:p-5 gap-3 md:gap-5 overflow-hidden min-h-0 pb-24 sm:pb-28">
                   {!main && participants.length === 0 ? (
                     <div className="flex-1 flex items-center justify-center">
                       <div className="flex flex-col items-center space-y-4 opacity-20">
@@ -473,12 +555,12 @@ function App() {
                   ) : (
                     <>
                       {/* Main Large Stream */}
-                      <div className="flex-1 lg:flex-[3] flex items-center justify-center min-w-0">
+                      <div className="flex-1 lg:flex-[3] flex items-center justify-center min-w-0 min-h-0 overflow-hidden">
                         {main && (
                           <VideoView
                             {...main}
                             pinned={true}
-                            className="w-full h-full max-h-full lg:max-h-[80vh] object-contain"
+                            className="w-full h-full max-h-full object-contain"
                             onClick={() => setPinnedId(main.id)}
                             isMuted={main.isMuted}
                             isVideoOff={main.isVideoOff}
@@ -488,13 +570,13 @@ function App() {
 
                       {/* Sidebar Mini Streams (Desktop Only) */}
                       {miniParticipants.length > 0 && (
-                        <div className="hidden lg:flex lg:flex-col gap-4 min-w-[280px] max-w-[320px] overflow-y-auto no-scrollbar">
+                        <div className="hidden lg:flex lg:flex-col gap-3 w-[clamp(220px,22vw,320px)] shrink-0 min-h-0 max-h-full overflow-y-auto overflow-x-hidden no-scrollbar pr-1">
                           {miniParticipants.map(participant => (
                             <VideoView
                               key={participant.id}
                               {...participant}
                               pinned={false}
-                              className="w-full shadow-lg"
+                              className="w-full max-w-full shrink-0 shadow-lg"
                               onClick={() => setPinnedId(participant.id)}
                               isMuted={participant.isMuted}
                               isVideoOff={participant.isVideoOff}
@@ -679,286 +761,28 @@ function App() {
 
       {/* Settings Modal (Overlay) */}
       {showSettings && (
-        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-[#111] border border-white/10 rounded-2xl shadow-2xl p-8 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-400">
-                  <Settings size={20} />
-                </div>
-                <h2 className="text-xl font-bold">Device Settings</h2>
-              </div>
-              <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-white/5 rounded-lg text-gray-400 hover:text-white transition-colors">
-                <PanelRightClose size={20} />
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              {/* Camera */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                  <Video size={14} /> Camera
-                </label>
-                <div className="relative">
-                  <select
-                    value={selectedDevices.video}
-                    onChange={e => setSelectedDevices(prev => ({ ...prev, video: e.target.value }))}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 appearance-none"
-                  >
-                    {devices.video.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Camera ${d.deviceId.slice(0, 4)}`}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Microphone */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                  <Monitor size={14} /> Microphone
-                </label>
-                <div className="relative">
-                  <select
-                    value={selectedDevices.audio}
-                    onChange={e => setSelectedDevices(prev => ({ ...prev, audio: e.target.value }))}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 appearance-none"
-                  >
-                    {devices.audio.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Mic ${d.deviceId.slice(0, 4)}`}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Audio Output */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                  <Monitor size={14} /> Speaker
-                </label>
-                <div className="relative">
-                  <select
-                    value={selectedDevices.output}
-                    onChange={e => setSelectedDevices(prev => ({ ...prev, output: e.target.value }))}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 appearance-none"
-                  >
-                    {devices.output.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Speaker ${d.deviceId.slice(0, 4)}`}</option>)}
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* STT Configuration */}
-            <div className="pt-6 border-t border-white/5 space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-emerald-500/10 rounded-lg flex items-center justify-center text-emerald-400">
-                  <MessageSquare size={16} />
-                </div>
-                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400">Speech-to-Text Settings</h3>
-              </div>
-
-              <div className="p-4 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Active STT Engine</p>
-                  <p className="text-sm font-bold text-white mt-1">{sttModeLabel}</p>
-                  <p className="text-[11px] text-gray-500 mt-1">{sttModeDetail}</p>
-                </div>
-                <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${nativeSttRunning ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'}`}>
-                  {nativeSttRunning ? 'Native' : 'Fallback'}
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Native Backend</label>
-                <select
-                  value={sttStatus?.selectedBackend || ''}
-                  onChange={async (e) => {
-                    const backendId = e.target.value;
-                    if (!backendId || !window.desktopStt?.setBackend) return;
-                    const result = await window.desktopStt.setBackend(backendId);
-                    if (!result?.ok) {
-                      alert(result?.error || 'Failed to switch STT backend');
-                    }
-                    const status = await window.desktopStt.getStatus?.();
-                    if (status) setSttStatus(status);
-                  }}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none"
-                >
-                  {(sttStatus?.backends || []).map((backend) => (
-                    <option key={backend.id} value={backend.id} disabled={!backend.available}>
-                      {backend.label} {backend.available ? 'available' : `missing ${backend.missingFiles?.join(', ') || 'files'}`}
-                    </option>
-                  ))}
-                </select>
-                <div className="grid grid-cols-1 gap-2">
-                  {(sttStatus?.backends || []).map((backend) => (
-                    <div key={backend.id} className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] border border-white/10 px-3 py-2">
-                      <span className="text-xs font-bold text-gray-300">{backend.label}</span>
-                      <span className={`text-[10px] font-black uppercase tracking-widest ${backend.available ? 'text-emerald-400' : 'text-amber-400'}`}>
-                        {backend.available ? backend.validationStatus || 'available' : backend.validationError || 'missing'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Window</label>
-                  <select
-                    value={sttConfig.windowSec}
-                    onChange={e => setSttConfig(prev => ({
-                      ...prev,
-                      windowSec: Number(e.target.value),
-                      overlapSec: Math.min(prev.overlapSec, Number(e.target.value) - 0.5)
-                    }))}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none"
-                  >
-                    <option value={3}>3.0 sec</option>
-                    <option value={4}>4.0 sec</option>
-                    <option value={5}>5.0 sec</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Overlap</label>
-                  <select
-                    value={sttConfig.overlapSec}
-                    onChange={e => setSttConfig(prev => ({
-                      ...prev,
-                      overlapSec: Math.min(Number(e.target.value), prev.windowSec - 0.5)
-                    }))}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none"
-                  >
-                    <option value={0}>0.0 sec (none)</option>
-                    <option value={0.25}>0.25 sec</option>
-                    <option value={0.5}>0.5 sec</option>
-                    <option value={0.75}>0.75 sec</option>
-                    <option value={1}>1.0 sec</option>
-                    <option value={1.25}>1.25 sec</option>
-                    <option value={1.5}>1.5 sec</option>
-                    <option value={2}>2.0 sec</option>
-                    <option value={2.5}>2.5 sec</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Step</label>
-                  <div className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-gray-300">
-                    {Math.max(0.5, sttConfig.windowSec - sttConfig.overlapSec).toFixed(1)} sec
-                  </div>
-                </div>
-              </div>
-
-              <p className="text-[10px] text-gray-600 font-medium leading-relaxed italic">
-                Lower overlap reduces repeated captions. Higher overlap can protect words at chunk boundaries but may increase duplicate text.
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                <label className="flex items-center gap-3 text-xs font-bold text-gray-400">
-                  <input
-                    type="checkbox"
-                    checked={sttConfig.highPassFilter ?? true}
-                    onChange={e => setSttConfig(prev => ({ ...prev, highPassFilter: e.target.checked }))}
-                  />
-                  High-pass filter
-                </label>
-                <label className="flex items-center gap-3 text-xs font-bold text-gray-400">
-                  <input
-                    type="checkbox"
-                    checked={sttConfig.silenceTrim ?? true}
-                    onChange={e => setSttConfig(prev => ({ ...prev, silenceTrim: e.target.checked }))}
-                  />
-                  Trim silence
-                </label>
-                <label className="flex items-center gap-3 text-xs font-bold text-gray-400">
-                  <input
-                    type="checkbox"
-                    checked={sttConfig.normalizeAudio ?? true}
-                    onChange={e => setSttConfig(prev => ({ ...prev, normalizeAudio: e.target.checked }))}
-                  />
-                  Normalize quiet speech
-                </label>
-                <label className="flex items-center gap-3 text-xs font-bold text-gray-400">
-                  <input
-                    type="checkbox"
-                    checked={sttConfig.dcOffsetRemoval ?? true}
-                    onChange={e => setSttConfig(prev => ({ ...prev, dcOffsetRemoval: e.target.checked }))}
-                  />
-                  Remove DC offset
-                </label>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">VAD threshold</label>
-                  <select
-                    value={sttConfig.vadThreshold ?? 0.008}
-                    onChange={e => setSttConfig(prev => ({ ...prev, vadThreshold: Number(e.target.value) }))}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none"
-                  >
-                    <option value={0.004}>Low</option>
-                    <option value={0.008}>Medium</option>
-                    <option value={0.014}>High</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">High-pass cutoff</label>
-                  <select
-                    value={sttConfig.highPassCutoffHz ?? 100}
-                    onChange={e => setSttConfig(prev => ({ ...prev, highPassCutoffHz: Number(e.target.value) }))}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none"
-                  >
-                    <option value={80}>80 Hz</option>
-                    <option value={100}>100 Hz</option>
-                    <option value={120}>120 Hz</option>
-                    <option value={150}>150 Hz</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* LLM Configuration */}
-            <div className="pt-6 border-t border-white/5 space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-purple-500/10 rounded-lg flex items-center justify-center text-purple-400">
-                  <Sparkles size={16} />
-                </div>
-                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400">AI Summary Settings</h3>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">AI Provider</label>
-                  <select
-                    value={llmConfig.provider}
-                    onChange={e => setLllmConfig(prev => ({ ...prev, provider: e.target.value }))}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500/50 appearance-none"
-                  >
-                    <option value="openai">OpenAI (GPT-4o)</option>
-                    <option value="anthropic">Anthropic (Claude 3.5)</option>
-                    <option value="deepseek">DeepSeek (V3)</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">API Key</label>
-                  <input
-                    type="password"
-                    value={llmConfig.apiKey}
-                    onChange={e => setLllmConfig(prev => ({ ...prev, apiKey: e.target.value }))}
-                    placeholder="sk-..."
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-700 focus:outline-none focus:border-purple-500/50"
-                  />
-                </div>
-              </div>
-              <p className="text-[10px] text-gray-600 font-medium leading-relaxed italic">
-                * Your API key is stored locally in your browser and never saved on our servers.
-              </p>
-            </div>
-
-            <div className="pt-4 flex justify-end">
-              <button onClick={() => setShowSettings(false)} className="px-6 py-2 bg-[#0E71EB] hover:bg-blue-600 text-white text-sm font-bold rounded-xl transition-colors">
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
+        <SettingsModal
+          onClose={() => setShowSettings(false)}
+          devices={devices}
+          selectedDevices={selectedDevices}
+          onDeviceChange={(type, value) => setSelectedDevices(prev => ({ ...prev, [type]: value }))}
+          sttConfig={sttConfig}
+          setSttConfig={setSttConfig}
+          sttStatus={sttStatus}
+          setSttStatus={setSttStatus}
+          modelCatalog={modelCatalog}
+          modelDownloadProgress={modelDownloadProgress}
+          onDownloadModel={handleDownloadModel}
+          onUseModel={handleUseModel}
+          onDeleteModel={handleDeleteModel}
+          sttModeLabel={sttModeLabel}
+          sttModeDetail={sttModeDetail}
+          nativeSttRunning={nativeSttRunning}
+          llmConfig={llmConfig}
+          setLlmConfig={setLllmConfig}
+        />
       )}
+
     </div>
   );
 }

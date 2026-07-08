@@ -2,9 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
     AlertCircle,
     ArrowRight,
-    Camera,
     CheckCircle2,
-    ChevronDown,
     History,
     LogIn,
     Mic,
@@ -14,14 +12,13 @@ import {
     Settings,
     ShieldCheck,
     Sparkles,
-    Speaker,
     Trash2,
     User,
     Video,
     VideoOff,
-    X,
     Zap
 } from 'lucide-react';
+import SettingsModal from './SettingsModal';
 
 const providerLabels = {
     openai: 'OpenAI GPT-4o',
@@ -36,28 +33,6 @@ const FieldLabel = ({ icon: Icon, children }) => (
     </label>
 );
 
-const DeviceSelect = ({ icon: Icon, label, type, devices, selectedDevices, onDeviceChange }) => (
-    <div className="space-y-2">
-        <FieldLabel icon={Icon}>{label}</FieldLabel>
-        <div className="relative">
-            <select
-                value={selectedDevices[type]}
-                onChange={(e) => onDeviceChange(type, e.target.value)}
-                className="w-full appearance-none rounded-xl border border-white/10 bg-slate-950/75 px-3 py-3 pr-9 text-sm text-slate-200 transition hover:border-white/20 focus:border-blue-400/70 focus:ring-2 focus:ring-blue-500/20"
-                aria-label={`Select ${label.toLowerCase()}`}
-            >
-                {devices.map((device) => (
-                    <option key={device.deviceId} value={device.deviceId}>
-                        {device.label || `${label} ${device.deviceId.slice(0, 5)}`}
-                    </option>
-                ))}
-                {devices.length === 0 && <option>No {label.toLowerCase()} detected</option>}
-            </select>
-            <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
-        </div>
-    </div>
-);
-
 const JoinScreen = ({
     onCreateMeeting,
     onJoinMeeting,
@@ -65,7 +40,19 @@ const JoinScreen = ({
     onClearHistory,
     llmConfig,
     setLlmConfig,
-    runtimeConfig
+    runtimeConfig,
+    sttConfig,
+    setSttConfig,
+    sttStatus,
+    setSttStatus,
+    modelCatalog,
+    modelDownloadProgress,
+    onDownloadModel,
+    onUseModel,
+    onDeleteModel,
+    sttModeLabel,
+    sttModeDetail,
+    nativeSttRunning
 }) => {
     const [displayName, setDisplayName] = useState('');
     const [meetingId, setMeetingId] = useState('');
@@ -380,62 +367,28 @@ const JoinScreen = ({
             </main>
 
             {showSettings && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-                    <div className="max-h-[min(720px,92vh)] w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl">
-                        <div className="mb-5 flex items-center justify-between gap-4">
-                            <div>
-                                <p className="text-xl font-black tracking-tight">Setup</p>
-                                <p className="text-sm text-slate-500">Devices and AI summary provider.</p>
-                            </div>
-                            <button onClick={() => setShowSettings(false)} className="rounded-xl p-2 text-slate-400 transition hover:bg-white/10 hover:text-white">
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <div className="grid gap-4 md:grid-cols-3">
-                            <DeviceSelect icon={Camera} label="Camera" type="video" devices={devices.video} selectedDevices={selectedDevices} onDeviceChange={handleDeviceChange} />
-                            <DeviceSelect icon={Mic} label="Microphone" type="audio" devices={devices.audio} selectedDevices={selectedDevices} onDeviceChange={handleDeviceChange} />
-                            <DeviceSelect icon={Speaker} label="Speaker" type="output" devices={devices.output} selectedDevices={selectedDevices} onDeviceChange={handleDeviceChange} />
-                        </div>
-
-                        {llmConfig && (
-                            <div className="mt-5 grid gap-4 border-t border-white/10 pt-5 md:grid-cols-2">
-                                <div className="space-y-2">
-                                    <FieldLabel icon={Sparkles}>AI provider</FieldLabel>
-                                    <div className="relative">
-                                        <select
-                                            value={llmConfig.provider}
-                                            onChange={(e) => setLlmConfig((prev) => ({ ...prev, provider: e.target.value }))}
-                                            className="w-full appearance-none rounded-xl border border-white/10 bg-slate-950/75 px-3 py-3 pr-9 text-sm font-semibold text-slate-200 focus:border-violet-400/70 focus:ring-2 focus:ring-violet-500/20"
-                                        >
-                                            <option value="openai">OpenAI (GPT-4o)</option>
-                                            <option value="anthropic">Anthropic (Claude 3.5)</option>
-                                            <option value="deepseek">DeepSeek (V3)</option>
-                                        </select>
-                                        <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <FieldLabel>API key</FieldLabel>
-                                    <input
-                                        type="password"
-                                        value={llmConfig.apiKey}
-                                        onChange={(e) => setLlmConfig((prev) => ({ ...prev, apiKey: e.target.value }))}
-                                        placeholder="Stored locally in this browser"
-                                        className="w-full rounded-xl border border-white/10 bg-slate-950/75 px-3 py-3 font-mono text-sm text-slate-200 placeholder:text-slate-600 focus:border-violet-400/70 focus:ring-2 focus:ring-violet-500/20"
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="mt-5 flex justify-end">
-                            <button onClick={() => setShowSettings(false)} className="rounded-xl bg-blue-500 px-5 py-2.5 text-sm font-black text-white transition hover:bg-blue-400">
-                                Done
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <SettingsModal
+                    onClose={() => setShowSettings(false)}
+                    devices={devices}
+                    selectedDevices={selectedDevices}
+                    onDeviceChange={handleDeviceChange}
+                    sttConfig={sttConfig}
+                    setSttConfig={setSttConfig}
+                    sttStatus={sttStatus}
+                    setSttStatus={setSttStatus}
+                    modelCatalog={modelCatalog}
+                    modelDownloadProgress={modelDownloadProgress}
+                    onDownloadModel={onDownloadModel}
+                    onUseModel={onUseModel}
+                    onDeleteModel={onDeleteModel}
+                    sttModeLabel={sttModeLabel}
+                    sttModeDetail={sttModeDetail}
+                    nativeSttRunning={nativeSttRunning}
+                    llmConfig={llmConfig}
+                    setLlmConfig={setLlmConfig}
+                />
             )}
+
         </div>
     );
 };

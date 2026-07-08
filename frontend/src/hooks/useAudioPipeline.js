@@ -53,7 +53,7 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
         window.desktopStt?.onTranscript
     );
     
-    const startTimeRef = useRef(Date.now() / 1000);
+    const startTimeRef = useRef(null);
 
     const shouldIgnoreCaption = useCallback((text) => {
         const cleanText = text.trim();
@@ -243,6 +243,9 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
         if (samplesRef.current.length === 0 || !workerRef.current) return;
 
         const audioData = new Float32Array(samplesRef.current);
+        if (startTimeRef.current === null) {
+            startTimeRef.current = Date.now() / 1000;
+        }
         const startTs = startTimeRef.current;
         const chunkId = ++chunkSequenceRef.current;
         const chunkCreatedAt = performance.now();
