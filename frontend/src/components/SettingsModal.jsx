@@ -36,8 +36,8 @@ const SettingsModal = ({
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-[#111] border border-white/10 rounded-2xl shadow-2xl p-8 animate-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between mb-8">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-hidden bg-[#111] border border-white/10 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col">
+        <div className="flex items-center justify-between px-8 py-6 border-b border-white/5 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-400">
               <Settings size={20} />
@@ -49,6 +49,7 @@ const SettingsModal = ({
           </button>
         </div>
 
+        <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
         <div className="space-y-6">
           <div className="space-y-2">
             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
@@ -300,7 +301,9 @@ const SettingsModal = ({
           </p>
         </div>
 
-        <div className="pt-4 flex justify-end">
+        </div>
+
+        <div className="shrink-0 px-8 py-4 border-t border-white/5 bg-[#111]/95 backdrop-blur flex justify-end">
           <button onClick={onClose} className="px-6 py-2 bg-[#0E71EB] hover:bg-blue-600 text-white text-sm font-bold rounded-xl transition-colors">
             Done
           </button>
