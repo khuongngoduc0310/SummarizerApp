@@ -44,39 +44,88 @@ Meetings generate insight, but most of it vanishes the moment the call ends. Mee
 
 ## 🏗️ Architecture
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                   Electron Desktop App                   │
-│                                                         │
-│  ┌──────────────┐   IPC    ┌────────────────────────┐  │
-│  │  Main Process │◄───────►│   Renderer (React)      │  │
-│  │               │         │                         │  │
-│  │  • STT Manager│         │  • Join/Create Meeting   │  │
-│  │  • Sidecar    │         │  • WebRTC Video Grid     │  │
-│  │  • Backend    │         │  • CaptionPanel          │  │
-│  │    Lifecycle  │         │  • SummaryPanel          │  │
-│  └──────┬────────┘         │  • Settings (STT/LLM)    │  │
-│         │                  └───────────┬─────────────┘  │
-│         │ spawn                        │ fetch + ws     │
-│  ┌──────▼────────┐          ┌──────────▼─────────────┐  │
-│  │ Whisper.cpp    │          │   Express Backend       │  │
-│  │ Sidecar        │          │   (remote or local)     │  │
-│  │                │          │                         │  │
-│  │  • Audio WAV   │          │  POST /meetings         │  │
-│  │  • Inference   │          │  POST /meetings/:id/    │  │
-│  │  • Final text  │          │    summary              │  │
-│  └────────────────┘          │  Socket.io signaling    │  │
-│                              │  PostgreSQL (Prisma)    │  │
-│                              └────────────────────────┘  │
-└─────────────────────────────────────────────────────────┘
+### System Overview
+
+```mermaid
+graph TB
+    subgraph Electron["🖥️ Electron Desktop App"]
+        subgraph Main["Main Process"]
+            STTMgr["STT Manager<br/>(sidecar-manager.js)"]
+            BackendLifecycle["Backend Lifecycle"]
+        end
+
+        subgraph Renderer["Renderer (React)"]
+            JoinScreen["JoinScreen"]
+            VideoGrid["WebRTC Video Grid"]
+            CaptionPanel["CaptionPanel"]
+            SummaryPanel["SummaryPanel"]
+            Settings["Settings<br/>(STT + LLM)"]
+            StatusBar["StatusBar"]
+        end
+
+        Main <-->|"IPC (contextBridge)"| Renderer
+    end
+
+    subgraph Sidecar["🧠 Whisper.cpp Sidecar"]
+        AudioBuf["Audio Buffer<br/>(~4s windows)"]
+        Preprocess["Preprocessing<br/>(VAD, HPF, normalize)"]
+        Whisper["whisper-cli.exe<br/>(-m model.bin)"]
+        AudioBuf --> Preprocess --> Whisper
+    end
+
+    subgraph Backend["☁️ Express Backend"]
+        REST["POST /meetings<br/>POST /meetings/:id/summary"]
+        SocketIO["Socket.io<br/>(signaling + captions)"]
+        DB[("PostgreSQL<br/>(Prisma)")]
+        REST --> DB
+        SocketIO --> DB
+    end
+
+    subgraph Browser["🌐 Browser Fallback"]
+        WebGPU["WebGPU Whisper<br/>(ONNX Runtime)"]
+    end
+
+    STTMgr -->|"spawns"| Sidecar
+    STTMgr -.->|"fallback when unavailable"| Browser
+    Renderer -->|"fetch"| REST
+    Renderer <-->|"WebSocket"| SocketIO
+    Sidecar -->|"'final' transcript"| STTMgr
+    WebGPU -->|"caption segments"| Renderer
 ```
 
-**Data flow for a caption:**
-1. Microphone → AudioWorklet captures raw PCM samples
-2. Samples queued in 100ms frames → piped to native sidecar via IPC
-3. Sidecar accumulates ~4s windows → writes WAV → spawns `whisper-cli.exe`
-4. Result text emitted as `final` event → main process → renderer
-5. Renderer broadcasts caption via Socket.io to all participants
+### Caption Data Flow (Sequence)
+
+```mermaid
+sequenceDiagram
+    participant Mic as 🎤 Microphone
+    participant AW as AudioWorklet
+    participant Hook as useAudioPipeline
+    participant IPC as Electron IPC
+    participant SC as Whisper Sidecar
+    participant WCPP as whisper-cli.exe
+    participant Renderer as React Renderer
+    participant Socket as Socket.io
+    participant Remote as Remote Participants
+
+    Mic->>AW: Raw PCM (16kHz mono)
+    AW->>Hook: Float32 frames (100ms)
+    Hook->>IPC: sendAudioFrame({audio, speakerId})
+    IPC->>SC: JSON via stdin
+
+    Note over SC: Accumulates ~4s of audio
+
+    SC->>SC: Preprocess (VAD, HPF, normalize)
+    SC->>WCPP: Write WAV → spawn whisper-cli.exe -m model
+    WCPP->>SC: stdout: transcribed text
+    SC->>IPC: {type: "final", text, metrics}
+
+    IPC->>Hook: onTranscript callback
+    Hook->>Renderer: onSttMetric + socket.emit('caption')
+    Renderer->>Socket: caption event
+    Socket->>Remote: Broadcast caption
+
+    Note over Renderer: CaptionPanel + StatusBar update
+```
 
 ---
 
