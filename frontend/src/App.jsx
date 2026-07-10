@@ -18,6 +18,7 @@ import MeetingControls from './components/MeetingControls';
 import CaptionPanel from './components/CaptionPanel';
 import SummaryPanel from './components/SummaryPanel';
 import SettingsModal from './components/SettingsModal';
+import SttStatusBar from './components/SttStatusBar';
 import VideoView from './components/VideoView';
 import { useWebRTC } from './hooks/useWebRTC';
 import { useAudioPipeline } from './hooks/useAudioPipeline';
@@ -746,13 +747,11 @@ function App() {
                   )}
                 </div>
 
-                {/* Sidebar Footer */}
-                <div className="shrink-0 border-t border-white/10 bg-white/[0.03] px-4 py-3">
-                  <div className="flex items-center gap-2 text-[11px] font-bold text-emerald-200/80">
-                    <ShieldCheck size={14} className="text-emerald-300" />
-                    <span>Audio local · Text-only AI summaries</span>
-                  </div>
-                </div>
+                {/* Sidebar Footer - STT Status Bar */}
+                <SttStatusBar
+                  sttStatus={sttStatus}
+                  modelDownloadProgress={modelDownloadProgress}
+                />
               </aside>
             </>
           );

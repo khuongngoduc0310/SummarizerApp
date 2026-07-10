@@ -417,6 +417,8 @@ async function main() {
 
     session.inferenceRunning = true;
     session.lastInferenceAtSample = session.totalSamplesReceived;
+    emit({ type: 'telemetry', event: 'inference-start', backend });
+
     const { samples, start, end } = session.getWindow();
     const wavPath = path.join(tempDir, `${session.meetingId}-${session.speakerId}-${Date.now()}.wav`);
 
@@ -476,6 +478,7 @@ async function main() {
     } finally {
       try { fs.unlinkSync(wavPath); } catch {}
       session.inferenceRunning = false;
+      emit({ type: 'telemetry', event: 'inference-end', backend });
     }
   }
 

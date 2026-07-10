@@ -17,7 +17,6 @@ let runtimeConfig;
 let sttManager;
 const activeModelDownloads = new Map();
 
-const DEFAULT_REMOTE_API_URL = 'https://api.yourdomain.com';
 const LOCAL_BACKEND_ENABLED = process.env.MEETSUMMARIZER_LOCAL_BACKEND === '1';
 
 const WHISPER_MODEL_CATALOG = [
@@ -219,9 +218,20 @@ async function startLocalBackend() {
 async function initializeRuntimeConfig() {
   const nativeSttStatus = sttManager?.getStatus();
   const nativeSttAvailable = nativeSttStatus?.status === 'running';
+
+  if (!LOCAL_BACKEND_ENABLED && !process.env.MEETSUMMARIZER_API_URL) {
+    console.error(
+      'MEETSUMMARIZER_API_URL is not set.\n' +
+      'For local development, use: npm run dev:local\n' +
+      'Or set MEETSUMMARIZER_API_URL to your backend URL (e.g. http://localhost:4000)'
+    );
+    app.quit();
+    return;
+  }
+
   const apiBaseUrl = LOCAL_BACKEND_ENABLED
     ? await startLocalBackend()
-    : normalizeBaseUrl(process.env.MEETSUMMARIZER_API_URL || DEFAULT_REMOTE_API_URL);
+    : normalizeBaseUrl(process.env.MEETSUMMARIZER_API_URL);
 
   runtimeConfig = {
     apiBaseUrl,

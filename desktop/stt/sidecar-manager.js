@@ -11,10 +11,13 @@ class NativeSttManager extends EventEmitter {
     this.process = null;
     this.selectedBackend = null;
     this.selectedModel = null;
+    this.modelDisplayName = null;
     this.fallbackReason = null;
     this.backends = [];
     this.models = [];
     this.stdoutBuffer = '';
+    this.inferenceRunning = false;
+    this.lastRealtimeFactor = null;
     this.config = {
       windowSec: 4,
       overlapSec: 1,
@@ -128,7 +131,9 @@ class NativeSttManager extends EventEmitter {
         validationError
       })),
       models: this.models,
-      realtimeFactor: null,
+      realtimeFactor: this.lastRealtimeFactor,
+      inferenceRunning: this.inferenceRunning,
+      modelDisplayName: this.modelDisplayName,
       config: this.config
     };
   }
@@ -277,6 +282,8 @@ class NativeSttManager extends EventEmitter {
       '--highPassCutoffHz', String(this.config.highPassCutoffHz)
     ];
 
+    this.modelDisplayName = path.basename(this.selectedModel);
+
     const child = spawn(nodeBinary, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true
@@ -314,10 +321,20 @@ class NativeSttManager extends EventEmitter {
       try {
         const event = JSON.parse(line);
         if (event?.type === 'partial' || event?.type === 'final') {
+          if (event?.metrics?.realtimeFactor !== undefined) {
+            this.lastRealtimeFactor = event.metrics.realtimeFactor;
+          }
           this.emit('transcript', { backend: this.selectedBackend, ...event });
         } else if (event?.type === 'status') {
           this.emit('status', this.getStatus());
         } else if (event?.type === 'telemetry') {
+          if (event.event === 'inference-start') {
+            this.inferenceRunning = true;
+            this.emit('status', this.getStatus());
+          } else if (event.event === 'inference-end') {
+            this.inferenceRunning = false;
+            this.emit('status', this.getStatus());
+          }
           this.emit('telemetry', event);
         } else if (event?.type === 'error') {
           process.stderr.write(`[stt] ${event.error}\n`);
@@ -343,10 +360,15 @@ class NativeSttManager extends EventEmitter {
   }
 
   stop() {
-    if (this.process && !this.process.killed) {
-      this.process.kill();
+    if (this.process) {
+      this.process.removeAllListeners();
+      if (!this.process.killed) {
+        this.process.kill();
+      }
     }
     this.process = null;
+    this.inferenceRunning = false;
+    this.lastRealtimeFactor = null;
     this.status = this.selectedBackend ? 'detected' : 'unavailable';
     return { ok: true, status: this.getStatus() };
   }
