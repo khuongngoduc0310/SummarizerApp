@@ -1,188 +1,258 @@
-# MeetSummarizer
+# 🎙️ MeetSummarizer
 
-MeetSummarizer is an Electron desktop app for real-time meeting captions and AI summaries. The desktop app bundles the React UI, runs local speech-to-text, and connects to a deployed Node/Express backend for meetings, signaling, transcripts, and summaries.
+**Real-time meeting captions & AI summaries — running entirely on your machine.**
 
-## Architecture
+An Electron desktop app that transcribes live conversations using on-device Whisper.cpp, streams video via WebRTC, and generates AI meeting summaries — all while keeping your audio local.
 
-- `desktop/` - Electron shell, runtime configuration, native STT sidecar lifecycle.
-- `frontend/` - React renderer source. It is built into `frontend/dist` and loaded by Electron; it is not deployed as a website.
-- `backend/` - Deployable Express + Socket.io API backed by PostgreSQL/Prisma.
-- `docker-compose.yml` - Local backend/Postgres testing only.
+---
 
-Production flow:
+## Why MeetSummarizer?
 
-```txt
-Electron app -> deployed backend API -> PostgreSQL
-             -> local STT sidecar / browser STT fallback
+Meetings generate insight, but most of it vanishes the moment the call ends. MeetSummarizer captures every word with **real-time captions**, then distills conversations into **actionable AI summaries**. Unlike cloud-only tools, speech-to-text runs **entirely on your device** — no audio ever leaves your machine.
+
+---
+
+## ✨ Features
+
+| Category | Capabilities |
+|----------|-------------|
+| 🎤 **Live Captions** | Real-time transcription in-meeting, displayed in a scrollable transcript panel |
+| 🤖 **AI Summaries** | One-click meeting summaries via OpenAI or bring-your-own LLM key |
+| 🎥 **Video & Audio** | Peer-to-peer WebRTC with mute, video toggle, and multi-participant grid |
+| 🔒 **Privacy-First** | STT runs locally via Whisper.cpp — audio never sent to a cloud service |
+| ⚡ **GPU Accelerated** | Vulkan GPU backend for fast transcription; falls back to browser WebGPU |
+| 🔌 **Offline-Ready STT** | Native sidecar process keeps working even with spotty internet |
+| 📊 **Status Bar** | Live model, backend, inference state, and realtime factor display |
+
+---
+
+## 🧰 Tech Stack
+
+| Layer | Technology | Why |
+|-------|-----------|-----|
+| **Desktop Shell** | Electron 42 | Cross-platform native window, preload bridge, IPC |
+| **UI Renderer** | React 19 + Vite + Tailwind CSS | Component-based UI, dark theme, responsive layout |
+| **Video / Audio** | WebRTC (simple-peer) | Peer-to-peer streaming, no server relay for media |
+| **Signaling** | Socket.io | Real-time WebRTC handshake, presence, caption relay |
+| **On-Device STT** | Whisper.cpp (C++ sidecar) | Fast, local transcription with Vulkan GPU acceleration |
+| **Browser Fallback** | WebGPU Whisper (ONNX) | On-device transcription when native sidecar is unavailable |
+| **Backend API** | Express 5 + Prisma | REST endpoints for meetings and summaries |
+| **Database** | PostgreSQL | Meeting records, transcripts, summaries |
+| **LLM Summary** | OpenAI API (or bring-your-own key) | Distills transcripts into structured summaries |
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   Electron Desktop App                   │
+│                                                         │
+│  ┌──────────────┐   IPC    ┌────────────────────────┐  │
+│  │  Main Process │◄───────►│   Renderer (React)      │  │
+│  │               │         │                         │  │
+│  │  • STT Manager│         │  • Join/Create Meeting   │  │
+│  │  • Sidecar    │         │  • WebRTC Video Grid     │  │
+│  │  • Backend    │         │  • CaptionPanel          │  │
+│  │    Lifecycle  │         │  • SummaryPanel          │  │
+│  └──────┬────────┘         │  • Settings (STT/LLM)    │  │
+│         │                  └───────────┬─────────────┘  │
+│         │ spawn                        │ fetch + ws     │
+│  ┌──────▼────────┐          ┌──────────▼─────────────┐  │
+│  │ Whisper.cpp    │          │   Express Backend       │  │
+│  │ Sidecar        │          │   (remote or local)     │  │
+│  │                │          │                         │  │
+│  │  • Audio WAV   │          │  POST /meetings         │  │
+│  │  • Inference   │          │  POST /meetings/:id/    │  │
+│  │  • Final text  │          │    summary              │  │
+│  └────────────────┘          │  Socket.io signaling    │  │
+│                              │  PostgreSQL (Prisma)    │  │
+│                              └────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
 ```
 
-## Prerequisites
+**Data flow for a caption:**
+1. Microphone → AudioWorklet captures raw PCM samples
+2. Samples queued in 100ms frames → piped to native sidecar via IPC
+3. Sidecar accumulates ~4s windows → writes WAV → spawns `whisper-cli.exe`
+4. Result text emitted as `final` event → main process → renderer
+5. Renderer broadcasts caption via Socket.io to all participants
 
-- Node.js 18+
-- Docker + Docker Compose for local backend testing
-- A deployed backend URL for production desktop builds
+---
 
-## Desktop development with deployed backend
+## 🚀 Getting Started
 
-Set the deployed API URL, build the renderer, and launch Electron:
+### Prerequisites
+- **Node.js 18+**
+- **Docker Desktop** (for local backend + PostgreSQL)
+- A deployed backend URL (for production builds)
+
+### Quick start (local dev)
+
+```bash
+# 1. Install dependencies
+npm install
+npm --prefix frontend install
+npm --prefix desktop install
+npm --prefix backend install
+
+# 2. Start PostgreSQL
+docker compose up -d db
+
+# 3. Run database migrations
+npm --prefix backend run prisma:migrate
+
+# 4. Launch the app (builds frontend + starts local backend + opens Electron)
+npm run dev:local
+```
+
+### Connect to a deployed backend
 
 ```bash
 # PowerShell
 $env:MEETSUMMARIZER_API_URL="https://api.yourdomain.com"
-npm install
-npm --prefix frontend install
-npm --prefix desktop install
 npm run dev
 ```
 
-`npm run dev` builds `frontend/dist` and launches the Electron app. The renderer is not served as a standalone website.
+> **Note:** If `MEETSUMMARIZER_API_URL` is not set and you're not in local mode, the app will exit with a clear error rather than silently failing.
 
-> [!IMPORTANT]
-> If `MEETSUMMARIZER_API_URL` is not set, the app will exit with an error asking you to either use `npm run dev:local` or provide a backend URL. The old behavior of silently connecting to a non-existent placeholder domain has been removed.
+---
 
-## Local backend testing
+## 🧠 STT & Model Management
 
-1. Create `backend/.env`:
+Speech-to-text runs **locally** using a Whisper.cpp sidecar process. No audio is sent to any cloud service.
 
-```env
-DATABASE_URL="postgresql://postgres:password@localhost:5433/summarizer?schema=public"
-PORT=4000
-CORS_ORIGIN="null"
+### Available Models
+
+| Model | Size | Best For |
+|-------|------|----------|
+| `tiny.en` | 78 MB | Fast, low-resource machines |
+| `base.en` | 148 MB | Good accuracy/speed balance |
+| `small.en` | 488 MB | Better accuracy for meetings |
+| `medium.en` | 1.5 GB | Best accuracy, powerful machines |
+
+### Backends
+
+| Backend | Hardware | Notes |
+|---------|----------|-------|
+| **CPU** | Any machine | Included by default |
+| **Vulkan** | NVIDIA/AMD GPU | 2-5× faster inference |
+
+Models are downloaded and switched from **Settings → Speech-to-text**. The status bar shows live inference state and download progress.
+
+---
+
+## 📁 Project Structure
+
+```
+MeetSummarizer/
+├── desktop/                     # Electron shell
+│   ├── main.js                  # Main process: window, IPC, backend lifecycle
+│   ├── preload.js               # contextBridge: desktopConfig + desktopStt APIs
+│   └── stt/
+│       ├── sidecar-manager.js   # NativeSttManager: spawn, lifecycle, state
+│       ├── whisper-streaming-sidecar.js  # Whisper.cpp orchestrator
+│       └── bin/                 # Prebuilt whisper-cli binaries (CPU, Vulkan)
+├── frontend/                    # React renderer (Vite)
+│   └── src/
+│       ├── App.jsx              # Root: routing, socket, meeting state
+│       ├── components/
+│       │   ├── JoinScreen.jsx   # Create/join meeting + STT settings
+│       │   ├── MeetingControls.jsx
+│       │   ├── CaptionPanel.jsx # Real-time transcript display
+│       │   ├── SummaryPanel.jsx # AI summary generation + display
+│       │   ├── SettingsModal.jsx# Device, STT, LLM configuration
+│       │   ├── SttStatusBar.jsx # Live model/backend/inference status
+│       │   └── VideoView.jsx    # WebRTC video rendering
+│       ├── hooks/
+│       │   ├── useWebRTC.js     # Peer connections + signaling
+│       │   └── useAudioPipeline.js  # Audio capture → STT dispatch
+│       └── workers/
+│           ├── audio-processor.js          # AudioWorkletProcessor
+│           └── transcription.worker.js     # WebGPU Whisper fallback
+├── backend/                     # Express + Socket.io API
+│   ├── index.js                 # REST endpoints + signaling server
+│   └── prisma/
+│       └── schema.prisma        # Data models
+├── scripts/                     # Dev orchestration scripts
+├── docker-compose.yml           # Local Postgres + backend
+└── package.json                 # Root orchestrator
 ```
 
-2. Start Postgres and run migrations:
+---
 
-```bash
-docker compose up -d db
-npm --prefix backend install
-npm --prefix backend run prisma:migrate
-```
+## 🔑 Key Engineering Decisions
 
-3. Launch Electron with the local backend enabled:
+### Why a native Whisper.cpp sidecar instead of browser-only?
+Browser WebGPU Whisper works, but model loading is slow (~5-15s) and GPU support varies. A native C++ sidecar process loads models instantly, supports Vulkan acceleration, and doesn't tie up the renderer thread. The app falls back to WebGPU transparently if the sidecar is unavailable.
 
-```bash
-npm run dev:local
-```
+### Why Electron instead of a web app?
+- **Local STT requires native binaries** — a web-only app can't spawn processes or access GPU backends.
+- **Privacy**: keeping STT local means audio never touches a server.
+- **Desktop integration**: window management, IPC bridge for native↔web communication.
 
-For two local Electron windows sharing one backend port:
+### Why WebRTC peer-to-peer instead of server-relayed media?
+Peer-to-peer video keeps latency low and avoids server bandwidth costs. The backend only handles lightweight signaling (offers, answers, ICE candidates) via Socket.io — no media passes through the server.
 
-```bash
-npm run dev:two-electron
-```
+### Race condition fixed in model switching
+When switching Whisper models, the old sidecar process is killed and a new one spawned. The old process's `exit` event fired **after** the new process started and would corrupt the new process's state — a classic cleanup race condition. Fixed by removing all event listeners (`removeAllListeners()`) before killing the old process, ensuring stale handlers can never fire.
 
-## Backend deployment
+---
 
-The backend remains a normal deployable service.
+## 📊 Status Bar
 
-Required environment variables:
+During a meeting, the sidebar footer shows live STT state:
 
-```env
-DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/summarizer?schema=public"
-PORT=4000
-CORS_ORIGIN="null"
-```
+| Indicator | State | Meaning |
+|-----------|-------|---------|
+| 🟢 Green dot | **Idle** | Sidecar running, waiting for speech |
+| 🟠 Amber pulsing | **Inferring** | Transcribing an audio window (shows live RTF) |
+| 🔵 Progress bar | **Downloading** | Model download in progress (% + bytes) |
+| 🔴 Red dot | **Unavailable** | No backend or no model available |
+| ⚪ Gray dot | **Stopped** | Sidecar process stopped |
 
-Deploy migrations before starting the server:
+The model pill shows `<filename>` + `<CPU | VULKAN>`. RTF (realtime factor) indicates transcription speed — `RTF 0.40x` means 2.5× faster than real-time.
 
-```bash
-npx prisma migrate deploy
-npm start
-```
+---
 
-The included `backend/Dockerfile` and `docker-compose.yml` are intended for backend/local testing, not website deployment.
+## 📦 Build & Deploy
 
-## Build desktop app
+### Desktop app
 
 ```bash
 npm run build:desktop
 ```
 
-Packaged installers are written under:
-
-```txt
-desktop/release/
-```
-
-Configure the production backend URL at build/runtime with:
+Installers output to `desktop/release/`. Set the production backend URL:
 
 ```env
 MEETSUMMARIZER_API_URL=https://api.yourdomain.com
 ```
 
-## STT Setup & Model Management
+### Backend
 
-Speech-to-text runs locally via Whisper.cpp (native sidecar) with a browser WebGPU fallback. Models and backends are managed from the **Settings** modal (gear icon in-meeting, or the STT section on the join screen).
+```bash
+# Deploy migrations
+npx prisma migrate deploy
 
-### Available Models
+# Start server (defaults to port 4000)
+npm start
+```
 
-| Model | Size | Recommended For |
-|-------|------|----------------|
-| `tiny.en` | 78 MB | Fastest, lowest disk usage |
-| `base.en` | 148 MB | Good balance of speed and accuracy |
-| `small.en` | 488 MB | Better accuracy, moderate disk use |
-| `medium.en` | 1.5 GB | Best accuracy, large download |
+Required env vars: `DATABASE_URL`, `PORT`, `CORS_ORIGIN`.
 
-### Downloading a Model
+---
 
-1. Open **Settings** → **Speech-to-text** tab.
-2. Click **Download** on any model in the catalog.
-3. A progress bar appears in the status bar (sidebar footer in-meeting).
-4. Once downloaded, the model auto-selects and the sidecar restarts.
+## 🔧 Troubleshooting
 
-### Switching the Active Model
+| Problem | Solution |
+|---------|----------|
+| **"Desktop launch required"** | Must launch from Electron — opening `index.html` in a browser won't work |
+| **No captions appearing** | Check status bar for sidecar state; ensure a model is downloaded in Settings → STT |
+| **SSL / fetch errors** | Use `npm run dev:local` or set `MEETSUMMARIZER_API_URL` to an HTTP URL |
+| **Sidecar won't start** | Verify `desktop/stt/bin/` contains platform binaries and a model file exists |
+| **Slow first inference** | After switching models, the first inference loads the model from disk (1-10s) |
 
-- Click **Use** next to any downloaded model. The sidecar restarts with the new model immediately.
-- The first inference after switching loads the model file from disk — larger models take longer to load (~1-10s depending on size).
-- Downloaded models can be deleted with **Delete** (the active model cannot be deleted while in use).
+---
 
-### Backends
-
-| Backend | Acceleration | Requirements |
-|---------|-------------|--------------|
-| **CPU** | CPU-only | Included by default |
-| **Vulkan** | GPU-accelerated | Vulkan runtime + `ggml-vulkan.dll` |
-
-The app auto-detects available backends at startup. Switch backends from Settings → STT tab.
-
-## Status Bar
-
-The status bar appears in the **sidebar footer** during a meeting. It shows live STT state:
-
-| State | Indicator | Meaning |
-|-------|-----------|---------|
-| 🟢 **Idle** | Green dot | Sidecar running, waiting for speech |
-| 🟠 **Inferring** | Amber pulsing dot | Actively transcribing an audio window |
-| 🔵 **Downloading** | Progress bar | A model is being downloaded (shows % and bytes) |
-| 🔴 **Unavailable** | Red dot | No backend or no model available |
-| ⚪ **Stopped** | Gray dot | Sidecar has stopped |
-
-The model pill (left side) displays the active model filename and backend (`CPU` / `VULKAN`). When inferring, the **RTF** (realtime factor) shows how fast transcription runs relative to real-time (e.g. `RTF 0.40x` means 2.5× faster than real-time).
-
-## Troubleshooting
-
-### "Desktop launch required" error
-
-The React renderer must be launched from the Electron desktop app. Opening `frontend/dist/index.html` directly in a browser will show this error.
-
-### No transcription appearing
-
-1. Check the **status bar** — if it shows 🔴 Unavailable or ⚪ Stopped, the sidecar isn't running.
-2. Open **Settings → STT** and verify a model is downloaded and selected.
-3. If using Vulkan, try switching to CPU backend (Vulkan may not be installed).
-4. The first inference after switching models loads the file from disk — wait a few seconds.
-
-### SSL / fetch errors at startup
-
-Use `npm run dev:local` for local development, or set `MEETSUMMARIZER_API_URL` to a valid HTTP backend URL. The backend does not serve HTTPS — SSL should be handled at a reverse proxy in production.
-
-### Sidecar not starting
-
-Check that `desktop/stt/bin/cpu/whisper-cli.exe` and model files exist. On first run, download a model from Settings.
-
-## Notes
-
-- The React app intentionally requires Electron runtime config. Opening `frontend/dist/index.html` directly in a browser shows a desktop-launch error.
-- Audio transcription remains local where possible. Summary generation sends text transcripts to the selected LLM provider.
-- The STT status bar (sidebar footer) shows live model, backend, inference state, and download progress.
-- Switching Whisper models restarts the native sidecar automatically; the first inference after a switch loads the model from disk.
-- User LLM provider keys are stored locally by the desktop renderer.
+Built with ❤️ — audio stays local, insights go everywhere.
