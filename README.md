@@ -127,6 +127,57 @@ sequenceDiagram
     Note over Renderer: CaptionPanel + StatusBar update
 ```
 
+### Caption → Summary Pipeline
+
+Every caption segment is persisted to PostgreSQL as it arrives, creating a growing transcript that can be summarized at any time — no re-transcription needed.
+
+```mermaid
+graph LR
+    subgraph Capture["🎤 Real-time Capture"]
+        Mic["Microphone"] --> AW["AudioWorklet<br/>(16kHz PCM)"]
+        AW --> Route{"STT Backend?"}
+        Route -->|"Native"| Sidecar["Whisper.cpp<br/>Sidecar"]
+        Route -->|"Fallback"| WebGPU["WebGPU<br/>Whisper ONNX"]
+        Sidecar --> CaptionEvent["socket.emit('caption')"]
+        WebGPU --> CaptionEvent
+    end
+
+    subgraph Backend["☁️ Express Backend"]
+        CaptionEvent --> SocketHandler["Socket.io<br/>'caption' handler"]
+        SocketHandler --> Idempotency{"Duplicate?"}
+        Idempotency -->|"new"| FindTranscript["Find or create<br/>Transcript record"]
+        FindTranscript --> SaveSegment["INSERT<br/>TranscriptSegment<br/>(text, start, end)"]
+        SaveSegment --> Broadcast["Broadcast to room"]
+        Idempotency -->|"duplicate"| Skip["Skip"]
+    end
+
+    subgraph Storage["🗄️ PostgreSQL"]
+        SaveSegment -.-> DB[("Transcript<br/>+<br/>TranscriptSegment")]
+    end
+
+    subgraph Summary["🤖 Summary Generation"]
+        UserClick["User clicks<br/>'Generate Summary'"]
+        UserClick --> PostReq["POST /meetings/:id/summary<br/>{userId, llmConfig}"]
+        PostReq --> FetchSegments["Fetch all TranscriptSegments<br/>ORDER BY start ASC"]
+        DB -.-> FetchSegments
+        FetchSegments --> Concat["Concat with speaker labels<br/>'[Name]: text'"]
+        Concat --> LLM{"LLM Provider?"}
+        LLM -->|"OpenAI"| GPT["GPT-4o"]
+        LLM -->|"Anthropic"| Claude["Claude 3.5 Sonnet"]
+        LLM -->|"DeepSeek"| DS["DeepSeek V3"]
+        GPT --> Parse["Parse JSON response<br/>{executive, actions, questions, raw}"]
+        Claude --> Parse
+        DS --> Parse
+        Parse --> SaveSummary["INSERT Summary record"]
+        SaveSummary --> ReturnSummary["Return to frontend"]
+        DB -.-> SaveSummary
+    end
+
+    ReturnSummary --> Display["SummaryPanel<br/>renders result"]
+```
+
+**Key design point:** Transcripts are append-only and immutable — summaries read directly from stored segments. This means you can regenerate summaries at any point (e.g., mid-meeting, after switching LLM providers) without re-transcribing audio.
+
 ---
 
 ## 🚀 Getting Started
