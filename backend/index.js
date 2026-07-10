@@ -6,6 +6,7 @@ const { PrismaClient } = require('@prisma/client');
 require('dotenv').config();
 const OpenAI = require('openai');
 const Anthropic = require('@anthropic-ai/sdk');
+const { truncateSegments } = require('./tokenEstimator');
 
 const app = express();
 const server = http.createServer(app);
@@ -95,19 +96,46 @@ app.get('/meetings/:id', async (req, res) => {
 app.post('/meetings/:id/summary', async (req, res) => {
   const { id: meetingId } = req.params;
   const { userId, llmConfig } = req.body;
+  const { minutes } = req.query; // optional rolling summary: ?minutes=15
 
   if (!llmConfig || !llmConfig.apiKey) {
     return res.status(400).json({ error: 'LLM API Key is required for summarization.' });
   }
 
   try {
-    // 1. Fetch all transcript segments for this meeting
+    // 1. Fetch the meeting to get sessionStartedAt
+    const meeting = await prisma.meeting.findUnique({ where: { id: meetingId } });
+    if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
+
+    const sessionStart = meeting.sessionStartedAt || meeting.startedAt;
+
+    // 2. Build where clause: only current session + optional time range
+    const whereClause = {
+      transcript: { meetingId: meetingId },
+      createdAt: { gte: sessionStart }
+    };
+
+    let summaryType = 'full';
+    let timeRangeStart = null;
+    let timeRangeEnd = null;
+
+    if (minutes) {
+      const mins = parseInt(minutes, 10);
+      if (!isNaN(mins) && mins > 0) {
+        const cutoff = new Date(Date.now() - mins * 60 * 1000);
+        // Use the later of sessionStart or the rolling cutoff
+        whereClause.createdAt = {
+          gte: sessionStart > cutoff ? sessionStart : cutoff
+        };
+        summaryType = 'rolling';
+        timeRangeStart = (cutoff.getTime() - (meeting.startedAt?.getTime() || 0)) / 1000;
+        timeRangeEnd = (Date.now() - (meeting.startedAt?.getTime() || 0)) / 1000;
+      }
+    }
+
+    // 3. Fetch transcript segments for this session
     const segments = await prisma.transcriptSegment.findMany({
-      where: {
-        transcript: {
-          meetingId: meetingId
-        }
-      },
+      where: whereClause,
       include: {
         transcript: {
           include: {
@@ -115,88 +143,127 @@ app.post('/meetings/:id/summary', async (req, res) => {
           }
         }
       },
-      orderBy: {
-        start: 'asc'
-      }
+      orderBy: { start: 'asc' }
     });
 
     if (segments.length === 0) {
-      return res.status(400).json({ error: 'No transcript segments found to summarize.' });
+      return res.status(400).json({ error: 'No transcript segments found to summarize in this session.' });
     }
 
-    // 2. Combine segments into a full transcript text with speaker names
-    const fullTranscript = segments
-      .map(s => `[${s.transcript.owner.displayName}]: ${s.text}`)
-      .join('\n');
-    console.log(fullTranscript);
-    const prompt = `
-      Please summarize the following meeting transcript. 
-      Focus on key discussed topics, decisions made, and follow-up action items.
-      Format the response as a JSON object with these keys:
-      - executive: A brief paragraph of the meeting's essence.
-      - actions: An array of strings representing specific tasks to be done.
-      - questions: A string listing any unresolved questions or pending points.
-      - raw: The full detailed markdown summary.
+    // 4. Build transcript with token-aware truncation
+    const { transcript: fullTranscript, droppedCount } = truncateSegments(segments);
 
-      TRANSCRIPT:
-      ${fullTranscript}
-    `;
+    const systemPrompt = `You are a meeting assistant that produces concise, structured summaries.
+Focus on key discussed topics, decisions made, and follow-up action items.
+Output ONLY valid JSON — no markdown, no commentary, no code fences — with these keys:
+- executive: A brief paragraph of the meeting's essence.
+- actions: An array of strings representing specific tasks to be done.
+- questions: A string listing any unresolved questions or pending points.
+- raw: The full detailed markdown summary.`;
 
+    const provider = llmConfig.provider || 'openai';
     let summaryText = "";
-    let provider = llmConfig.provider || 'openai';
+    let usage = null;
 
-    // 3. Call Real LLM API
+    // 5. Call LLM API with system + user message structure
     if (provider === 'openai') {
       const openai = new OpenAI({ apiKey: llmConfig.apiKey });
       const response = await openai.chat.completions.create({
         model: "gpt-4o-2024-08-06",
-        messages: [{ role: "user", content: prompt }],
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: fullTranscript }
+        ],
         response_format: { type: "json_object" }
       });
       summaryText = response.choices[0].message.content;
+      usage = response.usage;
     } else if (provider === 'anthropic') {
       const anthropic = new Anthropic({ apiKey: llmConfig.apiKey });
       const response = await anthropic.messages.create({
         model: "claude-3-5-sonnet-20240620",
         max_tokens: 4096,
-        messages: [{ role: "user", content: prompt }]
+        system: systemPrompt,
+        messages: [{ role: "user", content: fullTranscript }]
       });
       summaryText = response.content[0].text;
+      usage = response.usage;
     } else if (provider === 'deepseek') {
-        const openai = new OpenAI({ 
-            apiKey: llmConfig.apiKey,
-            baseURL: 'https://api.deepseek.com'
-        });
-        const response = await openai.chat.completions.create({
-          model: "deepseek-chat",
-          messages: [{ role: "user", content: prompt }],
-          response_format: { type: "json_object" }
-        });
-        summaryText = response.choices[0].message.content;
+      const openai = new OpenAI({
+        apiKey: llmConfig.apiKey,
+        baseURL: 'https://api.deepseek.com'
+      });
+      const response = await openai.chat.completions.create({
+        model: "deepseek-chat",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: fullTranscript }
+        ],
+        response_format: { type: "json_object" }
+      });
+      summaryText = response.choices[0].message.content;
+      usage = response.usage;
     }
 
-    const parsedSummary = JSON.parse(summaryText);
+    if (usage) {
+      console.log(`Summary LLM usage:`, JSON.stringify(usage));
+    }
 
-    // 4. Find the transcript record (any one for this meeting)
+    // 6. Clean up JSON response (handle code fences if model misbehaves)
+    let cleaned = summaryText.trim();
+    if (cleaned.startsWith('```')) {
+      cleaned = cleaned.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+    }
+    const parsedSummary = JSON.parse(cleaned);
+
+    // 7. Find a transcript record for this meeting
     const transcript = await prisma.transcript.findFirst({
       where: { meetingId: meetingId }
     });
 
-    // 5. Store the summary in the database
+    // 8. Store the summary
     await prisma.summary.create({
       data: {
         meetingId: meetingId,
-        transcriptId: transcript.id,
+        transcriptId: transcript?.id,
         requestedById: userId,
         model: provider === 'openai' ? 'gpt-4o' : (provider === 'anthropic' ? 'claude-3.5-sonnet' : 'deepseek-v3'),
         provider: provider,
-        summaryText: summaryText
+        summaryText: cleaned,
+        type: summaryType,
+        timeRangeStart: timeRangeStart,
+        timeRangeEnd: timeRangeEnd
       }
     });
 
-    res.json(parsedSummary);
+    res.json({
+      ...parsedSummary,
+      _meta: { type: summaryType, segmentCount: segments.length, droppedCount }
+    });
   } catch (error) {
     console.error('Error generating summary:', error);
+    if (error instanceof SyntaxError) {
+      return res.status(502).json({ error: 'Failed to parse LLM response as JSON.' });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Meeting Status (check if room is active)
+app.get('/meetings/:id/status', async (req, res) => {
+  try {
+    const room = io.sockets.adapter.rooms.get(req.params.id);
+    const meeting = await prisma.meeting.findUnique({
+      where: { id: req.params.id },
+      select: { endedAt: true }
+    });
+    if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
+    res.json({
+      active: !!room && room.size > 0,
+      participantCount: room?.size || 0,
+      endedAt: meeting.endedAt
+    });
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
@@ -226,6 +293,8 @@ io.on('connection', (socket) => {
 
       // Get existing participants before joining
       const room = io.sockets.adapter.rooms.get(meetingId);
+      const isFirstParticipant = !room || room.size === 0;
+
       const existingParticipants = [];
       if (room) {
         for (const socketId of room) {
@@ -246,6 +315,15 @@ io.on('connection', (socket) => {
       socket.currentStatus = { displayName: user.displayName, isMuted: isMuted, isVideoOff: isVideoOff };
       
       console.log(`User ${user.displayName} (${user.id}) joined meeting ${meetingId}`);
+
+      // Session lifecycle: if room was empty, start a fresh session
+      if (isFirstParticipant) {
+        await prisma.meeting.update({
+          where: { id: meetingId },
+          data: { endedAt: null, sessionStartedAt: new Date() }
+        });
+        console.log(`Meeting ${meetingId}: new session started`);
+      }
 
       if (!meetingHosts.has(meetingId)) {
         meetingHosts.set(meetingId, socket.id);
@@ -364,7 +442,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  const handleUserLeaveRoom = (socket) => {
+  const handleUserLeaveRoom = async (socket) => {
     const meetingId = socket.meetingId;
     if (!meetingId) return;
 
@@ -389,9 +467,23 @@ io.on('connection', (socket) => {
         meetingHosts.delete(meetingId);
       }
     }
-    
+
     socket.leave(meetingId);
     socket.meetingId = null;
+
+    // Mark meeting as ended if room is now empty
+    const room = io.sockets.adapter.rooms.get(meetingId);
+    if (!room || room.size === 0) {
+      try {
+        await prisma.meeting.update({
+          where: { id: meetingId },
+          data: { endedAt: new Date() }
+        });
+        console.log(`Meeting ${meetingId}: ended (all participants left)`);
+      } catch (err) {
+        console.error(`Failed to set endedAt for meeting ${meetingId}:`, err);
+      }
+    }
   };
 
   socket.on('leave-meeting', () => {
@@ -405,6 +497,29 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 4000;
+const RETENTION_DAYS = parseInt(process.env.RETENTION_DAYS || '30', 10);
+
 server.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
+  console.log(`Transcript retention: ${RETENTION_DAYS} days`);
 });
+
+// =====================
+// Cleanup Scheduler
+// =====================
+
+setInterval(async () => {
+  try {
+    const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 3600 * 1000);
+    const { count } = await prisma.meeting.deleteMany({
+      where: {
+        endedAt: { not: null, lte: cutoff }
+      }
+    });
+    if (count > 0) {
+      console.log(`Cleanup: deleted ${count} expired meeting(s) older than ${cutoff.toISOString()}`);
+    }
+  } catch (err) {
+    console.error('Cleanup scheduler error:', err);
+  }
+}, 3600 * 1000); // every hour

@@ -31,11 +31,12 @@ model User {
 // =====================
 
 model Meeting {
-  id        String    @id @default(uuid())
-  title     String?
-  createdAt DateTime  @default(now())
-  startedAt DateTime?
-  endedAt   DateTime?
+  id               String    @id @default(uuid())
+  title            String?
+  createdAt        DateTime  @default(now())
+  startedAt        DateTime?
+  endedAt          DateTime?
+  sessionStartedAt DateTime?
 
   hostId String?
   host   User?   @relation("HostedMeetings", fields: [hostId], references: [id])
@@ -52,7 +53,7 @@ model Transcript {
   id String @id @default(uuid())
 
   meetingId String
-  meeting   Meeting @relation(fields: [meetingId], references: [id])
+  meeting   Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
 
   ownerUserId String
   owner       User   @relation(fields: [ownerUserId], references: [id])
@@ -73,7 +74,7 @@ model Transcript {
 model TranscriptSegment {
   id           String     @id @default(uuid())
   transcriptId String
-  transcript   Transcript @relation(fields: [transcriptId], references: [id])
+  transcript   Transcript @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
   
   speakerId    String
   text         String
@@ -90,10 +91,10 @@ model Summary {
   id String @id @default(uuid())
 
   meetingId String
-  meeting   Meeting @relation(fields: [meetingId], references: [id])
+  meeting   Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
 
   transcriptId String
-  transcript   Transcript @relation(fields: [transcriptId], references: [id])
+  transcript   Transcript @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
 
   requestedById String
   requestedBy   User   @relation(fields: [requestedById], references: [id])
@@ -101,6 +102,9 @@ model Summary {
   model    String // e.g. gpt-4o, claude, llama
   provider String // e.g. openai, anthropic, local
 
-  summaryText String
-  createdAt   DateTime @default(now())
+  summaryText     String
+  type            String   @default("full")
+  timeRangeStart  Float?
+  timeRangeEnd    Float?
+  createdAt       DateTime @default(now())
 }

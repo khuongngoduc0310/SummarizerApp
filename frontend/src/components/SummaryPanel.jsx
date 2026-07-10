@@ -1,8 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { CheckCircle2, CircleHelp, ClipboardCopy, FileText, Settings, Share2, Sparkles } from 'lucide-react';
 
 const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettings }) => {
     const hasApiKey = llmConfig?.apiKey?.trim().length > 0;
+    const [timeRange, setTimeRange] = useState('full');
+
+    const handleGenerate = () => {
+        const minutes = timeRange === 'full' ? null : parseInt(timeRange, 10);
+        onGenerate(minutes);
+    };
+
+    const timeRangeOptions = [
+        { value: 'full', label: 'Full' },
+        { value: '15', label: '15m' },
+        { value: '30', label: '30m' },
+        { value: '60', label: '1h' }
+    ];
 
     return (
         <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -26,6 +39,26 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
                         ))}
                     </div>
 
+                    {/* Time range selector */}
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-500 mb-2">Summarize</p>
+                        <div className="grid grid-cols-4 gap-1.5">
+                            {timeRangeOptions.map((opt) => (
+                                <button
+                                    key={opt.value}
+                                    onClick={() => setTimeRange(opt.value)}
+                                    className={`rounded-xl py-2 text-[10px] font-black uppercase tracking-[0.12em] transition-all ${
+                                        timeRange === opt.value
+                                            ? 'bg-blue-500/20 border border-blue-400/30 text-blue-200'
+                                            : 'bg-white/[0.04] border border-white/10 text-gray-500 hover:text-gray-300 hover:bg-white/[0.08]'
+                                    }`}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
                     <div className="mt-auto">
                         {!hasApiKey ? (
                             <div className="rounded-2xl border border-violet-400/20 bg-violet-400/10 p-4">
@@ -43,7 +76,7 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
                             </div>
                         ) : (
                             <button
-                                onClick={onGenerate}
+                                onClick={handleGenerate}
                                 disabled={generating}
                                 className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-violet-500 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110 disabled:cursor-wait disabled:opacity-60"
                             >
@@ -55,6 +88,13 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
                 </div>
             ) : (
                 <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
+                    {summary._meta?.type === 'rolling' && (
+                        <div className="shrink-0 rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 py-2">
+                            <span className="text-[10px] font-black uppercase tracking-[0.14em] text-blue-300">
+                                Rolling summary ({summary._meta.segmentCount} segments)
+                            </span>
+                        </div>
+                    )}
                     <section className="shrink-0 rounded-2xl border border-white/10 bg-white/[0.04] p-3.5">
                         <div className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-blue-300">
                             <FileText size={13} /> Summary
