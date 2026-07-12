@@ -194,27 +194,29 @@ function App() {
     setRecentRooms(saved);
 
     // Filter out rooms that are still active
-    if (saved.length > 0 && runtimeConfig?.apiBaseUrl) {
-      try {
-        const statuses = await Promise.allSettled(
-          saved.map(async (id) => {
-            const res = await fetch(`${runtimeConfig.apiBaseUrl}/meetings/${id}/status`);
-            if (!res.ok) return null;
-            const { active } = await res.json();
-            return active ? null : id;
-          })
-        );
-        const filtered = statuses
-          .filter(r => r.status === 'fulfilled' && r.value !== null)
-          .map(r => r.value);
-        if (filtered.length !== saved.length) {
-          setRecentRooms(filtered);
-          storage.set('recent_rooms', filtered, 24);
+    (async () => {
+      if (saved.length > 0 && runtimeConfig?.apiBaseUrl) {
+        try {
+          const statuses = await Promise.allSettled(
+            saved.map(async (id) => {
+              const res = await fetch(`${runtimeConfig.apiBaseUrl}/meetings/${id}/status`);
+              if (!res.ok) return null;
+              const { active } = await res.json();
+              return active ? null : id;
+            })
+          );
+          const filtered = statuses
+            .filter(r => r.status === 'fulfilled' && r.value !== null)
+            .map(r => r.value);
+          if (filtered.length !== saved.length) {
+            setRecentRooms(filtered);
+            storage.set('recent_rooms', filtered, 24);
+          }
+        } catch {
+          // If status check fails, keep the existing list
         }
-      } catch {
-        // If status check fails, keep the existing list
       }
-    }
+    })();
 
     return () => {
       newSocket.close();

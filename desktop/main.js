@@ -19,6 +19,8 @@ const activeModelDownloads = new Map();
 
 const LOCAL_BACKEND_ENABLED = process.env.MEETSUMMARIZER_LOCAL_BACKEND === '1';
 
+const PRODUCTION_API_URL = 'https://summarizerapp-production.up.railway.app';
+
 const WHISPER_MODEL_CATALOG = [
   {
     id: 'tiny.en',
@@ -219,19 +221,9 @@ async function initializeRuntimeConfig() {
   const nativeSttStatus = sttManager?.getStatus();
   const nativeSttAvailable = nativeSttStatus?.status === 'running';
 
-  if (!LOCAL_BACKEND_ENABLED && !process.env.MEETSUMMARIZER_API_URL) {
-    console.error(
-      'MEETSUMMARIZER_API_URL is not set.\n' +
-      'For local development, use: npm run dev:local\n' +
-      'Or set MEETSUMMARIZER_API_URL to your backend URL (e.g. http://localhost:4000)'
-    );
-    app.quit();
-    return;
-  }
-
   const apiBaseUrl = LOCAL_BACKEND_ENABLED
     ? await startLocalBackend()
-    : normalizeBaseUrl(process.env.MEETSUMMARIZER_API_URL);
+    : normalizeBaseUrl(process.env.MEETSUMMARIZER_API_URL || PRODUCTION_API_URL);
 
   runtimeConfig = {
     apiBaseUrl,
