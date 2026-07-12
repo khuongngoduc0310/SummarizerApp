@@ -13,4 +13,4 @@ COPY backend/ . .
 
 EXPOSE 4000
 
-CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node index.js"]
