@@ -22,6 +22,7 @@ import SttStatusBar from './components/SttStatusBar';
 import VideoView from './components/VideoView';
 import { useWebRTC } from './hooks/useWebRTC';
 import { useAudioPipeline } from './hooks/useAudioPipeline';
+import { getActiveApiKey, getSelectedModelId, normalizeLlmConfig } from './config/llmModels';
 
 
 const getRuntimeConfig = async () => {
@@ -104,7 +105,7 @@ function App() {
 
   // LLM Configuration
   const [llmConfig, setLllmConfig] = useState(() => {
-    return storage.get('llm_config') || { provider: 'openai', apiKey: '' };
+    return normalizeLlmConfig(storage.get('llm_config'));
   });
 
   const [isMuted, setIsMuted] = useState(true);
@@ -685,18 +686,25 @@ function App() {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                               userId: userId,
-                              llmConfig: llmConfig
+                              llmConfig: {
+                                provider: llmConfig.provider,
+                                model: getSelectedModelId(llmConfig),
+                                apiKey: getActiveApiKey(llmConfig)
+                              }
                             })
                           });
-                          const data = await res.json();
-                          if (data.error) {
-                            alert(data.error);
-                          } else {
-                            setSummary(data);
-                          }
-                        } catch (err) {
-                          console.error("Failed to generate summary:", err);
-                        } finally {
+                           const data = await res.json();
+                           if (data.error) {
+                             alert(data.error);
+                             return false;
+                           } else {
+                             setSummary(data);
+                             return true;
+                           }
+                         } catch (err) {
+                           console.error("Failed to generate summary:", err);
+                           return false;
+                         } finally {
                           setGenerating(false);
                         }
                       }}

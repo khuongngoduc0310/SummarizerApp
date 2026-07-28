@@ -6,7 +6,7 @@
  */
 
 const CHARS_PER_TOKEN = 4;
-const DEFAULT_MAX_TOKENS = 100_000; // well under GPT-4o 128K, leaves room for system prompt + response
+const DEFAULT_MAX_TOKENS = 100_000; // Leaves ample room for instructions and output across supported models.
 
 /**
  * Estimate token count from a string.

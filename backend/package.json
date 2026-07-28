@@ -7,19 +7,19 @@
     "start": "node index.js",
     "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate",
-    "test": "echo \"No automated tests configured\" && exit 0"
+    "test": "node --test"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.71.2",
+    "@anthropic-ai/sdk": "^0.115.0",
     "@prisma/client": "5.22.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
-    "openai": "^6.16.0",
+    "openai": "^7.1.0",
     "prisma": "5.22.0",
     "socket.io": "^4.8.3"
   },

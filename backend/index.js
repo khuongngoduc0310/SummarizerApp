@@ -7,6 +7,7 @@ require('dotenv').config();
 const OpenAI = require('openai');
 const Anthropic = require('@anthropic-ai/sdk');
 const { truncateSegments } = require('./tokenEstimator');
+const { SUMMARY_SCHEMA, resolveLlmConfig, parseSummaryText, SummaryFormatError } = require('./llmConfig');
 
 const app = express();
 const server = http.createServer(app);
@@ -98,8 +99,11 @@ app.post('/meetings/:id/summary', async (req, res) => {
   const { userId, llmConfig } = req.body;
   const { minutes } = req.query; // optional rolling summary: ?minutes=15
 
-  if (!llmConfig || !llmConfig.apiKey) {
-    return res.status(400).json({ error: 'LLM API Key is required for summarization.' });
+  let resolvedLlmConfig;
+  try {
+    resolvedLlmConfig = resolveLlmConfig(llmConfig);
+  } catch (error) {
+    return res.status(error.statusCode || 400).json({ error: error.message });
   }
 
   try {
@@ -161,47 +165,62 @@ Output ONLY valid JSON — no markdown, no commentary, no code fences — with t
 - questions: A string listing any unresolved questions or pending points.
 - raw: The full detailed markdown summary.`;
 
-    const provider = llmConfig.provider || 'openai';
+    const { provider, model, apiKey } = resolvedLlmConfig;
     let summaryText = "";
     let usage = null;
 
     // 5. Call LLM API with system + user message structure
     if (provider === 'openai') {
-      const openai = new OpenAI({ apiKey: llmConfig.apiKey });
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-2024-08-06",
-        messages: [
+      const openai = new OpenAI({ apiKey });
+      const response = await openai.responses.create({
+        model,
+        input: [
           { role: "system", content: systemPrompt },
           { role: "user", content: fullTranscript }
         ],
-        response_format: { type: "json_object" }
+        max_output_tokens: 8192,
+        text: {
+          format: {
+            type: 'json_schema',
+            name: 'meeting_summary',
+            strict: true,
+            schema: SUMMARY_SCHEMA
+          }
+        }
       });
-      summaryText = response.choices[0].message.content;
+      if (response.status === 'incomplete') {
+        throw new SummaryFormatError('The OpenAI response was incomplete.');
+      }
+      summaryText = response.output_text;
       usage = response.usage;
     } else if (provider === 'anthropic') {
-      const anthropic = new Anthropic({ apiKey: llmConfig.apiKey });
+      const anthropic = new Anthropic({ apiKey });
       const response = await anthropic.messages.create({
-        model: "claude-3-5-sonnet-20240620",
-        max_tokens: 4096,
+        model,
+        max_tokens: 8192,
         system: systemPrompt,
-        messages: [{ role: "user", content: fullTranscript }]
+        messages: [{ role: "user", content: fullTranscript }],
+        output_config: {
+          format: { type: 'json_schema', schema: SUMMARY_SCHEMA }
+        }
       });
-      summaryText = response.content[0].text;
+      summaryText = response.content.find((block) => block.type === 'text')?.text;
       usage = response.usage;
     } else if (provider === 'deepseek') {
       const openai = new OpenAI({
-        apiKey: llmConfig.apiKey,
+        apiKey,
         baseURL: 'https://api.deepseek.com'
       });
       const response = await openai.chat.completions.create({
-        model: "deepseek-chat",
+        model,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: fullTranscript }
         ],
+        max_tokens: 8192,
         response_format: { type: "json_object" }
       });
-      summaryText = response.choices[0].message.content;
+      summaryText = response.choices[0]?.message?.content;
       usage = response.usage;
     }
 
@@ -209,12 +228,8 @@ Output ONLY valid JSON — no markdown, no commentary, no code fences — with t
       console.log(`Summary LLM usage:`, JSON.stringify(usage));
     }
 
-    // 6. Clean up JSON response (handle code fences if model misbehaves)
-    let cleaned = summaryText.trim();
-    if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
-    }
-    const parsedSummary = JSON.parse(cleaned);
+    // 6. Validate the provider response before storing it
+    const { parsed: parsedSummary, cleaned } = parseSummaryText(summaryText);
 
     // 7. Find a transcript record for this meeting
     const transcript = await prisma.transcript.findFirst({
@@ -227,7 +242,7 @@ Output ONLY valid JSON — no markdown, no commentary, no code fences — with t
         meetingId: meetingId,
         transcriptId: transcript?.id,
         requestedById: userId,
-        model: provider === 'openai' ? 'gpt-4o' : (provider === 'anthropic' ? 'claude-3.5-sonnet' : 'deepseek-v3'),
+        model,
         provider: provider,
         summaryText: cleaned,
         type: summaryType,
@@ -238,14 +253,14 @@ Output ONLY valid JSON — no markdown, no commentary, no code fences — with t
 
     res.json({
       ...parsedSummary,
-      _meta: { type: summaryType, segmentCount: segments.length, droppedCount }
+      _meta: { type: summaryType, segmentCount: segments.length, droppedCount, provider, model }
     });
   } catch (error) {
     console.error('Error generating summary:', error);
-    if (error instanceof SyntaxError) {
-      return res.status(502).json({ error: 'Failed to parse LLM response as JSON.' });
+    if (error instanceof SummaryFormatError) {
+      return res.status(error.statusCode).json({ error: error.message });
     }
-    res.status(500).json({ error: error.message });
+    res.status(502).json({ error: 'Summary generation failed. Check the API key, model access, and provider status.' });
   }
 });
 

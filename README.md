@@ -216,6 +216,18 @@ npm run dev
 
 > **Note:** If `MEETSUMMARIZER_API_URL` is not set and you're not in local mode, the app will exit with a clear error rather than silently failing.
 
+### Summary providers and models
+
+Open **Settings → AI Summary Settings** to keep a separate API key and model selection for each provider. Only the active provider's key is sent to the configured backend when a summary is generated; keys are not stored with summary records.
+
+| Provider | Models | Default |
+|----------|--------|---------|
+| OpenAI | GPT-5.6 Sol, GPT-5.6 Terra, GPT-5.6 Luna | GPT-5.6 Terra |
+| Anthropic | Claude Fable 5, Claude Opus 5, Claude Sonnet 5, Claude Haiku 4.5 | Claude Sonnet 5 |
+| DeepSeek | DeepSeek V4 Pro, DeepSeek V4 Flash | DeepSeek V4 Flash |
+
+The backend validates provider/model combinations and stores the exact model ID used for each generated summary. Deploy backend catalog changes to Railway before using a frontend build that exposes new models.
+
 ---
 
 ## 🧠 STT & Model Management

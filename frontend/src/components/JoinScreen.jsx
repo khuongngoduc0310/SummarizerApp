@@ -19,12 +19,7 @@ import {
     Zap
 } from 'lucide-react';
 import SettingsModal from './SettingsModal';
-
-const providerLabels = {
-    openai: 'OpenAI GPT-4o',
-    anthropic: 'Claude 3.5',
-    deepseek: 'DeepSeek V3'
-};
+import { getProviderConfig, getSelectedModel } from '../config/llmModels';
 
 const FieldLabel = ({ icon: Icon, children }) => (
     <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
@@ -64,6 +59,8 @@ const JoinScreen = ({
     const [showSettings, setShowSettings] = useState(false);
     const videoRef = useRef(null);
     const streamRef = useRef(null);
+    const summaryProvider = getProviderConfig(llmConfig?.provider);
+    const summaryModel = getSelectedModel(llmConfig);
 
     useEffect(() => {
         const initMedia = async () => {
@@ -326,7 +323,7 @@ const JoinScreen = ({
 
                         <div className="flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2.5 text-xs font-semibold text-emerald-100/80">
                             <CheckCircle2 size={15} className="shrink-0 text-emerald-300" />
-                            <span>Audio local · summaries use {providerLabels[llmConfig?.provider] || 'selected AI'}</span>
+                            <span>Audio local · summaries use {summaryProvider.label} · {summaryModel.label}</span>
                         </div>
                     </div>
 

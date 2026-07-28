@@ -7,6 +7,7 @@ import {
   Sparkles,
   Video
 } from 'lucide-react';
+import { getActiveApiKey, getProviderConfig, getSelectedModel, LLM_PROVIDERS } from '../config/llmModels';
 
 const SettingsModal = ({
   onClose,
@@ -28,6 +29,10 @@ const SettingsModal = ({
   llmConfig,
   setLlmConfig
 }) => {
+  const providerConfig = getProviderConfig(llmConfig?.provider);
+  const selectedModel = getSelectedModel(llmConfig);
+  const activeApiKey = getActiveApiKey(llmConfig);
+
   const updateDevice = (type, value) => {
     if (onDeviceChange) {
       onDeviceChange(type, value);
@@ -286,18 +291,47 @@ const SettingsModal = ({
             <div className="space-y-2">
               <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">AI Provider</label>
               <select value={llmConfig.provider} onChange={e => setLlmConfig(prev => ({ ...prev, provider: e.target.value }))} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500/50 appearance-none">
-                <option value="openai">OpenAI (GPT-4o)</option>
-                <option value="anthropic">Anthropic (Claude 3.5)</option>
-                <option value="deepseek">DeepSeek (V3)</option>
+                {Object.entries(LLM_PROVIDERS).map(([providerId, provider]) => (
+                  <option key={providerId} value={providerId}>{provider.label}</option>
+                ))}
               </select>
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">API Key</label>
-              <input type="password" value={llmConfig.apiKey} onChange={e => setLlmConfig(prev => ({ ...prev, apiKey: e.target.value }))} placeholder="sk-..." className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-700 focus:outline-none focus:border-purple-500/50" />
+              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Summary Model</label>
+              <select
+                value={selectedModel.id}
+                onChange={e => setLlmConfig(prev => ({
+                  ...prev,
+                  models: { ...prev.models, [prev.provider]: e.target.value }
+                }))}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500/50 appearance-none"
+              >
+                {providerConfig.models.map((model) => (
+                  <option key={model.id} value={model.id}>{model.label} · {model.tier}</option>
+                ))}
+              </select>
             </div>
           </div>
+          <div className="rounded-xl border border-purple-400/10 bg-purple-400/[0.05] px-4 py-3">
+            <p className="text-xs font-bold text-purple-200">{selectedModel.label} · {selectedModel.tier}</p>
+            <p className="mt-1 text-[11px] leading-5 text-gray-500">{selectedModel.description}</p>
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">{providerConfig.label} API Key</label>
+            <input
+              type="password"
+              value={activeApiKey}
+              onChange={e => setLlmConfig(prev => ({
+                ...prev,
+                apiKeys: { ...prev.apiKeys, [prev.provider]: e.target.value }
+              }))}
+              placeholder={providerConfig.keyPlaceholder}
+              autoComplete="off"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-700 focus:outline-none focus:border-purple-500/50"
+            />
+          </div>
           <p className="text-[10px] text-gray-600 font-medium leading-relaxed italic">
-            * Your API key is stored locally in your browser and never saved on our servers.
+            * Keys are stored locally and sent to the configured backend only when you generate a summary. They are not saved with meeting summaries.
           </p>
         </div>
 

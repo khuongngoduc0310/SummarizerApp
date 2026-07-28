@@ -134,6 +134,25 @@ curl http://localhost:4000/health
 8. Open the same meeting in another tab/incognito window and confirm captions broadcast.
 9. Add an LLM API key in settings and generate a summary after captions are saved.
 
+### Summary provider/model smoke test
+
+1. Open **Settings → AI Summary Settings**.
+2. Select each provider and confirm its model list changes.
+3. Enter a different test key for each provider, switch between providers, and confirm each masked key is retained independently.
+4. Select a non-default model, close and reopen Settings, and confirm the selection persists.
+5. Generate a summary and confirm the Summary header shows the selected provider and model.
+6. Generate another summary with a different model and confirm the displayed model changes.
+7. In the network request, confirm only `provider`, `model`, and the active provider's `apiKey` are sent in `llmConfig`.
+8. Submit an unsupported model directly to the backend and confirm it returns HTTP 400 without making a provider request.
+
+When testing a local renderer against Railway, deploy the backend model catalog first and verify database connectivity:
+
+```powershell
+Invoke-RestMethod "https://summarizerapp-production.up.railway.app/health"
+$env:MEETSUMMARIZER_API_URL="https://summarizerapp-production.up.railway.app"
+npm run dev
+```
+
 ## Expected logs
 
 Frontend console:
