@@ -8,6 +8,7 @@ const OpenAI = require('openai');
 const Anthropic = require('@anthropic-ai/sdk');
 const { truncateSegments } = require('./tokenEstimator');
 const { SUMMARY_SCHEMA, resolveLlmConfig, parseSummaryText, SummaryFormatError } = require('./llmConfig');
+const { CaptionHistoryError, getCaptionHistoryPage } = require('./captionHistory');
 
 const app = express();
 const server = http.createServer(app);
@@ -116,7 +117,7 @@ app.post('/meetings/:id/summary', async (req, res) => {
     // 2. Build where clause: only current session + optional time range
     const whereClause = {
       transcript: { meetingId: meetingId },
-      createdAt: { gte: sessionStart }
+      sessionStartedAt: sessionStart
     };
 
     let summaryType = 'full';
@@ -128,9 +129,7 @@ app.post('/meetings/:id/summary', async (req, res) => {
       if (!isNaN(mins) && mins > 0) {
         const cutoff = new Date(Date.now() - mins * 60 * 1000);
         // Use the later of sessionStart or the rolling cutoff
-        whereClause.createdAt = {
-          gte: sessionStart > cutoff ? sessionStart : cutoff
-        };
+        whereClause.createdAt = { gte: sessionStart > cutoff ? sessionStart : cutoff };
         summaryType = 'rolling';
         timeRangeStart = (cutoff.getTime() - (meeting.startedAt?.getTime() || 0)) / 1000;
         timeRangeEnd = (Date.now() - (meeting.startedAt?.getTime() || 0)) / 1000;
@@ -290,15 +289,34 @@ app.get('/meetings/:id/status', async (req, res) => {
 // In-memory host tracking
 const meetingHosts = new Map(); // meetingId -> hostSocketId
 const persistedCaptionKeys = new Set(); // idempotency keys for final caption events
+const meetingJoinLocks = new Map();
+
+async function withMeetingJoinLock(meetingId, work) {
+  const previous = meetingJoinLocks.get(meetingId) || Promise.resolve();
+  const current = previous.catch(() => {}).then(work);
+  meetingJoinLocks.set(meetingId, current);
+  try {
+    return await current;
+  } finally {
+    if (meetingJoinLocks.get(meetingId) === current) meetingJoinLocks.delete(meetingId);
+  }
+}
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   // User joins a meeting room
   socket.on('join-meeting', async (data) => {
-    const { meetingId, displayName, isMuted, isVideoOff } = data;
-    
-    try {
+    const { meetingId, displayName, isMuted, isVideoOff, joinRequestId } = data;
+
+    await withMeetingJoinLock(meetingId, async () => {
+      try {
+      let meeting = await prisma.meeting.findUnique({ where: { id: meetingId } });
+      if (!meeting) {
+        socket.emit('join-error', { meetingId, joinRequestId, error: 'Meeting not found.' });
+        return;
+      }
+
       // Create a user record for this session
       const user = await prisma.user.create({
         data: {
@@ -324,21 +342,22 @@ io.on('connection', (socket) => {
         }
       }
 
-      socket.join(meetingId);
-      socket.userId = user.id;
-      socket.meetingId = meetingId;
-      socket.currentStatus = { displayName: user.displayName, isMuted: isMuted, isVideoOff: isVideoOff };
-      
-      console.log(`User ${user.displayName} (${user.id}) joined meeting ${meetingId}`);
-
-      // Session lifecycle: if room was empty, start a fresh session
+      // Commit a new session before exposing the first socket in the room.
       if (isFirstParticipant) {
-        await prisma.meeting.update({
+        meeting = await prisma.meeting.update({
           where: { id: meetingId },
           data: { endedAt: null, sessionStartedAt: new Date() }
         });
         console.log(`Meeting ${meetingId}: new session started`);
       }
+
+      socket.join(meetingId);
+      socket.userId = user.id;
+      socket.meetingId = meetingId;
+      socket.sessionStartedAt = meeting.sessionStartedAt || meeting.startedAt || meeting.createdAt;
+      socket.currentStatus = { displayName: user.displayName, isMuted: isMuted, isVideoOff: isVideoOff };
+
+      console.log(`User ${user.displayName} (${user.id}) joined meeting ${meetingId}`);
 
       if (!meetingHosts.has(meetingId)) {
         meetingHosts.set(meetingId, socket.id);
@@ -359,13 +378,58 @@ io.on('connection', (socket) => {
 
       // Send the joiner the list of people already there
       socket.emit('joined-successfully', {
+        meetingId,
+        joinRequestId,
+        sessionStartedAt: socket.sessionStartedAt.toISOString(),
         userId: user.id,
         displayName: user.displayName,
         isHost: socket.id === currentHostId,
         existingParticipants
       });
+      } catch (error) {
+        console.error('Error joining meeting:', error);
+        socket.emit('join-error', { meetingId, joinRequestId, error: 'Failed to join meeting.' });
+      }
+    });
+  });
+
+  socket.on('get-caption-history', async (data, callback) => {
+    const respond = typeof callback === 'function' ? callback : () => {};
+    const meetingId = data?.meetingId;
+    const room = meetingId ? io.sockets.adapter.rooms.get(meetingId) : null;
+
+    if (!meetingId || socket.meetingId !== meetingId || !room?.has(socket.id)) {
+      respond({ ok: false, error: 'Join the meeting before requesting caption history.' });
+      return;
+    }
+
+    try {
+      const meeting = await prisma.meeting.findUnique({ where: { id: meetingId } });
+      if (!meeting) {
+        respond({ ok: false, error: 'Meeting not found.' });
+        return;
+      }
+
+      const sessionStartedAt = meeting.sessionStartedAt || meeting.startedAt || meeting.createdAt;
+      const page = await getCaptionHistoryPage(prisma, {
+        meetingId,
+        sessionStartedAt,
+        cursor: data?.cursor,
+        limit: data?.limit
+      });
+
+      respond({
+        ok: true,
+        meetingId,
+        sessionStartedAt: sessionStartedAt.toISOString(),
+        ...page
+      });
     } catch (error) {
-      console.error('Error joining meeting:', error);
+      const isRequestError = error instanceof CaptionHistoryError;
+      if (!isRequestError) {
+        console.error(`Failed to load caption history for meeting ${meetingId}:`, error);
+      }
+      respond({ ok: false, error: isRequestError ? error.message : 'Failed to load caption history.' });
     }
   });
 
@@ -430,13 +494,14 @@ io.on('connection', (socket) => {
       }
 
       // 2. Create the Transcript Segment
-      await prisma.transcriptSegment.create({
+      const segment = await prisma.transcriptSegment.create({
         data: {
           transcriptId: transcript.id,
           speakerId: speakerId,
           text: text,
           start: start,
-          end: end
+          end: end,
+          sessionStartedAt: socket.sessionStartedAt
         }
       });
 
@@ -448,7 +513,13 @@ io.on('connection', (socket) => {
 
 
       // 4. Broadcast to the meeting room
-      io.to(meetingId).emit('caption', data);
+      io.to(meetingId).emit('caption', {
+        ...data,
+        captionId: segment.id,
+        speakerName: socket.currentStatus?.displayName || 'Guest',
+        sessionStartedAt: segment.sessionStartedAt?.toISOString(),
+        createdAt: segment.createdAt.toISOString()
+      });
     } catch (error) {
       if (idempotencyKey) {
         persistedCaptionKeys.delete(idempotencyKey);
@@ -485,20 +556,23 @@ io.on('connection', (socket) => {
 
     socket.leave(meetingId);
     socket.meetingId = null;
+    socket.sessionStartedAt = null;
 
-    // Mark meeting as ended if room is now empty
-    const room = io.sockets.adapter.rooms.get(meetingId);
-    if (!room || room.size === 0) {
-      try {
-        await prisma.meeting.update({
-          where: { id: meetingId },
-          data: { endedAt: new Date() }
-        });
-        console.log(`Meeting ${meetingId}: ended (all participants left)`);
-      } catch (err) {
-        console.error(`Failed to set endedAt for meeting ${meetingId}:`, err);
+    await withMeetingJoinLock(meetingId, async () => {
+      // Recheck while serialized with joins so an active room is never marked ended.
+      const room = io.sockets.adapter.rooms.get(meetingId);
+      if (!room || room.size === 0) {
+        try {
+          await prisma.meeting.update({
+            where: { id: meetingId },
+            data: { endedAt: new Date() }
+          });
+          console.log(`Meeting ${meetingId}: ended (all participants left)`);
+        } catch (err) {
+          console.error(`Failed to set endedAt for meeting ${meetingId}:`, err);
+        }
       }
-    }
+    });
   };
 
   socket.on('leave-meeting', () => {

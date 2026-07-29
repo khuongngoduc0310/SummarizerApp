@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import io from 'socket.io-client';
 import {
   Video,
@@ -23,6 +23,7 @@ import VideoView from './components/VideoView';
 import { useWebRTC } from './hooks/useWebRTC';
 import { useAudioPipeline } from './hooks/useAudioPipeline';
 import { getActiveApiKey, getSelectedModelId, normalizeLlmConfig } from './config/llmModels';
+import { mergeCaptions } from './utils/captions';
 
 
 const getRuntimeConfig = async () => {
@@ -37,6 +38,23 @@ const getRuntimeConfig = async () => {
 
   return config;
 };
+
+const requestCaptionHistory = (socket, payload) => new Promise((resolve, reject) => {
+  socket.timeout(10000).emit('get-caption-history', payload, (timeoutError, response) => {
+    if (timeoutError) {
+      reject(new Error('Caption history request timed out.'));
+      return;
+    }
+    if (!response?.ok) {
+      reject(new Error(response?.error || 'Failed to load caption history.'));
+      return;
+    }
+    resolve(response);
+  });
+});
+
+const createJoinRequestId = () => globalThis.crypto?.randomUUID?.()
+  || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 // Storage Utilities (LocalStorage with Expiry)
 const storage = {
@@ -72,6 +90,14 @@ function App() {
   const [userDisplayName, setUserDisplayName] = useState('');
   const [socket, setSocket] = useState(null);
   const [captions, setCaptions] = useState([]);
+  const [captionHistoryCursor, setCaptionHistoryCursor] = useState(null);
+  const [hasOlderCaptions, setHasOlderCaptions] = useState(false);
+  const [loadingCaptionHistory, setLoadingCaptionHistory] = useState(false);
+  const [captionHistoryError, setCaptionHistoryError] = useState(null);
+  const activeMeetingIdRef = useRef(null);
+  const activeSessionStartedAtRef = useRef(null);
+  const activeJoinRequestIdRef = useRef(null);
+  const captionHistoryRequestIdRef = useRef(0);
   const [summary, setSummary] = useState(null);
   const [copied, setCopied] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
@@ -178,12 +204,72 @@ function App() {
     setSocket(newSocket);
 
     newSocket.on('caption', (data) => {
-      setCaptions((prev) => [...prev, data]);
+      if (data.meetingId !== activeMeetingIdRef.current) return;
+      if (data.sessionStartedAt && data.sessionStartedAt !== activeSessionStartedAtRef.current) return;
+      setCaptions((prev) => mergeCaptions(prev, [data]));
     });
 
-    newSocket.on('joined-successfully', (data) => {
+    newSocket.on('joined-successfully', async (data) => {
+      if (
+        data.meetingId !== activeMeetingIdRef.current
+        || data.joinRequestId !== activeJoinRequestIdRef.current
+      ) return;
       setUserId(data.userId);
+      activeSessionStartedAtRef.current = data.sessionStartedAt;
       console.log('Successfully joined as:', data.displayName);
+
+      const historyRequestId = ++captionHistoryRequestIdRef.current;
+      setLoadingCaptionHistory(true);
+      setCaptionHistoryError(null);
+      try {
+        const response = await requestCaptionHistory(newSocket, {
+          meetingId: data.meetingId,
+          limit: 200
+        });
+        if (
+          activeMeetingIdRef.current !== response.meetingId
+          || activeSessionStartedAtRef.current !== response.sessionStartedAt
+          || activeJoinRequestIdRef.current !== data.joinRequestId
+          || captionHistoryRequestIdRef.current !== historyRequestId
+        ) return;
+
+        setCaptions((prev) => mergeCaptions(prev, response.captions));
+        setCaptionHistoryCursor(response.nextCursor);
+        setHasOlderCaptions(response.hasMore);
+      } catch (error) {
+        if (
+          activeMeetingIdRef.current === data.meetingId
+          && activeSessionStartedAtRef.current === data.sessionStartedAt
+          && activeJoinRequestIdRef.current === data.joinRequestId
+          && captionHistoryRequestIdRef.current === historyRequestId
+        ) {
+          setCaptionHistoryError(error.message);
+        }
+      } finally {
+        if (
+          activeMeetingIdRef.current === data.meetingId
+          && activeSessionStartedAtRef.current === data.sessionStartedAt
+          && activeJoinRequestIdRef.current === data.joinRequestId
+          && captionHistoryRequestIdRef.current === historyRequestId
+        ) {
+          setLoadingCaptionHistory(false);
+        }
+      }
+    });
+
+    newSocket.on('join-error', (data) => {
+      if (
+        data?.meetingId !== activeMeetingIdRef.current
+        || data?.joinRequestId !== activeJoinRequestIdRef.current
+      ) return;
+      console.error('Failed to join meeting:', data?.error);
+      captionHistoryRequestIdRef.current += 1;
+      activeMeetingIdRef.current = null;
+      activeSessionStartedAtRef.current = null;
+      activeJoinRequestIdRef.current = null;
+      setMeetingId(null);
+      setCaptions([]);
+      alert(data?.error || 'Failed to join meeting.');
     });
 
     newSocket.on('user-joined', (data) => {
@@ -300,6 +386,20 @@ function App() {
     storage.remove('recent_rooms');
   };
 
+  const beginMeetingJoin = (nextMeetingId) => {
+    const joinRequestId = createJoinRequestId();
+    captionHistoryRequestIdRef.current += 1;
+    activeMeetingIdRef.current = nextMeetingId;
+    activeSessionStartedAtRef.current = null;
+    activeJoinRequestIdRef.current = joinRequestId;
+    setCaptions([]);
+    setCaptionHistoryCursor(null);
+    setHasOlderCaptions(false);
+    setLoadingCaptionHistory(false);
+    setCaptionHistoryError(null);
+    return joinRequestId;
+  };
+
   const handleCreateMeeting = async (userData) => {
     try {
       const res = await fetch(`${runtimeConfig.apiBaseUrl}/meetings`, {
@@ -309,6 +409,7 @@ function App() {
       });
       const data = await res.json();
 
+      const joinRequestId = beginMeetingJoin(data.meetingId);
       setMeetingId(data.meetingId);
       setUserDisplayName(userData.displayName);
       setIsMuted(userData.isMuted);
@@ -320,6 +421,7 @@ function App() {
       // Join the room via socket
       socket.emit('join-meeting', {
         meetingId: data.meetingId,
+        joinRequestId,
         displayName: userData.displayName,
         isMuted: userData.isMuted,
         isVideoOff: userData.isVideoOff
@@ -335,6 +437,7 @@ function App() {
 
   const handleJoinMeeting = (userData) => {
 
+    const joinRequestId = beginMeetingJoin(userData.meetingId);
     setMeetingId(userData.meetingId);
     setUserDisplayName(userData.displayName);
     setIsMuted(userData.isMuted);
@@ -346,6 +449,7 @@ function App() {
     // Join the room via socket
     socket.emit('join-meeting', {
       meetingId: userData.meetingId,
+      joinRequestId,
       displayName: userData.displayName,
       isMuted: userData.isMuted,
       isVideoOff: userData.isVideoOff
@@ -359,11 +463,68 @@ function App() {
 
   const handleLeave = () => {
     leave();
+    captionHistoryRequestIdRef.current += 1;
+    activeMeetingIdRef.current = null;
+    activeSessionStartedAtRef.current = null;
+    activeJoinRequestIdRef.current = null;
     setMeetingId(null);
     setCaptions([]);
+    setCaptionHistoryCursor(null);
+    setHasOlderCaptions(false);
+    setLoadingCaptionHistory(false);
+    setCaptionHistoryError(null);
     setSummary(null);
     setUserId(null);
     setSttMetrics([]);
+  };
+
+  const loadOlderCaptions = async () => {
+    if (!socket || !captionHistoryCursor || loadingCaptionHistory || !activeMeetingIdRef.current) return false;
+
+    const requestedMeetingId = activeMeetingIdRef.current;
+    const requestedSessionStartedAt = activeSessionStartedAtRef.current;
+    const requestedJoinRequestId = activeJoinRequestIdRef.current;
+    const historyRequestId = ++captionHistoryRequestIdRef.current;
+    setLoadingCaptionHistory(true);
+    setCaptionHistoryError(null);
+
+    try {
+      const response = await requestCaptionHistory(socket, {
+        meetingId: requestedMeetingId,
+        cursor: captionHistoryCursor,
+        limit: 200
+      });
+      if (
+        activeMeetingIdRef.current !== response.meetingId
+        || requestedSessionStartedAt !== response.sessionStartedAt
+        || activeJoinRequestIdRef.current !== requestedJoinRequestId
+        || captionHistoryRequestIdRef.current !== historyRequestId
+      ) return false;
+
+      setCaptions((prev) => mergeCaptions(prev, response.captions));
+      setCaptionHistoryCursor(response.nextCursor);
+      setHasOlderCaptions(response.hasMore);
+      return true;
+    } catch (error) {
+      if (
+        activeMeetingIdRef.current === requestedMeetingId
+        && activeSessionStartedAtRef.current === requestedSessionStartedAt
+        && activeJoinRequestIdRef.current === requestedJoinRequestId
+        && captionHistoryRequestIdRef.current === historyRequestId
+      ) {
+        setCaptionHistoryError(error.message);
+      }
+      return false;
+    } finally {
+      if (
+        activeMeetingIdRef.current === requestedMeetingId
+        && activeSessionStartedAtRef.current === requestedSessionStartedAt
+        && activeJoinRequestIdRef.current === requestedJoinRequestId
+        && captionHistoryRequestIdRef.current === historyRequestId
+      ) {
+        setLoadingCaptionHistory(false);
+      }
+    }
   };
 
   const copyToClipboard = () => {
@@ -713,6 +874,10 @@ function App() {
                     <CaptionPanel
                       captions={captions}
                       participantNames={participantNames}
+                      hasOlderCaptions={hasOlderCaptions}
+                      loadingHistory={loadingCaptionHistory}
+                      historyError={captionHistoryError}
+                      onLoadOlder={loadOlderCaptions}
                     />
                   ) : (
                     <div className="h-full overflow-y-auto no-scrollbar space-y-4">

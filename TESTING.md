@@ -153,6 +153,22 @@ $env:MEETSUMMARIZER_API_URL="https://summarizerapp-production.up.railway.app"
 npm run dev
 ```
 
+### Late-join transcript history
+
+1. Start a meeting with participant A and produce more than eight final captions.
+2. Join the same active room with participant B while A remains connected.
+3. Confirm B receives the persisted captions from the current session and continues receiving live captions.
+4. Produce more than 200 captions and confirm B can load older pages from the top of the Transcript tab.
+5. Confirm a caption emitted while B loads history appears exactly once.
+6. Scroll upward, produce another live caption, and confirm the viewport is not forced to the bottom.
+7. Leave with all participants, rejoin the now-empty room, and confirm the previous session is not loaded.
+
+Deploy the transcript-history index migration to Railway before testing the local desktop app against it:
+
+```powershell
+npm --prefix backend exec -- prisma migrate deploy
+```
+
 ## Expected logs
 
 Frontend console:

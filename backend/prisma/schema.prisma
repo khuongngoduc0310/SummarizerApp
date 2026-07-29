@@ -58,13 +58,15 @@ model Transcript {
   ownerUserId String
   owner       User   @relation(fields: [ownerUserId], references: [id])
 
-  language    String  @default("en")
-  durationSec Int     @default(0)
-  localOnly   Boolean @default(true)
+  language    String   @default("en")
+  durationSec Int      @default(0)
+  localOnly   Boolean  @default(true)
   createdAt   DateTime @default(now())
 
-  segments    TranscriptSegment[]
-  summaries   Summary[]
+  segments  TranscriptSegment[]
+  summaries Summary[]
+
+  @@index([meetingId])
 }
 
 // =====================
@@ -75,12 +77,15 @@ model TranscriptSegment {
   id           String     @id @default(uuid())
   transcriptId String
   transcript   Transcript @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
-  
-  speakerId    String
-  text         String
-  start        Float
-  end          Float
-  createdAt    DateTime   @default(now())
+
+  speakerId        String
+  text             String
+  start            Float
+  end              Float
+  createdAt        DateTime  @default(now())
+  sessionStartedAt DateTime?
+
+  @@index([transcriptId, sessionStartedAt, createdAt, id])
 }
 
 // =====================
@@ -102,9 +107,9 @@ model Summary {
   model    String // e.g. gpt-4o, claude, llama
   provider String // e.g. openai, anthropic, local
 
-  summaryText     String
-  type            String   @default("full")
-  timeRangeStart  Float?
-  timeRangeEnd    Float?
-  createdAt       DateTime @default(now())
+  summaryText    String
+  type           String   @default("full")
+  timeRangeStart Float?
+  timeRangeEnd   Float?
+  createdAt      DateTime @default(now())
 }
