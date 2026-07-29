@@ -16,6 +16,7 @@ yarn-error.log*
 dist/
 dist-ssr/
 build/
+desktop/release/
 *.local
 
 # IDEs

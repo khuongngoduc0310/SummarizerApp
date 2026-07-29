@@ -99,13 +99,13 @@ graph TB
 sequenceDiagram
     participant Mic as 🎤 Microphone
     participant AW as AudioWorklet
-    participant Hook as useAudioPipeline
-    participant IPC as Electron IPC
-    participant SC as Whisper Sidecar
-    participant WCPP as whisper-cli.exe
-    participant Renderer as React Renderer
+    participant Hook as AudioPipeline
+    participant IPC as IPC
+    participant SC as Sidecar
+    participant WCPP as whisper-cli
+    participant Renderer as Renderer
     participant Socket as Socket.io
-    participant Remote as Remote Participants
+    participant Remote as Remote Peers
 
     Mic->>AW: Raw PCM (16kHz mono)
     AW->>Hook: Float32 frames (100ms)
@@ -124,7 +124,7 @@ sequenceDiagram
     Renderer->>Socket: caption event
     Socket->>Remote: Broadcast caption
 
-    Note over Renderer: CaptionPanel + StatusBar update
+    Note over Renderer: CaptionPanel + StatusBar
 ```
 
 ### Caption → Summary Pipeline
@@ -132,7 +132,7 @@ sequenceDiagram
 Every caption segment is persisted to PostgreSQL as it arrives, creating a growing transcript that can be summarized at any time — no re-transcription needed.
 
 ```mermaid
-graph LR
+graph TB
     subgraph Capture["🎤 Real-time Capture"]
         Mic["Microphone"] --> AW["AudioWorklet<br/>(16kHz PCM)"]
         AW --> Route{"STT Backend?"}
@@ -180,10 +180,15 @@ graph LR
 
 ---
 
+## Documentation
+
+- [Testing and manual verification](docs/TESTING.md)
+- [WebGPU STT baseline benchmark](docs/STT_WEBGPU_BENCHMARK.md)
+
 ## 🚀 Getting Started
 
 ### Prerequisites
-- **Node.js 18+**
+- **Node.js 22.12 or newer**
 - **Docker Desktop** (for local backend + PostgreSQL)
 - A deployed backend URL (for production builds)
 
@@ -196,13 +201,16 @@ npm --prefix frontend install
 npm --prefix desktop install
 npm --prefix backend install
 
-# 2. Start PostgreSQL
+# 2. Create the local backend environment file
+cp backend/.env.example backend/.env
+
+# 3. Start PostgreSQL
 docker compose up -d db
 
-# 3. Run database migrations
+# 4. Run database migrations
 npm --prefix backend run prisma:migrate
 
-# 4. Launch the app (builds frontend + starts local backend + opens Electron)
+# 5. Launch the app (builds frontend + starts local backend + opens Electron)
 npm run dev:local
 ```
 
@@ -214,7 +222,7 @@ $env:MEETSUMMARIZER_API_URL="https://api.yourdomain.com"
 npm run dev
 ```
 
-> **Note:** If `MEETSUMMARIZER_API_URL` is not set and you're not in local mode, the app will exit with a clear error rather than silently failing.
+> If `MEETSUMMARIZER_API_URL` is not set outside local mode, Electron uses the production API URL currently configured in `desktop/main.js`.
 
 ### Summary providers and models
 
@@ -283,11 +291,15 @@ MeetSummarizer/
 │           ├── audio-processor.js          # AudioWorkletProcessor
 │           └── transcription.worker.js     # WebGPU Whisper fallback
 ├── backend/                     # Express + Socket.io API
+│   ├── .env.example             # Local backend environment template
 │   ├── index.js                 # REST endpoints + signaling server
 │   └── prisma/
 │       └── schema.prisma        # Data models
+├── docs/
+│   ├── TESTING.md               # Automated and manual verification
+│   └── STT_WEBGPU_BENCHMARK.md  # Electron WebGPU fallback baseline
 ├── scripts/                     # Dev orchestration scripts
-├── docker-compose.yml           # Local Postgres + backend
+├── docker-compose.yml           # Local PostgreSQL; backend build currently limited
 └── package.json                 # Root orchestrator
 ```
 
