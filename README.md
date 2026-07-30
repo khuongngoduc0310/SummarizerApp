@@ -262,6 +262,28 @@ Speech-to-text runs **locally** using a Whisper.cpp sidecar process. No audio is
 
 Models and the optional CUDA runtime are downloaded from **Settings → Speech-to-text**. Backend preference is persisted in Electron user data. `Auto` validates CUDA, then Vulkan, then CPU; an explicit backend choice is strict and uses browser WebGPU if that backend cannot start. CUDA downloads executable code from the pinned official `whisper.cpp v1.9.1` release, requires at least 1.2 GB of temporary free space, and can be cancelled or removed from Settings.
 
+### Native STT Performance
+
+Benchmarked on AMI Meeting Corpus (clean-core: 4/12 samples). Vulkan GPU via FFI bridge.
+
+| Mode | Model | WER | Caption lag | vs CLI |
+|------|-------|-----|-------------|--------|
+| Offline | base.en | **19.8%** | 287× realtime | **3.2× faster** |
+| Streaming | base.en w4/o1 | 28.3% | **212ms** | **2.4× lower lag** |
+| Streaming | small.en w6/o1 | **27.3%** | 337ms | **−11.4pp WER** |
+
+```mermaid
+block-beta
+  columns 4
+  W["WER %"]
+  CB["CLI Off<br/>20.9%"]
+  FB["FFI Off<br/>19.8%"]
+  CS["CLI Str<br/>38.7%"]
+  FS["FFI Str<br/>27.3%"]
+```
+
+Full report → `benchmark-results/FFI-BENCHMARK-REPORT.md`
+
 ---
 
 ## 📁 Project Structure
