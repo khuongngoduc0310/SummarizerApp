@@ -22,10 +22,26 @@ function killProcessTree(child) {
 
 function defaultBackendDescriptors(baseDir) {
   const executable = process.platform === 'win32' ? 'whisper-cli.exe' : 'whisper-cli';
+  const serverExecutable = process.platform === 'win32' ? 'whisper-server.exe' : 'whisper-server';
   return [
-    { id: 'cuda', label: 'CUDA GPU', acceleration: 'gpu', priority: 15, binary: path.join(baseDir, 'bin', 'cuda', executable), requiredFiles: [executable] },
-    { id: 'vulkan', label: 'Vulkan GPU', acceleration: 'gpu', priority: 10, binary: path.join(baseDir, 'bin', 'vulkan', executable), requiredFiles: process.platform === 'win32' ? [executable, 'ggml-vulkan.dll'] : [executable] },
-    { id: 'cpu', label: 'CPU', acceleration: 'cpu', priority: 5, binary: path.join(baseDir, 'bin', 'cpu', executable), requiredFiles: [executable] }
+    {
+      id: 'cuda', label: 'CUDA GPU', acceleration: 'gpu', priority: 15,
+      binary: path.join(baseDir, 'bin', 'cuda', executable),
+      serverBinary: path.join(baseDir, 'bin', 'cuda', serverExecutable),
+      requiredFiles: [executable]
+    },
+    {
+      id: 'vulkan', label: 'Vulkan GPU', acceleration: 'gpu', priority: 10,
+      binary: path.join(baseDir, 'bin', 'vulkan', executable),
+      serverBinary: path.join(baseDir, 'bin', 'vulkan', serverExecutable),
+      requiredFiles: process.platform === 'win32' ? [executable, 'ggml-vulkan.dll'] : [executable]
+    },
+    {
+      id: 'cpu', label: 'CPU', acceleration: 'cpu', priority: 5,
+      binary: path.join(baseDir, 'bin', 'cpu', executable),
+      serverBinary: path.join(baseDir, 'bin', 'cpu', serverExecutable),
+      requiredFiles: [executable]
+    }
   ];
 }
 
@@ -456,6 +472,10 @@ class NativeSttManager extends EventEmitter {
         '--vadThreshold', String(this.config.vadThreshold),
         '--highPassCutoffHz', String(this.config.highPassCutoffHz)
       ];
+      const serverBinary = backend.serverBinary ? path.resolve(backend.serverBinary) : null;
+      if (serverBinary && fs.existsSync(serverBinary)) {
+        args.push('--server-binary', serverBinary);
+      }
       let child;
       try {
         child = this.spawnProcess(this.nodeBinary, args, {

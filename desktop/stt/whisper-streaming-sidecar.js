@@ -5,8 +5,13 @@ const path = require('path');
 const readline = require('readline');
 const { spawn } = require('child_process');
 const { StringDecoder } = require('string_decoder');
+const http = require('http');
 
 const activeWhisperChildren = new Set();
+const SERVER_PORT_START = 9100;
+const SERVER_PORT_END = 9200;
+const SERVER_READY_POLL_MS = 100;
+const SERVER_READY_TIMEOUT_MS = 15000;
 
 function parseArgs(argv) {
   const args = {};
@@ -25,7 +30,7 @@ function parseArgs(argv) {
   return args;
 }
 
-function writeWav(filePath, floatSamples, sampleRate) {
+function wavToBuffer(floatSamples, sampleRate) {
   const dataSize = floatSamples.length * 2;
   const buffer = Buffer.alloc(44 + dataSize);
 
@@ -34,8 +39,8 @@ function writeWav(filePath, floatSamples, sampleRate) {
   buffer.write('WAVE', 8);
   buffer.write('fmt ', 12);
   buffer.writeUInt32LE(16, 16);
-  buffer.writeUInt16LE(1, 20); // PCM
-  buffer.writeUInt16LE(1, 22); // mono
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(1, 22);
   buffer.writeUInt32LE(sampleRate, 24);
   buffer.writeUInt32LE(sampleRate * 2, 28);
   buffer.writeUInt16LE(2, 32);
@@ -49,7 +54,150 @@ function writeWav(filePath, floatSamples, sampleRate) {
     buffer.writeInt16LE(Math.round(value), 44 + i * 2);
   }
 
-  fs.writeFileSync(filePath, buffer);
+  return buffer;
+}
+
+function writeWav(filePath, floatSamples, sampleRate) {
+  fs.writeFileSync(filePath, wavToBuffer(floatSamples, sampleRate));
+}
+
+function buildMultipartBody(wavBuffer, boundary) {
+  const header = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="audio.wav"\r\nContent-Type: audio/wav\r\n\r\n`;
+  const footer = `\r\n--${boundary}--\r\n`;
+  const headerBytes = Buffer.from(header, 'utf8');
+  const footerBytes = Buffer.from(footer, 'utf8');
+  return Buffer.concat([headerBytes, wavBuffer, footerBytes]);
+}
+
+class WhisperServerClient {
+  constructor(serverBinary, modelPath) {
+    this.serverBinary = serverBinary;
+    this.modelPath = modelPath;
+    this.process = null;
+    this.port = null;
+    this.baseUrl = null;
+    this.killed = false;
+    this.childStderr = '';
+  }
+
+  async start() {
+    this.port = await this._findFreePort();
+    const args = ['--model', this.modelPath, '--port', String(this.port), '--host', '127.0.0.1'];
+    this.process = spawn(this.serverBinary, args, {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    this.childStderr = '';
+    this.process.stderr.on('data', (data) => { this.childStderr += data.toString(); });
+    this.process.on('exit', (code, signal) => {
+      this.killed = true;
+      this.process = null;
+    });
+
+    await this._waitForReady();
+    this.baseUrl = `http://127.0.0.1:${this.port}`;
+  }
+
+  _findFreePort() {
+    return new Promise((resolve, reject) => {
+      const server = require('net').createServer();
+      server.unref();
+      server.on('error', reject);
+      server.listen(0, '127.0.0.1', () => {
+        const port = server.address().port;
+        server.close(() => resolve(port));
+      });
+    });
+  }
+
+  _waitForReady() {
+    const deadline = Date.now() + SERVER_READY_TIMEOUT_MS;
+    return new Promise((resolve, reject) => {
+      const poll = () => {
+        if (this.killed) {
+          reject(new Error(`whisper-server exited before becoming ready: ${this.childStderr.slice(-200)}`));
+          return;
+        }
+        if (Date.now() > deadline) {
+          reject(new Error(`whisper-server did not become ready within ${SERVER_READY_TIMEOUT_MS}ms`));
+          return;
+        }
+        const req = http.get(`http://127.0.0.1:${this.port}/`, (res) => {
+          if (res.statusCode === 200) resolve();
+          else setTimeout(poll, SERVER_READY_POLL_MS);
+        });
+        req.on('error', () => setTimeout(poll, SERVER_READY_POLL_MS));
+        req.setTimeout(1000, () => { req.destroy(); });
+      };
+      poll();
+    });
+  }
+
+  infer(wavBuffer, timeoutMs) {
+    const boundary = `----WhisperFormBoundary${Math.random().toString(36).slice(2)}`;
+    const body = buildMultipartBody(wavBuffer, boundary);
+
+    return new Promise((resolve) => {
+      const startedAt = performance.now();
+      const options = {
+        hostname: '127.0.0.1',
+        port: this.port,
+        path: '/inference',
+        method: 'POST',
+        headers: {
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+          'Content-Length': Buffer.byteLength(body)
+        },
+        timeout: timeoutMs
+      };
+
+      const req = http.request(options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk.toString(); });
+        res.on('end', () => {
+          const elapsedMs = performance.now() - startedAt;
+          try {
+            const parsed = JSON.parse(data);
+            resolve({ ok: true, stdout: parsed.text || '', elapsedMs });
+          } catch {
+            resolve({ ok: false, error: `Invalid JSON response: ${data.slice(0, 200)}`, elapsedMs });
+          }
+        });
+      });
+
+      req.on('error', (error) => {
+        resolve({ ok: false, error: error.message, elapsedMs: performance.now() - startedAt });
+      });
+
+      req.on('timeout', () => {
+        req.destroy();
+        resolve({ ok: false, error: 'whisper-server request timed out', elapsedMs: performance.now() - startedAt });
+      });
+
+      req.write(body);
+      req.end();
+    });
+  }
+
+  async stop() {
+    this.killed = true;
+    if (this.process && !this.process.killed) {
+      const child = this.process;
+      const killer = spawn('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
+        windowsHide: true, stdio: 'ignore'
+      });
+      await new Promise((resolve) => {
+        killer.on('close', resolve);
+        killer.on('error', resolve);
+      });
+      this.process = null;
+    }
+  }
+
+  isRunning() {
+    return this.process !== null && !this.killed;
+  }
 }
 
 function computeAudioStats(samples) {
@@ -468,8 +616,22 @@ async function main() {
   const sessions = new Map();
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'meetsummarizer-stt-'));
 
+  const serverBinary = args['server-binary'] && path.resolve(args['server-binary']);
+  let whisperServer = null;
+  if (serverBinary && fs.existsSync(serverBinary)) {
+    whisperServer = new WhisperServerClient(serverBinary, model);
+    try {
+      await whisperServer.start();
+    } catch (error) {
+      emit({ type: 'error', severity: 'warning', backend,
+        error: `whisper-server failed, falling back to per-inference mode: ${error.message}` });
+      whisperServer = null;
+    }
+  }
+
   const emit = (event) => process.stdout.write(`${JSON.stringify(event)}\n`);
-  emit({ type: 'status', status: 'ready', backend, model, binary, config: activeConfig });
+  emit({ type: 'status', status: 'ready', backend, model, binary,
+    serverPort: whisperServer?.port ?? null, config: activeConfig });
 
   async function runInference(session) {
     session.inferenceRunning = true;
@@ -506,14 +668,20 @@ async function main() {
         return;
       }
 
-      writeWav(wavPath, preprocessed.samples, session.sampleRate);
-      const result = await runWhisper({
-        binary,
-        model,
-        wavPath,
-        language,
-        timeoutMs: inferenceTimeoutMs
-      });
+      let result;
+      if (whisperServer && whisperServer.isRunning()) {
+        const wavBuffer = wavToBuffer(preprocessed.samples, session.sampleRate);
+        result = await whisperServer.infer(wavBuffer, inferenceTimeoutMs);
+      } else {
+        writeWav(wavPath, preprocessed.samples, session.sampleRate);
+        result = await runWhisper({
+          binary,
+          model,
+          wavPath,
+          language,
+          timeoutMs: inferenceTimeoutMs
+        });
+      }
       if (!result.ok) {
         session.errorCount += 1;
         emit({
@@ -728,6 +896,7 @@ async function main() {
   });
 
   process.on('exit', () => {
+    if (whisperServer) whisperServer.stop().catch(() => {});
     for (const child of activeWhisperChildren) {
       try { child.kill(); } catch {}
     }

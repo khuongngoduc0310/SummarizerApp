@@ -51,6 +51,7 @@ Optional:
   --highPassFilter <true|false>
   --normalizeAudio <true|false>
   --silenceTrim <true|false>
+  --use-server                     Use whisper-server persistent process instead of per-inference spawn
 
 Notes:
   - Streaming mode requires mono 16 kHz 16-bit PCM WAV input.
@@ -412,7 +413,7 @@ function streamingConfigFromArgs(args) {
   };
 }
 
-async function runStreamingSidecar({ sidecar, binary, model, backend, language, wav, sampleId, config, pace, timeoutMs }) {
+async function runStreamingSidecar({ sidecar, binary, model, backend, language, wav, sampleId, config, pace, timeoutMs, useServer }) {
   const meetingId = `benchmark-${sampleId}`.replace(/[^a-zA-Z0-9_-]/g, '-');
   const speakerId = 'speaker-1';
   const sidecarArgs = [
@@ -432,6 +433,14 @@ async function runStreamingSidecar({ sidecar, binary, model, backend, language, 
     '--silenceTrim', String(config.silenceTrim),
     '--inferenceTimeoutMs', String(timeoutMs)
   ];
+  if (useServer) {
+    const binaryDir = path.dirname(binary);
+    const serverExecutable = process.platform === 'win32' ? 'whisper-server.exe' : 'whisper-server';
+    const serverBinary = path.join(binaryDir, serverExecutable);
+    if (fs.existsSync(serverBinary)) {
+      sidecarArgs.push('--server-binary', serverBinary);
+    }
+  }
   const childStartedAt = performance.now();
   const child = spawn(process.execPath, sidecarArgs, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
   const stdoutDecoder = new StringDecoder('utf8');
@@ -766,6 +775,7 @@ async function main() {
   const backend = args.backend || 'unknown';
   const language = args.language || 'en';
   const timeoutMs = parseFiniteNumber(args.timeoutMs, DEFAULT_TIMEOUT_MS, 'timeoutMs');
+  const useServer = args['use-server'] === true || args['use-server'] === 'true';
   const config = streamingConfigFromArgs(args);
   const dataset = loadDataset(args);
   const out = args.out ? path.resolve(args.out) : null;
@@ -812,6 +822,7 @@ async function main() {
       model,
       modelSha256: sha256File(model),
       sidecar: mode === 'offline' ? null : sidecar,
+      useServer: mode === 'offline' ? false : useServer,
       streamingConfig: mode === 'offline' ? null : config,
       platform: process.platform,
       arch: process.arch,
@@ -881,7 +892,8 @@ async function main() {
           sampleId: sample.id,
           config,
           pace,
-          timeoutMs
+          timeoutMs,
+          useServer
         });
         row.streaming = {
           ...result,
