@@ -273,13 +273,11 @@ Benchmarked on AMI Meeting Corpus (clean-core: 4/12 samples). Vulkan GPU via FFI
 | Streaming | small.en w6/o1 | **27.3%** | 337ms | **−11.4pp WER** |
 
 ```mermaid
-block-beta
-  columns 4
-  W["WER %"]
-  CB["CLI Off<br/>20.9%"]
-  FB["FFI Off<br/>19.8%"]
-  CS["CLI Str<br/>38.7%"]
-  FS["FFI Str<br/>27.3%"]
+xychart-beta
+  title "WER % (clean core, lower is better)"
+  x-axis ["CLI Off", "FFI Off", "CLI Str", "FFI Str"]
+  y-axis "WER %" 0 --> 45
+  bar [20.9, 19.8, 38.7, 27.3]
 ```
 
 Full report → `benchmark-results/FFI-BENCHMARK-REPORT.md`
