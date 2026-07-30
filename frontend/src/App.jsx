@@ -124,6 +124,8 @@ function App() {
   const [sttMetrics, setSttMetrics] = useState([]);
   const [modelCatalog, setModelCatalog] = useState([]);
   const [modelDownloadProgress, setModelDownloadProgress] = useState({});
+  const [backendCatalog, setBackendCatalog] = useState([]);
+  const [backendInstallProgress, setBackendInstallProgress] = useState({});
 
   // Device Management
   const [devices, setDevices] = useState({ video: [], audio: [], output: [] });
@@ -144,7 +146,7 @@ function App() {
         ...runtimeConfig,
         features: {
           ...runtimeConfig.features,
-          nativeStt: sttStatus?.status === 'running'
+          nativeStt: sttStatus ? sttStatus.nativeReady === true : runtimeConfig.features.nativeStt
         },
         stt: sttStatus || runtimeConfig.stt
       }
@@ -167,6 +169,12 @@ function App() {
   const refreshModelCatalog = useCallback(async () => {
     const catalog = await window.desktopStt?.listModelCatalog?.();
     if (catalog) setModelCatalog(catalog);
+    return catalog;
+  }, []);
+
+  const refreshBackendCatalog = useCallback(async () => {
+    const catalog = await window.desktopStt?.listBackendCatalog?.();
+    if (catalog) setBackendCatalog(catalog);
     return catalog;
   }, []);
 
@@ -334,7 +342,7 @@ function App() {
       try {
         const nativeStatus = await window.desktopStt?.getStatus?.();
         if (!cancelled) setSttStatus(nativeStatus || runtimeConfig.stt || null);
-        if (!cancelled) await refreshModelCatalog();
+        if (!cancelled) await Promise.all([refreshModelCatalog(), refreshBackendCatalog()]);
       } catch {
         if (!cancelled) setSttStatus(runtimeConfig.stt || null);
       }
@@ -344,7 +352,7 @@ function App() {
     const interval = setInterval(refreshSttStatus, 5000);
     const unsubscribeStatus = window.desktopStt?.onStatus?.((status) => {
       setSttStatus(status);
-      refreshModelCatalog().catch(() => {});
+      Promise.all([refreshModelCatalog(), refreshBackendCatalog()]).catch(() => {});
     });
     const unsubscribeProgress = window.desktopStt?.onModelDownloadProgress?.((progress) => {
       setModelDownloadProgress((prev) => ({ ...prev, [progress.modelId]: progress }));
@@ -352,14 +360,19 @@ function App() {
         refreshSttStatus();
       }
     });
+    const unsubscribeBackendProgress = window.desktopStt?.onBackendInstallProgress?.((progress) => {
+      setBackendInstallProgress((prev) => ({ ...prev, [progress.backendId]: progress }));
+      if (['done', 'cancelled', 'error'].includes(progress.phase)) refreshSttStatus();
+    });
 
     return () => {
       cancelled = true;
       clearInterval(interval);
       unsubscribeStatus?.();
       unsubscribeProgress?.();
+      unsubscribeBackendProgress?.();
     };
-  }, [runtimeConfig, refreshModelCatalog]);
+  }, [runtimeConfig, refreshBackendCatalog, refreshModelCatalog]);
 
   // Poll for devices when settings are opened
   useEffect(() => {
@@ -568,9 +581,9 @@ function App() {
     };
   }, [sttMetrics]);
 
-  const nativeSttRunning = sttStatus?.status === 'running';
+  const nativeSttRunning = sttStatus?.nativeReady === true;
   const sttModeLabel = nativeSttRunning
-    ? `Whisper.cpp ${sttStatus?.selectedBackend ? `(${sttStatus.selectedBackend.toUpperCase()})` : ''}`
+    ? `Whisper.cpp ${sttStatus?.activeBackend ? `(${sttStatus.activeBackend.toUpperCase()})` : ''}`
     : 'WebGPU';
   const sttModeDetail = nativeSttRunning
     ? (sttStatus?.selectedModel?.split(/[\\/]/).pop() || 'Native model')
@@ -611,6 +624,43 @@ function App() {
     await refreshModelCatalog();
   };
 
+  const handleBackendPreference = async (backendPreference) => {
+    const result = await window.desktopStt?.setBackendPreference?.(backendPreference);
+    if (!result?.ok) alert(result?.error || 'Failed to change STT backend preference');
+    const status = await window.desktopStt?.getStatus?.();
+    if (status) setSttStatus(status);
+    await refreshBackendCatalog();
+  };
+
+  const handleInstallBackend = async (backendId) => {
+    const backend = backendCatalog.find((candidate) => candidate.id === backendId);
+    const downloadMiB = backend ? Math.round(backend.downloadSize / 1024 / 1024) : 266;
+    const installedMiB = backend ? Math.round(backend.installedSize / 1024 / 1024) : 594;
+    const confirmed = window.confirm(
+      `Install ${backend?.label || backendId}? This downloads ${downloadMiB} MiB of executable code from the official whisper.cpp release and uses about ${installedMiB} MiB after installation.`
+    );
+    if (!confirmed) return;
+    const result = await window.desktopStt?.installBackend?.(backendId);
+    if (!result?.ok && !result?.cancelled) alert(result?.error || 'Failed to install STT backend');
+    const status = await window.desktopStt?.getStatus?.();
+    if (status) setSttStatus(status);
+    await refreshBackendCatalog();
+  };
+
+  const handleCancelBackendInstall = async (backendId) => {
+    const result = await window.desktopStt?.cancelBackendInstall?.(backendId);
+    if (!result?.ok) alert(result?.error || 'Failed to cancel backend installation');
+  };
+
+  const handleRemoveBackend = async (backendId) => {
+    if (!window.confirm('Remove this downloaded STT backend from this computer?')) return;
+    const result = await window.desktopStt?.removeBackend?.(backendId);
+    if (!result?.ok) alert(result?.error || 'Failed to remove STT backend');
+    const status = await window.desktopStt?.getStatus?.();
+    if (status) setSttStatus(status);
+    await refreshBackendCatalog();
+  };
+
   if (startupError) {
     return (
       <div className="h-screen bg-[#0a0a0a] text-white flex items-center justify-center font-sans p-6">
@@ -646,9 +696,15 @@ function App() {
         setSttStatus={setSttStatus}
         modelCatalog={modelCatalog}
         modelDownloadProgress={modelDownloadProgress}
+        backendCatalog={backendCatalog}
+        backendInstallProgress={backendInstallProgress}
         onDownloadModel={handleDownloadModel}
         onUseModel={handleUseModel}
         onDeleteModel={handleDeleteModel}
+        onBackendPreference={handleBackendPreference}
+        onInstallBackend={handleInstallBackend}
+        onCancelBackendInstall={handleCancelBackendInstall}
+        onRemoveBackend={handleRemoveBackend}
         sttModeLabel={sttModeLabel}
         sttModeDetail={sttModeDetail}
         nativeSttRunning={nativeSttRunning}
@@ -951,6 +1007,7 @@ function App() {
                 <SttStatusBar
                   sttStatus={sttStatus}
                   modelDownloadProgress={modelDownloadProgress}
+                  backendInstallProgress={backendInstallProgress}
                 />
               </aside>
             </>
@@ -971,9 +1028,15 @@ function App() {
           setSttStatus={setSttStatus}
           modelCatalog={modelCatalog}
           modelDownloadProgress={modelDownloadProgress}
+          backendCatalog={backendCatalog}
+          backendInstallProgress={backendInstallProgress}
           onDownloadModel={handleDownloadModel}
           onUseModel={handleUseModel}
           onDeleteModel={handleDeleteModel}
+          onBackendPreference={handleBackendPreference}
+          onInstallBackend={handleInstallBackend}
+          onCancelBackendInstall={handleCancelBackendInstall}
+          onRemoveBackend={handleRemoveBackend}
           sttModeLabel={sttModeLabel}
           sttModeDetail={sttModeDetail}
           nativeSttRunning={nativeSttRunning}

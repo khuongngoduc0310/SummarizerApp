@@ -4,6 +4,9 @@ const os = require('os');
 const path = require('path');
 const readline = require('readline');
 const { spawn } = require('child_process');
+const { StringDecoder } = require('string_decoder');
+
+const activeWhisperChildren = new Set();
 
 function parseArgs(argv) {
   const args = {};
@@ -192,10 +195,15 @@ function normalizeText(text) {
 }
 
 function normalizeForCompare(text) {
-  return normalizeText(text).toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+  return normalizeText(text)
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N} ]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-function runWhisper({ binary, model, wavPath, language }) {
+function runWhisper({ binary, model, wavPath, language, timeoutMs }) {
   return new Promise((resolve) => {
     const startedAt = performance.now();
     const args = ['-m', model, '-f', wavPath, '-nt', '-np'];
@@ -205,17 +213,32 @@ function runWhisper({ binary, model, wavPath, language }) {
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe']
     });
+    activeWhisperChildren.add(child);
 
     let stdout = '';
     let stderr = '';
-    child.stdout.on('data', (data) => { stdout += data.toString(); });
-    child.stderr.on('data', (data) => { stderr += data.toString(); });
-    child.on('error', (error) => resolve({ ok: false, error: error.message, stdout, stderr }));
-    child.on('exit', (code, signal) => {
+    let childError = null;
+    let timedOut = false;
+    const stdoutDecoder = new StringDecoder('utf8');
+    const stderrDecoder = new StringDecoder('utf8');
+    child.stdout.on('data', (data) => { stdout += stdoutDecoder.write(data); });
+    child.stderr.on('data', (data) => { stderr += stderrDecoder.write(data); });
+    child.on('error', (error) => { childError = error; });
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill();
+    }, timeoutMs);
+    child.on('close', (code, signal) => {
+      clearTimeout(timer);
+      activeWhisperChildren.delete(child);
+      stdout += stdoutDecoder.end();
+      stderr += stderrDecoder.end();
       resolve({
-        ok: code === 0,
+        ok: !childError && !timedOut && code === 0,
         code,
         signal,
+        error: childError?.message,
+        timedOut,
         stdout,
         stderr,
         elapsedMs: performance.now() - startedAt
@@ -228,7 +251,7 @@ function validateConfig(config, current = {}) {
   const windowSec = Number(config.windowSec ?? current.windowSec ?? 4);
   const overlapSecRaw = Number(config.overlapSec ?? current.overlapSec ?? 1);
   const maxBufferSec = Number(config.maxBufferSec ?? current.maxBufferSec ?? 8);
-  const vadThreshold = Number(config.vadThreshold ?? current.vadThreshold ?? 0.008);
+  const vadThreshold = Number(config.vadThreshold ?? current.vadThreshold ?? 0.003);
   const highPassCutoffHz = Number(config.highPassCutoffHz ?? current.highPassCutoffHz ?? 100);
 
   if (!Number.isFinite(windowSec) || windowSec < 2 || windowSec > 10) {
@@ -271,12 +294,21 @@ class SessionState {
     this.speakerId = speakerId;
     this.sampleRate = sampleRate;
     this.samples = [];
+    this.bufferStartSample = 0;
     this.totalSamplesReceived = 0;
     this.lastInferenceAtSample = 0;
+    this.lastCoveredSample = 0;
+    this.uncoveredSamples = 0;
     this.inferenceRunning = false;
+    this.currentInferencePromise = null;
     this.sequence = 0;
     this.recentFinals = [];
     this.lastFinalText = '';
+    this.finalCount = 0;
+    this.errorCount = 0;
+    this.vadSkipCount = 0;
+    this.bufferOverflowSamples = 0;
+    this.coalescedInferenceCount = 0;
     this.duplicateSuppressedCount = 0;
     this.overlapPrefixTrimCount = 0;
     this.applyConfig(config);
@@ -287,30 +319,53 @@ class SessionState {
     this.windowSamples = Math.round(this.config.windowSec * this.sampleRate);
     this.stepSamples = Math.round(this.config.stepSec * this.sampleRate);
     this.maxBufferSamples = Math.round(this.config.maxBufferSec * this.sampleRate);
-    if (this.samples.length > this.maxBufferSamples) {
-      this.samples = this.samples.slice(-this.maxBufferSamples);
-    }
+    this.trimBuffer();
   }
 
   push(samples) {
     this.samples.push(...samples);
     this.totalSamplesReceived += samples.length;
+    this.trimBuffer();
+  }
+
+  trimBuffer() {
     if (this.samples.length > this.maxBufferSamples) {
+      const newBufferStart = this.totalSamplesReceived - this.maxBufferSamples;
+      const unprocessedBoundary = Math.max(this.lastInferenceAtSample, this.bufferStartSample);
+      this.bufferOverflowSamples += Math.max(0, newBufferStart - unprocessedBoundary);
+      this.bufferStartSample = newBufferStart;
       this.samples = this.samples.slice(-this.maxBufferSamples);
     }
   }
 
-  shouldRun() {
+  shouldRun({ force = false } = {}) {
     if (this.inferenceRunning) return false;
+    if (force) {
+      return this.totalSamplesReceived > this.lastInferenceAtSample
+        && this.samples.length >= Math.round(this.sampleRate * 0.3);
+    }
     if (this.samples.length < Math.min(this.windowSamples, this.sampleRate)) return false;
     return this.totalSamplesReceived - this.lastInferenceAtSample >= this.stepSamples;
   }
 
   getWindow() {
     const windowSamples = this.samples.slice(-this.windowSamples);
-    const end = this.totalSamplesReceived / this.sampleRate;
-    const start = Math.max(0, end - (windowSamples.length / this.sampleRate));
-    return { samples: windowSamples, start, end };
+    const endSample = this.totalSamplesReceived;
+    const startSample = endSample - windowSamples.length;
+    return {
+      samples: windowSamples,
+      startSample,
+      endSample,
+      start: startSample / this.sampleRate,
+      end: endSample / this.sampleRate
+    };
+  }
+
+  recordCoverage(startSample, endSample) {
+    if (startSample > this.lastCoveredSample) {
+      this.uncoveredSamples += startSample - this.lastCoveredSample;
+    }
+    this.lastCoveredSample = Math.max(this.lastCoveredSample, endSample);
   }
 
   removeRepeatedPrefix(text) {
@@ -386,12 +441,13 @@ async function main() {
   const model = args.model && path.resolve(args.model);
   const language = args.language || 'en';
   const backend = args.backend || 'native';
+  const inferenceTimeoutMs = Number(args.inferenceTimeoutMs || 120000);
   let activeConfig = validateConfig({
     windowSec: Number(args.windowSec || 4),
     overlapSec: args.overlapSec !== undefined ? Number(args.overlapSec) : undefined,
     stepSec: Number(args.stepSec || 3),
     maxBufferSec: Number(args.maxBufferSec || 8),
-    vadThreshold: Number(args.vadThreshold || 0.008),
+    vadThreshold: Number(args.vadThreshold || 0.003),
     highPassCutoffHz: Number(args.highPassCutoffHz || 100),
     dcOffsetRemoval: args.dcOffsetRemoval !== 'false',
     highPassFilter: args.highPassFilter !== 'false',
@@ -405,6 +461,9 @@ async function main() {
   if (!model || !fs.existsSync(model)) {
     throw new Error(`Whisper model not found: ${model}`);
   }
+  if (!Number.isFinite(inferenceTimeoutMs) || inferenceTimeoutMs <= 0) {
+    throw new Error('inferenceTimeoutMs must be a positive number');
+  }
 
   const sessions = new Map();
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'meetsummarizer-stt-'));
@@ -412,23 +471,34 @@ async function main() {
   const emit = (event) => process.stdout.write(`${JSON.stringify(event)}\n`);
   emit({ type: 'status', status: 'ready', backend, model, binary, config: activeConfig });
 
-  async function maybeInfer(session) {
-    if (!session.shouldRun()) return;
-
+  async function runInference(session) {
     session.inferenceRunning = true;
     session.lastInferenceAtSample = session.totalSamplesReceived;
-    emit({ type: 'telemetry', event: 'inference-start', backend });
-
-    const { samples, start, end } = session.getWindow();
-    const wavPath = path.join(tempDir, `${session.meetingId}-${session.speakerId}-${Date.now()}.wav`);
+    const inferenceStartedAt = performance.now();
+    const inferenceId = `${session.meetingId}-${session.speakerId}-${session.lastInferenceAtSample}`;
+    const { samples, startSample, endSample, start, end } = session.getWindow();
+    session.recordCoverage(startSample, endSample);
+    const wavPath = path.join(tempDir, `${inferenceId}-${Date.now()}.wav`);
+    emit({
+      type: 'telemetry',
+      event: 'inference-start',
+      backend,
+      inferenceId,
+      meetingId: session.meetingId,
+      speakerId: session.speakerId,
+      start,
+      end
+    });
 
     try {
       const preprocessed = preprocessAudio(samples, session.sampleRate, session.config);
       if (preprocessed.metrics.skippedByVad) {
+        session.vadSkipCount += 1;
         emit({
           type: 'telemetry',
           event: 'vad-skip',
           backend,
+          inferenceId,
           meetingId: session.meetingId,
           speakerId: session.speakerId,
           metrics: preprocessed.metrics
@@ -437,9 +507,27 @@ async function main() {
       }
 
       writeWav(wavPath, preprocessed.samples, session.sampleRate);
-      const result = await runWhisper({ binary, model, wavPath, language });
+      const result = await runWhisper({
+        binary,
+        model,
+        wavPath,
+        language,
+        timeoutMs: inferenceTimeoutMs
+      });
       if (!result.ok) {
-        emit({ type: 'error', backend, error: result.error || result.stderr || `whisper.cpp exited ${result.code}` });
+        session.errorCount += 1;
+        emit({
+          type: 'error',
+          code: result.timedOut ? 'INFERENCE_TIMEOUT' : 'INFERENCE_FAILED',
+          severity: 'error',
+          retryable: true,
+          backend,
+          inferenceId,
+          meetingId: session.meetingId,
+          speakerId: session.speakerId,
+          error: result.error || result.stderr || `whisper.cpp exited ${result.code}`,
+          details: { exitCode: result.code, signal: result.signal, timedOut: result.timedOut }
+        });
         return;
       }
 
@@ -449,9 +537,11 @@ async function main() {
       session.rememberFinal(text);
 
       session.sequence += 1;
+      session.finalCount += 1;
       emit({
         type: 'final',
         backend,
+        inferenceId,
         utteranceId: `${session.meetingId}-${session.speakerId}-${session.sequence}`,
         meetingId: session.meetingId,
         speakerId: session.speakerId,
@@ -478,8 +568,91 @@ async function main() {
     } finally {
       try { fs.unlinkSync(wavPath); } catch {}
       session.inferenceRunning = false;
-      emit({ type: 'telemetry', event: 'inference-end', backend });
+      emit({
+        type: 'telemetry',
+        event: 'inference-end',
+        backend,
+        inferenceId,
+        meetingId: session.meetingId,
+        speakerId: session.speakerId,
+        start,
+        end,
+        inferenceTimeMs: performance.now() - inferenceStartedAt,
+        audioDurationSec: samples.length / session.sampleRate
+      });
     }
+  }
+
+  async function maybeInfer(session, { force = false } = {}) {
+    if (session.currentInferencePromise) {
+      if (!force) {
+        if (session.totalSamplesReceived - session.lastInferenceAtSample >= session.stepSamples) {
+          session.coalescedInferenceCount += 1;
+        }
+        return false;
+      }
+      await session.currentInferencePromise;
+    }
+
+    if (!session.shouldRun({ force })) return false;
+
+    const inferencePromise = runInference(session);
+    session.currentInferencePromise = inferencePromise;
+    try {
+      await inferencePromise;
+      return true;
+    } finally {
+      if (session.currentInferencePromise === inferencePromise) {
+        session.currentInferencePromise = null;
+      }
+      if (!force && session.shouldRun()) {
+        void maybeInfer(session).catch((error) => {
+          emit({ type: 'error', code: 'INFERENCE_FAILED', severity: 'fatal', fatal: true, backend, error: error.message });
+        });
+      }
+    }
+  }
+
+  async function flushSession(message) {
+    const key = `${message.meetingId}:${message.speakerId}`;
+    const session = sessions.get(key);
+    if (!session) {
+      emit({
+        type: 'flushed',
+        backend,
+        meetingId: message.meetingId,
+        speakerId: message.speakerId,
+        requestId: message.requestId,
+        ok: false,
+        error: 'Session not found'
+      });
+      return;
+    }
+
+    await maybeInfer(session, { force: true });
+    emit({
+      type: 'flushed',
+      backend,
+      meetingId: session.meetingId,
+      speakerId: session.speakerId,
+      requestId: message.requestId,
+      ok: session.errorCount === 0
+        && session.totalSamplesReceived === session.lastInferenceAtSample
+        && session.uncoveredSamples === 0
+        && session.bufferOverflowSamples === 0,
+      totalSamplesReceived: session.totalSamplesReceived,
+      lastInferenceAtSample: session.lastInferenceAtSample,
+      lastCoveredSample: session.lastCoveredSample,
+      pendingSamples: session.totalSamplesReceived - session.lastInferenceAtSample,
+      uncoveredSamples: session.uncoveredSamples,
+      finalCount: session.finalCount,
+      errorCount: session.errorCount,
+      vadSkipCount: session.vadSkipCount,
+      bufferOverflowSamples: session.bufferOverflowSamples,
+      coalescedInferenceCount: session.coalescedInferenceCount,
+      duplicateSuppressedCount: session.duplicateSuppressedCount,
+      overlapPrefixTrimCount: session.overlapPrefixTrimCount
+    });
   }
 
   const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
@@ -502,6 +675,25 @@ async function main() {
       } catch (error) {
         emit({ type: 'error', backend, error: error.message });
       }
+      return;
+    }
+
+    if (message.type === 'flush') {
+      if (!message.meetingId || !message.speakerId || !message.requestId) {
+        emit({ type: 'error', backend, error: 'flush requires meetingId, speakerId, and requestId' });
+        return;
+      }
+      flushSession(message).catch((error) => {
+        emit({
+          type: 'flushed',
+          backend,
+          meetingId: message.meetingId,
+          speakerId: message.speakerId,
+          requestId: message.requestId,
+          ok: false,
+          error: error.message
+        });
+      });
       return;
     }
 
@@ -536,11 +728,30 @@ async function main() {
   });
 
   process.on('exit', () => {
+    for (const child of activeWhisperChildren) {
+      try { child.kill(); } catch {}
+    }
     try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
   });
 }
 
-main().catch((error) => {
-  process.stdout.write(`${JSON.stringify({ type: 'error', error: error.message })}\n`);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    process.stdout.write(`${JSON.stringify({
+      type: 'error',
+      code: 'SIDECAR_FATAL',
+      severity: 'fatal',
+      fatal: true,
+      error: error.message
+    })}\n`);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  SessionState,
+  normalizeForCompare,
+  normalizeText,
+  preprocessAudio,
+  validateConfig
+};

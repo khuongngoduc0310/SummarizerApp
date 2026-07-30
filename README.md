@@ -20,7 +20,7 @@ Meetings generate insight, but most of it vanishes the moment the call ends. Mee
 | 🤖 **AI Summaries** | One-click meeting summaries via OpenAI or bring-your-own LLM key |
 | 🎥 **Video & Audio** | Peer-to-peer WebRTC with mute, video toggle, and multi-participant grid |
 | 🔒 **Privacy-First** | STT runs locally via Whisper.cpp — audio never sent to a cloud service |
-| ⚡ **GPU Accelerated** | Vulkan GPU backend for fast transcription; falls back to browser WebGPU |
+| ⚡ **GPU Accelerated** | Optional NVIDIA CUDA 11.8 and cross-vendor Vulkan backends; falls back to browser WebGPU |
 | 🔌 **Offline-Ready STT** | Native sidecar process keeps working even with spotty internet |
 | 📊 **Status Bar** | Live model, backend, inference state, and realtime factor display |
 
@@ -34,7 +34,7 @@ Meetings generate insight, but most of it vanishes the moment the call ends. Mee
 | **UI Renderer** | React 19 + Vite + Tailwind CSS | Component-based UI, dark theme, responsive layout |
 | **Video / Audio** | WebRTC (simple-peer) | Peer-to-peer streaming, no server relay for media |
 | **Signaling** | Socket.io | Real-time WebRTC handshake, presence, caption relay |
-| **On-Device STT** | Whisper.cpp (C++ sidecar) | Fast, local transcription with Vulkan GPU acceleration |
+| **On-Device STT** | Whisper.cpp (C++ sidecar) | Fast, local transcription with CUDA, Vulkan, or CPU inference |
 | **Browser Fallback** | WebGPU Whisper (ONNX) | On-device transcription when native sidecar is unavailable |
 | **Backend API** | Express 5 + Prisma | REST endpoints for meetings and summaries |
 | **Database** | PostgreSQL | Meeting records, transcripts, summaries |
@@ -184,6 +184,7 @@ graph TB
 
 - [Testing and manual verification](docs/TESTING.md)
 - [WebGPU STT baseline benchmark](docs/STT_WEBGPU_BENCHMARK.md)
+- [Native STT WER benchmark](docs/STT_NATIVE_WER_BENCHMARK.md)
 
 ## 🚀 Getting Started
 
@@ -255,10 +256,11 @@ Speech-to-text runs **locally** using a Whisper.cpp sidecar process. No audio is
 
 | Backend | Hardware | Notes |
 |---------|----------|-------|
-| **CPU** | Any machine | Included by default |
-| **Vulkan** | NVIDIA/AMD GPU | 2-5× faster inference |
+| **CUDA 11.8** | NVIDIA GPU, Windows x64 | Optional verified download: 266 MiB archive, about 594 MiB installed |
+| **Vulkan** | NVIDIA/AMD/Intel GPU | Cross-vendor native GPU path when its local runtime is available |
+| **CPU** | Any supported machine | Native fallback when its local runtime is available |
 
-Models are downloaded and switched from **Settings → Speech-to-text**. The status bar shows live inference state and download progress.
+Models and the optional CUDA runtime are downloaded from **Settings → Speech-to-text**. Backend preference is persisted in Electron user data. `Auto` validates CUDA, then Vulkan, then CPU; an explicit backend choice is strict and uses browser WebGPU if that backend cannot start. CUDA downloads executable code from the pinned official `whisper.cpp v1.9.1` release, requires at least 1.2 GB of temporary free space, and can be cancelled or removed from Settings.
 
 ---
 
@@ -272,7 +274,8 @@ MeetSummarizer/
 │   └── stt/
 │       ├── sidecar-manager.js   # NativeSttManager: spawn, lifecycle, state
 │       ├── whisper-streaming-sidecar.js  # Whisper.cpp orchestrator
-│       └── bin/                 # Prebuilt whisper-cli binaries (CPU, Vulkan)
+│       ├── backend-installer.js # Verified optional backend download/extraction
+│       └── bin/                 # Local packaged whisper-cli binaries (CPU, Vulkan)
 ├── frontend/                    # React renderer (Vite)
 │   └── src/
 │       ├── App.jsx              # Root: routing, socket, meeting state
@@ -308,7 +311,7 @@ MeetSummarizer/
 ## 🔑 Key Engineering Decisions
 
 ### Why a native Whisper.cpp sidecar instead of browser-only?
-Browser WebGPU Whisper works, but model loading is slow (~5-15s) and GPU support varies. A native C++ sidecar process loads models instantly, supports Vulkan acceleration, and doesn't tie up the renderer thread. The app falls back to WebGPU transparently if the sidecar is unavailable.
+Browser WebGPU Whisper works, but model loading is slow (~5-15s) and GPU support varies. A native C++ sidecar supports CUDA and Vulkan acceleration without tying up the renderer thread. Native candidates are preflighted with the selected model before the sidecar is reported ready; the app falls back to WebGPU if the requested native path is unavailable.
 
 ### Why Electron instead of a web app?
 - **Local STT requires native binaries** — a web-only app can't spawn processes or access GPU backends.
@@ -331,11 +334,11 @@ During a meeting, the sidebar footer shows live STT state:
 |-----------|-------|---------|
 | 🟢 Green dot | **Idle** | Sidecar running, waiting for speech |
 | 🟠 Amber pulsing | **Inferring** | Transcribing an audio window (shows live RTF) |
-| 🔵 Progress bar | **Downloading** | Model download in progress (% + bytes) |
+| 🔵 Progress bar | **Downloading** | Model or optional backend installation in progress (% + bytes) |
 | 🔴 Red dot | **Unavailable** | No backend or no model available |
 | ⚪ Gray dot | **Stopped** | Sidecar process stopped |
 
-The model pill shows `<filename>` + `<CPU | VULKAN>`. RTF (realtime factor) indicates transcription speed — `RTF 0.40x` means 2.5× faster than real-time.
+The model pill shows `<filename>` + `<CUDA | VULKAN | CPU | WEBGPU>`. RTF (realtime factor) indicates transcription speed — `RTF 0.40x` means 2.5× faster than real-time.
 
 ---
 

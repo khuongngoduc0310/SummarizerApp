@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { getActiveApiKey, getProviderConfig, getSelectedModel, LLM_PROVIDERS } from '../config/llmModels';
 
+const formatMiB = (bytes) => `${Math.round(Number(bytes || 0) / 1024 / 1024)} MiB`;
+
 const SettingsModal = ({
   onClose,
   devices = { video: [], audio: [], output: [] },
@@ -17,12 +19,17 @@ const SettingsModal = ({
   sttConfig,
   setSttConfig,
   sttStatus,
-  setSttStatus,
   modelCatalog = [],
   modelDownloadProgress = {},
+  backendCatalog = [],
+  backendInstallProgress = {},
   onDownloadModel,
   onUseModel,
   onDeleteModel,
+  onBackendPreference,
+  onInstallBackend,
+  onCancelBackendInstall,
+  onRemoveBackend,
   sttModeLabel = 'Speech-to-text',
   sttModeDetail = 'Not available',
   nativeSttRunning = false,
@@ -119,36 +126,75 @@ const SettingsModal = ({
           </div>
 
           <div className="space-y-3">
-            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Native Backend</label>
+            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Backend Preference</label>
             <select
-              value={sttStatus?.selectedBackend || ''}
-              onChange={async (e) => {
-                const backendId = e.target.value;
-                if (!backendId || !window.desktopStt?.setBackend) return;
-                const result = await window.desktopStt.setBackend(backendId);
-                if (!result?.ok) alert(result?.error || 'Failed to switch STT backend');
-                const status = await window.desktopStt.getStatus?.();
-                if (status) setSttStatus?.(status);
-              }}
+              value={sttStatus?.backendPreference || 'auto'}
+              onChange={(event) => onBackendPreference?.(event.target.value)}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none"
             >
+              <option value="auto">Auto (CUDA, Vulkan, CPU)</option>
               {(sttStatus?.backends || []).map((backend) => (
-                <option key={backend.id} value={backend.id} disabled={!backend.available}>
-                  {backend.label} {backend.available ? 'available' : `missing ${backend.missingFiles?.join(', ') || 'files'}`}
+                <option key={backend.id} value={backend.id}>
+                  {backend.label} {backend.available ? 'available' : 'not available'}
                 </option>
               ))}
-              {(!sttStatus?.backends || sttStatus.backends.length === 0) && <option value="">No native backends detected</option>}
             </select>
+            <p className="text-[11px] text-gray-500">
+              Active backend: <span className="font-bold text-gray-300">{sttStatus?.activeBackend?.toUpperCase() || 'WebGPU fallback'}</span>
+              {sttStatus?.attemptBackend ? ` · Trying ${sttStatus.attemptBackend.toUpperCase()}` : ''}
+            </p>
             <div className="grid grid-cols-1 gap-2">
-              {(sttStatus?.backends || []).map((backend) => (
-                <div key={backend.id} className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] border border-white/10 px-3 py-2">
-                  <span className="text-xs font-bold text-gray-300">{backend.label}</span>
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${backend.available ? 'text-emerald-400' : 'text-amber-400'}`}>
-                    {backend.available ? backend.validationStatus || 'available' : backend.validationError || 'missing'}
-                  </span>
-                </div>
-              ))}
+              {(sttStatus?.backends || []).map((backend) => {
+                const catalogBackend = backendCatalog.find((candidate) => candidate.id === backend.id);
+                const progress = backendInstallProgress[backend.id];
+                const installing = ['starting', 'download', 'extract'].includes(progress?.phase) || catalogBackend?.installing;
+                return (
+                  <div key={backend.id} className="rounded-xl bg-white/[0.03] border border-white/10 px-3 py-3 space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <span className="text-xs font-bold text-gray-300">{backend.label}</span>
+                        {catalogBackend && (
+                          <p className="text-[10px] text-gray-600 mt-1">
+                            {formatMiB(catalogBackend.downloadSize)} download · {formatMiB(catalogBackend.installedSize)} installed
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${backend.available ? 'text-emerald-400' : 'text-amber-400'}`}>
+                          {backend.available ? backend.validationStatus || 'available' : catalogBackend?.installed ? backend.validationError || 'invalid' : 'not installed'}
+                        </span>
+                        {catalogBackend && !catalogBackend.installed && !installing && (
+                          <button onClick={() => onInstallBackend?.(backend.id)} disabled={!catalogBackend.compatible} className="px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[10px] font-black uppercase text-blue-300 disabled:opacity-40">
+                            Install
+                          </button>
+                        )}
+                        {catalogBackend && installing && (
+                          <button onClick={() => onCancelBackendInstall?.(backend.id)} className="px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[10px] font-black uppercase text-amber-300">
+                            Cancel
+                          </button>
+                        )}
+                        {catalogBackend?.installed && !installing && (
+                          <button onClick={() => onRemoveBackend?.(backend.id)} className="px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-[10px] font-black uppercase text-red-300">
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {installing && (
+                      <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                        <div className="h-full bg-blue-400 transition-all" style={{ width: `${progress?.percent || 0}%` }} />
+                      </div>
+                    )}
+                    {progress?.phase === 'error' && <p className="text-[10px] font-bold text-red-300">{progress.error}</p>}
+                  </div>
+                );
+              })}
             </div>
+            {backendCatalog.length > 0 && (
+              <p className="text-[10px] text-gray-600 leading-relaxed">
+                CUDA installs executable code from the official whisper.cpp release and requires an NVIDIA GPU. At least 1.2 GB free disk space is required during installation. Audio remains local.
+              </p>
+            )}
           </div>
 
           <div className="space-y-3">

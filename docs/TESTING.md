@@ -2,7 +2,7 @@
 
 MeetSummarizer is tested through the Electron desktop application. The React/Vite renderer is not browser-standalone: Electron loads `frontend/dist/index.html` and provides runtime configuration through the preload bridge.
 
-Automated backend and frontend tests can be run independently from the repository root.
+Automated backend, frontend, and desktop tests can be run independently from the repository root.
 
 ## Automated checks
 
@@ -11,6 +11,7 @@ From the repository root:
 ```bash
 npm --prefix backend test
 npm --prefix frontend test
+npm --prefix desktop test
 npm --prefix frontend run lint
 ```
 
@@ -19,7 +20,47 @@ Run one test file with:
 ```bash
 npm --prefix backend test -- test/<name>.test.js
 npm --prefix frontend test -- test/<name>.test.js
+npm --prefix desktop test -- test/stt-benchmark.test.js
+npm --prefix desktop test -- test/backend-installer.test.js
+npm --prefix desktop test -- test/sidecar-manager.test.js
 ```
+
+## Native STT benchmark smoke test
+
+This smoke test checks manifest loading, offline transcription, sidecar streaming, flush acknowledgment, transcript writing, and report generation. It is not a performance measurement.
+
+1. Put a local 3-5 second speech clip at `desktop/stt/samples/smoke/sample.wav`. It must be mono 16 kHz 16-bit PCM WAV.
+2. Put its lexical reference at `desktop/stt/samples/smoke/sample.txt`.
+3. Create the local ignored manifest `desktop/stt/samples/smoke/manifest.json`:
+
+   ```json
+   {
+     "schemaVersion": 1,
+     "dataset": { "name": "native-smoke" },
+     "samples": [
+       { "id": "sample", "audio": "sample.wav", "reference": "sample.txt" }
+     ]
+   }
+   ```
+
+4. From the repository root, run both modes with fast pacing. Benchmark script arguments resolve from `desktop/`:
+
+   ```bash
+   npm --prefix desktop run benchmark:whisper -- \
+     --binary stt/bin/cpu/whisper-cli.exe \
+     --model stt/models/ggml-base.en-q5_0.bin \
+     --manifest stt/samples/smoke/manifest.json \
+     --mode both \
+     --pace fast \
+     --backend cpu \
+     --out ../benchmark-results/native-smoke.json \
+     --transcripts-dir ../benchmark-results/transcripts/native-smoke
+   ```
+
+5. Confirm the command exits successfully, both sample modes have `ok: true`, `streaming.flush.totalSamplesReceived` equals `streaming.performance.samplesSent`, and offline/streaming transcript files were written.
+6. Review WER only as a pipeline sanity check. Fast pacing is not latency-representative; use `--pace realtime` and the procedure in [Native STT WER Benchmark](STT_NATIVE_WER_BENCHMARK.md) for measurements.
+
+The sample, reference, report, and transcripts are local artifacts and are not committed.
 
 ## Quick local desktop test
 
@@ -121,6 +162,21 @@ Do not use `docker compose up --build` as the documented application startup pat
 8. Confirm the caption appears in both Electron windows.
 9. Confirm mute/video status changes propagate between participants.
 10. Add an LLM API key in Settings and generate a summary after final captions have been persisted.
+
+### Optional CUDA backend smoke test
+
+1. Use a Windows x64 machine with an NVIDIA GPU and current driver. A full CUDA Toolkit installation must not be required.
+2. Open **Settings → Speech-to-text**, keep the preference on **Auto**, and install **NVIDIA CUDA 11.8**.
+3. Confirm the UI discloses a 266 MiB download, approximately 594 MiB installed size, and at least 1.2 GB temporary free-space requirement.
+4. Cancel one installation and confirm no backend is marked installed; retry and confirm progress passes through download and extraction.
+5. Restart Electron and confirm the backend remains installed and the `Auto` preference persists.
+6. With a downloaded Whisper model selected, confirm CUDA passes preflight and becomes the active backend.
+7. Select CPU or Vulkan explicitly, restart, and confirm the strict preference persists.
+8. Remove CUDA while `Auto` is selected and confirm native STT falls through to Vulkan or CPU, otherwise WebGPU.
+9. Corrupt or remove a required CUDA DLL in a disposable user-data directory and confirm validation fails without reporting native STT ready.
+10. Build with `npm run build:desktop`, inspect `desktop/release/`, and confirm CUDA archives, samples, models, benchmarks, and local `desktop/stt/bin/cuda` files were not packaged.
+
+`ELECTRON_USER_DATA_DIR` controls the model, preference, and optional backend installation root. `npm run dev:two-electron` uses separate user-data directories, so each instance has an independent CUDA installation.
 
 ### Summary provider/model smoke test
 

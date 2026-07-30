@@ -15,35 +15,47 @@ const formatModelName = (name) => {
 
 const SttStatusBar = ({
   sttStatus = null,
-  modelDownloadProgress = {}
+  modelDownloadProgress = {},
+  backendInstallProgress = {}
 }) => {
-  const isRunning = sttStatus?.status === 'running';
+  const isRunning = sttStatus?.nativeReady === true;
   const isInferring = sttStatus?.inferenceRunning === true;
-  const modelName = formatModelName(sttStatus?.modelDisplayName);
-  const backend = sttStatus?.selectedBackend?.toUpperCase() || 'CPU';
+  const modelName = isRunning ? formatModelName(sttStatus?.modelDisplayName) : 'whisper-small';
+  const backend = sttStatus?.activeBackend?.toUpperCase() || 'WEBGPU';
   const rtf = sttStatus?.realtimeFactor;
 
   const activeDownload = useMemo(() => {
-    return Object.values(modelDownloadProgress).find(
+    const backendDownload = Object.values(backendInstallProgress).find(
+      (progress) => ['starting', 'download', 'extract'].includes(progress?.phase)
+    );
+    if (backendDownload) {
+      return {
+        ...backendDownload,
+        displayName: `${backendDownload.backendId?.toUpperCase()} backend`,
+        action: 'Installing',
+        downloadedBytes: backendDownload.receivedBytes ?? backendDownload.extractedBytes
+      };
+    }
+    const modelDownload = Object.values(modelDownloadProgress).find(
       (p) => p?.state === 'starting' || p?.state === 'downloading'
-    ) || null;
-  }, [modelDownloadProgress]);
+    );
+    return modelDownload ? { ...modelDownload, action: 'Downloading', displayName: formatModelName(modelDownload.modelId) } : null;
+  }, [backendInstallProgress, modelDownloadProgress]);
 
+  const nativeStarting = sttStatus?.status === 'starting';
   const statusLabel = !sttStatus
     ? 'Initializing…'
     : isRunning
       ? (isInferring ? 'Inferring' : 'Idle')
-      : sttStatus?.status === 'unavailable'
-        ? 'Unavailable'
-        : sttStatus?.status === 'stopped'
-          ? 'Stopped'
-          : 'Starting…';
+      : nativeStarting
+        ? 'Starting native…'
+        : 'WebGPU fallback';
 
-  const statusColor = !sttStatus || sttStatus?.status === 'unavailable'
-    ? 'bg-red-500'
+  const statusColor = !sttStatus
+    ? 'bg-gray-500'
     : isRunning
       ? (isInferring ? 'bg-amber-400' : 'bg-emerald-400')
-      : 'bg-gray-500';
+      : nativeStarting ? 'bg-gray-500' : 'bg-blue-400';
 
   const statusPulse = isInferring ? 'animate-pulse' : '';
 
@@ -52,7 +64,7 @@ const SttStatusBar = ({
       <div className="shrink-0 border-t border-white/10 bg-white/[0.03] px-4 py-3 space-y-2">
         <div className="flex items-center gap-2 text-[11px] font-bold text-blue-200/80">
           <Download size={14} className="text-blue-400 animate-bounce" />
-          <span>Downloading {formatModelName(activeDownload.modelId)}</span>
+          <span>{activeDownload.action} {activeDownload.displayName}</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
@@ -79,7 +91,7 @@ const SttStatusBar = ({
       <div className="flex items-center gap-3">
         {/* Model pill */}
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] border border-white/10">
-          {backend === 'VULKAN' ? (
+          {backend === 'VULKAN' || backend === 'CUDA' ? (
             <Zap size={11} className="text-purple-400" />
           ) : (
             <Cpu size={11} className="text-blue-400" />

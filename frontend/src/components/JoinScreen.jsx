@@ -42,9 +42,15 @@ const JoinScreen = ({
     setSttStatus,
     modelCatalog,
     modelDownloadProgress,
+    backendCatalog,
+    backendInstallProgress,
     onDownloadModel,
     onUseModel,
     onDeleteModel,
+    onBackendPreference,
+    onInstallBackend,
+    onCancelBackendInstall,
+    onRemoveBackend,
     sttModeLabel,
     sttModeDetail,
     nativeSttRunning
@@ -59,18 +65,28 @@ const JoinScreen = ({
     const [showSettings, setShowSettings] = useState(false);
     const videoRef = useRef(null);
     const streamRef = useRef(null);
+    const mediaStateRef = useRef({ isMuted, isVideoOff });
     const summaryProvider = getProviderConfig(llmConfig?.provider);
     const summaryModel = getSelectedModel(llmConfig);
 
     useEffect(() => {
+        mediaStateRef.current = { isMuted, isVideoOff };
+    }, [isMuted, isVideoOff]);
+
+    useEffect(() => {
+        let cancelled = false;
         const initMedia = async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                if (cancelled) {
+                    stream.getTracks().forEach((track) => track.stop());
+                    return;
+                }
                 streamRef.current = stream;
                 if (videoRef.current) videoRef.current.srcObject = stream;
 
-                if (isMuted) stream.getAudioTracks().forEach((track) => { track.enabled = false; });
-                if (isVideoOff) stream.getVideoTracks().forEach((track) => track.stop());
+                if (mediaStateRef.current.isMuted) stream.getAudioTracks().forEach((track) => { track.enabled = false; });
+                if (mediaStateRef.current.isVideoOff) stream.getVideoTracks().forEach((track) => track.stop());
 
                 const allDevices = await navigator.mediaDevices.enumerateDevices();
                 const organized = {
@@ -95,6 +111,7 @@ const JoinScreen = ({
         initMedia();
 
         return () => {
+            cancelled = true;
             streamRef.current?.getTracks().forEach((track) => track.stop());
         };
     }, []);
@@ -176,8 +193,8 @@ const JoinScreen = ({
         onJoinMeeting({ meetingId, displayName, isMuted, isVideoOff, selectedDevices });
     };
 
-    const runtimeLabel = runtimeConfig?.appMode === 'desktop' ? 'Desktop app' : 'Browser mode';
-    const sttLabel = runtimeConfig?.features?.nativeStt ? 'Native STT' : 'WebGPU STT';
+    const runtimeLabel = runtimeConfig?.appMode?.startsWith('desktop') ? 'Desktop app' : 'Browser mode';
+    const sttLabel = sttStatus?.nativeReady ? 'Native STT' : 'WebGPU STT';
 
     return (
         <div className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.22),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(124,58,237,0.18),transparent_34%),#090b12] text-white selection:bg-blue-500/30">
@@ -375,9 +392,15 @@ const JoinScreen = ({
                     setSttStatus={setSttStatus}
                     modelCatalog={modelCatalog}
                     modelDownloadProgress={modelDownloadProgress}
+                    backendCatalog={backendCatalog}
+                    backendInstallProgress={backendInstallProgress}
                     onDownloadModel={onDownloadModel}
                     onUseModel={onUseModel}
                     onDeleteModel={onDeleteModel}
+                    onBackendPreference={onBackendPreference}
+                    onInstallBackend={onInstallBackend}
+                    onCancelBackendInstall={onCancelBackendInstall}
+                    onRemoveBackend={onRemoveBackend}
                     sttModeLabel={sttModeLabel}
                     sttModeDetail={sttModeDetail}
                     nativeSttRunning={nativeSttRunning}

@@ -6,7 +6,7 @@ This benchmark measures the WebGPU Whisper fallback running in the Electron rend
 
 Benchmark instrumentation is implemented. Actual benchmark numbers must be collected on the target Windows machine because WebGPU and microphone performance depend on local hardware, GPU drivers, and audio devices.
 
-The run is a valid WebGPU baseline only when the application starts with native STT unavailable and the UI reports WebGPU fallback. The repository does not currently expose a supported command-line switch that forces WebGPU after a native sidecar has started.
+The run is a valid WebGPU baseline only when the application starts with native STT unavailable and the UI reports WebGPU fallback. To force the fallback through supported UI, select an explicit native backend that is not installed, or remove the explicitly selected optional CUDA backend in Settings. Explicit preferences do not silently select another native backend.
 
 Supported way to prepare a run:
 

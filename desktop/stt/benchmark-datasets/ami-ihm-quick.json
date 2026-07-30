@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "dataset": {
+    "name": "ami-ihm-quick",
+    "description": "One-hour native streaming STT benchmark using fixed five-minute AMI evaluation clips",
+    "partition": "Full-corpus-ASR SC",
+    "microphone": "Individual headset"
+  },
+  "samples": [
+    { "meetingId": "ES2004a", "speakerId": "A", "startSec": 0, "endSec": 300 },
+    { "meetingId": "ES2004b", "speakerId": "B", "startSec": 300, "endSec": 600 },
+    { "meetingId": "ES2004c", "speakerId": "C", "startSec": 600, "endSec": 900 },
+    { "meetingId": "IS1009a", "speakerId": "D", "startSec": 0, "endSec": 300 },
+    { "meetingId": "IS1009b", "speakerId": "A", "startSec": 300, "endSec": 600 },
+    { "meetingId": "IS1009c", "speakerId": "B", "startSec": 600, "endSec": 900 },
+    { "meetingId": "TS3003a", "speakerId": "C", "startSec": 0, "endSec": 300 },
+    { "meetingId": "TS3003b", "speakerId": "D", "startSec": 300, "endSec": 600 },
+    { "meetingId": "TS3003c", "speakerId": "A", "startSec": 600, "endSec": 900 },
+    { "meetingId": "EN2002a", "speakerId": "B", "startSec": 0, "endSec": 300 },
+    { "meetingId": "EN2002b", "speakerId": "C", "startSec": 300, "endSec": 600 },
+    { "meetingId": "EN2002d", "speakerId": "D", "startSec": 600, "endSec": 900 }
+  ]
+}

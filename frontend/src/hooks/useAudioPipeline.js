@@ -122,7 +122,7 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
             const stepSec = Math.max(0.5, windowSec - overlapSec);
             const maxBufferSec = Number(sttConfig?.maxBufferSec ?? 8);
 
-            window.desktopStt.sendAudioFrame({
+            Promise.resolve(window.desktopStt.sendAudioFrame({
                 meetingId,
                 speakerId: userId,
                 sequence,
@@ -143,8 +143,10 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
                     silenceTrim: sttConfig?.silenceTrim ?? true
                 },
                 audio: frame
+            })).then((result) => {
+                if (!result?.ok) throw new Error(result?.error || 'Native STT rejected the audio frame');
             }).catch((error) => {
-                console.warn('[Native STT] sendAudioFrame failed; future work should fallback to WebGPU', error);
+                console.warn('[Native STT] sendAudioFrame failed; backend status will select fallback', error);
                 onSttMetric?.({
                     event: 'send-failed',
                     backend: 'native',
@@ -167,6 +169,7 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
                     type,
                     segments,
                     meetingId: mid,
+                    status,
                     error,
                     chunkId,
                     chunkCreatedAt,
@@ -176,7 +179,9 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
                     droppedChunkCount
                 } = event.data;
 
-                if (type === 'result' && segments) {
+                if (type === 'status' && status === 'ready') {
+                    onSttMetric?.({ event: 'ready', backend: 'webgpu', timestamp: Date.now() });
+                } else if (type === 'result' && segments) {
                     const captionLatencyMs = typeof chunkCreatedAt === 'number'
                         ? performance.now() - chunkCreatedAt
                         : null;
@@ -379,7 +384,11 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
                 nativeTranscriptUnsubscribeRef.current();
                 nativeTranscriptUnsubscribeRef.current = null;
             }
+            samplesRef.current = [];
+            startTimeRef.current = null;
             nativeFrameBufferRef.current = [];
+            chunkSequenceRef.current = 0;
+            nativeFrameSequenceRef.current = 0;
         };
     }, [localStream, meetingId, userId, useNativeStt, initializeNativeStt, initializeWorker, sendNativeAudioSamples, flushAudio]);
 

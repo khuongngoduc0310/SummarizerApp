@@ -6,6 +6,9 @@ const http = require('http');
 const https = require('https');
 const { spawn } = require('child_process');
 const { NativeSttManager } = require('./stt/sidecar-manager');
+const { WHISPER_CPP_CUDA_11_8_WINDOWS_X64 } = require('./stt/backend-catalog');
+const { createBackendInstaller } = require('./stt/backend-installer');
+const { BACKEND_PREFERENCES, createSttPreferences } = require('./stt/stt-preferences');
 
 if (process.env.ELECTRON_USER_DATA_DIR) {
   app.setPath('userData', process.env.ELECTRON_USER_DATA_DIR);
@@ -15,11 +18,16 @@ let mainWindow;
 let backendProcess;
 let runtimeConfig;
 let sttManager;
+let backendInstaller;
+let sttPreferences;
 const activeModelDownloads = new Map();
+const activeBackendInstalls = new Map();
 
 const LOCAL_BACKEND_ENABLED = process.env.MEETSUMMARIZER_LOCAL_BACKEND === '1';
 
 const PRODUCTION_API_URL = 'https://summarizerapp-production.up.railway.app';
+const CUDA_BACKEND_ID = 'cuda';
+const CUDA_CATALOG_ID = WHISPER_CPP_CUDA_11_8_WINDOWS_X64.id;
 
 const WHISPER_MODEL_CATALOG = [
   {
@@ -58,6 +66,139 @@ const WHISPER_MODEL_CATALOG = [
 
 function getDownloadedModelsDir() {
   return path.join(app.getPath('userData'), 'models');
+}
+
+function getDownloadedBackendsDir() {
+  return path.join(app.getPath('userData'), 'stt', 'backends');
+}
+
+function getSttBaseDir() {
+  return app.isPackaged ? path.join(process.resourcesPath, 'stt') : path.join(__dirname, 'stt');
+}
+
+function getSttPreferencesPath() {
+  return path.join(app.getPath('userData'), 'stt', 'preferences.json');
+}
+
+function getCudaInstallPath() {
+  const backend = WHISPER_CPP_CUDA_11_8_WINDOWS_X64;
+  return path.join(getDownloadedBackendsDir(), backend.id, backend.version);
+}
+
+function getNativeBackendDescriptors(sttBaseDir, cudaInstalled) {
+  const executable = process.platform === 'win32' ? 'whisper-cli.exe' : 'whisper-cli';
+  return [
+    {
+      id: CUDA_BACKEND_ID,
+      catalogId: CUDA_CATALOG_ID,
+      label: 'NVIDIA CUDA 11.8',
+      acceleration: 'gpu',
+      priority: 15,
+      installable: true,
+      binary: path.join(getCudaInstallPath(), 'whisper-cli.exe'),
+      requiredFiles: [...WHISPER_CPP_CUDA_11_8_WINDOWS_X64.requiredFiles],
+      installed: cudaInstalled,
+      available: process.platform === 'win32' && process.arch === 'x64'
+    },
+    {
+      id: 'vulkan',
+      label: 'Vulkan GPU',
+      acceleration: 'gpu',
+      priority: 10,
+      binary: path.join(sttBaseDir, 'bin', 'vulkan', executable),
+      requiredFiles: process.platform === 'win32' ? [executable, 'ggml-vulkan.dll'] : [executable]
+    },
+    {
+      id: 'cpu',
+      label: 'CPU',
+      acceleration: 'cpu',
+      priority: 5,
+      binary: path.join(sttBaseDir, 'bin', 'cpu', executable),
+      requiredFiles: [executable]
+    }
+  ];
+}
+
+function emitBackendInstallProgress(payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('desktop-stt:backend-install-progress', payload);
+  }
+}
+
+function validateInstalledBackend({ installPath, signal }) {
+  const binary = path.join(installPath, 'whisper-cli.exe');
+  const systemRoot = process.env.SystemRoot || 'C:\\Windows';
+  const isolatedPath = [installPath, path.join(systemRoot, 'System32')].join(path.delimiter);
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error('CUDA backend validation was cancelled'));
+      return;
+    }
+    const child = spawn(binary, ['--help'], {
+      windowsHide: true,
+      stdio: ['ignore', 'ignore', 'pipe'],
+      env: { ...process.env, PATH: isolatedPath, Path: isolatedPath }
+    });
+    let stderr = '';
+    let settled = false;
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      if (error) reject(error);
+      else resolve();
+    };
+    const onAbort = () => {
+      child.kill();
+      finish(new Error('CUDA backend validation was cancelled'));
+    };
+    child.stderr.on('data', (data) => {
+      if (stderr.length < 8192) stderr += data.toString();
+    });
+    child.on('error', finish);
+    child.on('close', (code, closeSignal) => {
+      if (code === 0) finish();
+      else finish(new Error(stderr.trim() || `CUDA backend validation exited: code=${code} signal=${closeSignal}`));
+    });
+    const timer = setTimeout(() => {
+      child.kill();
+      finish(new Error('CUDA backend validation timed out'));
+    }, 30000);
+    timer.unref?.();
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+async function refreshManagerBackends(sttBaseDir) {
+  const cudaStatus = await backendInstaller.status(CUDA_CATALOG_ID);
+  sttManager.installedBackends = getNativeBackendDescriptors(sttBaseDir, cudaStatus.installed);
+  sttManager.detectBackends();
+  return cudaStatus;
+}
+
+async function getBackendCatalogWithStatus() {
+  const cudaStatus = await backendInstaller.status(CUDA_CATALOG_ID);
+  const managerStatus = sttManager?.getStatus();
+  const managerBackend = managerStatus?.backends?.find((backend) => backend.id === CUDA_BACKEND_ID);
+  const operation = activeBackendInstalls.get(CUDA_BACKEND_ID);
+  return [{
+    id: CUDA_BACKEND_ID,
+    catalogId: CUDA_CATALOG_ID,
+    label: 'NVIDIA CUDA 11.8',
+    description: 'Fast NVIDIA GPU inference using the official whisper.cpp CUDA 11.8 runtime.',
+    version: WHISPER_CPP_CUDA_11_8_WINDOWS_X64.version,
+    sourceUrl: WHISPER_CPP_CUDA_11_8_WINDOWS_X64.asset.url,
+    downloadSize: WHISPER_CPP_CUDA_11_8_WINDOWS_X64.downloadSize,
+    installedSize: WHISPER_CPP_CUDA_11_8_WINDOWS_X64.installedSize,
+    requiredFreeSpace: WHISPER_CPP_CUDA_11_8_WINDOWS_X64.requiredFreeSpace,
+    compatible: process.platform === 'win32' && process.arch === 'x64',
+    installed: cudaStatus.installed,
+    installPath: cudaStatus.installPath,
+    installing: Boolean(operation),
+    validationStatus: managerBackend?.validationStatus || (cudaStatus.installed ? 'not-run' : 'not-installed'),
+    validationError: managerBackend?.validationError || null
+  }];
 }
 
 function getModelCatalogWithStatus() {
@@ -295,6 +436,72 @@ ipcMain.handle('desktop-stt:get-status', () => sttManager.getStatus());
 
 ipcMain.handle('desktop-stt:list-model-catalog', () => getModelCatalogWithStatus());
 
+ipcMain.handle('desktop-stt:list-backend-catalog', () => getBackendCatalogWithStatus());
+
+ipcMain.handle('desktop-stt:install-backend', async (_event, backendId) => {
+  if (backendId !== CUDA_BACKEND_ID) return { ok: false, error: `Unknown installable backend: ${backendId}` };
+  if (process.platform !== 'win32' || process.arch !== 'x64') {
+    return { ok: false, error: 'The CUDA backend requires Windows x64' };
+  }
+  if (activeBackendInstalls.has(backendId)) return { ok: false, error: 'Backend installation is already running' };
+
+  const controller = new AbortController();
+  let resolveDone;
+  const done = new Promise((resolve) => { resolveDone = resolve; });
+  activeBackendInstalls.set(backendId, { controller, done });
+  emitBackendInstallProgress({ backendId, phase: 'starting', percent: 0 });
+  try {
+    const installed = await backendInstaller.install(CUDA_CATALOG_ID, {
+      signal: controller.signal,
+      validator: validateInstalledBackend,
+      progress: (progress) => {
+        const totalBytes = progress.totalBytes || 0;
+        const completedBytes = progress.receivedBytes ?? progress.extractedBytes ?? 0;
+        emitBackendInstallProgress({
+          backendId,
+          ...progress,
+          percent: totalBytes ? Math.round((completedBytes / totalBytes) * 100) : null
+        });
+      }
+    });
+    await refreshManagerBackends(getSttBaseDir());
+    const startResult = sttManager.desiredRunning
+      ? await sttManager.reconcile()
+      : await sttManager.startSidecar();
+    emitBackendInstallProgress({ backendId, phase: 'done', percent: 100 });
+    return { ok: true, backend: installed, status: startResult.status || sttManager.getStatus() };
+  } catch (error) {
+    const cancelled = error.name === 'AbortError' || controller.signal.aborted;
+    emitBackendInstallProgress({ backendId, phase: cancelled ? 'cancelled' : 'error', error: error.message });
+    return { ok: false, cancelled, error: error.message };
+  } finally {
+    activeBackendInstalls.delete(backendId);
+    resolveDone();
+  }
+});
+
+ipcMain.handle('desktop-stt:cancel-backend-install', (_event, backendId) => {
+  if (backendId !== CUDA_BACKEND_ID) return { ok: false, error: `Unknown installable backend: ${backendId}` };
+  const operation = activeBackendInstalls.get(backendId);
+  if (!operation) return { ok: false, error: 'Backend installation is not running' };
+  operation.controller.abort();
+  return { ok: true };
+});
+
+ipcMain.handle('desktop-stt:remove-backend', async (_event, backendId) => {
+  if (backendId !== CUDA_BACKEND_ID) return { ok: false, error: `Unknown installable backend: ${backendId}` };
+  const operation = activeBackendInstalls.get(backendId);
+  operation?.controller.abort();
+  if (operation) await operation.done;
+  const shouldRestart = sttManager.desiredRunning;
+  const currentStatus = sttManager.getStatus();
+  if (currentStatus.activeBackend === backendId || currentStatus.attemptBackend === backendId) sttManager.stop();
+  await backendInstaller.remove(CUDA_CATALOG_ID);
+  await refreshManagerBackends(getSttBaseDir());
+  const result = shouldRestart ? await sttManager.startSidecar() : { status: sttManager.getStatus() };
+  return { ok: true, status: result.status || sttManager.getStatus() };
+});
+
 ipcMain.handle('desktop-stt:download-model', async (_event, modelId) => {
   const model = WHISPER_MODEL_CATALOG.find((candidate) => candidate.id === modelId);
   if (!model) return { ok: false, error: `Unknown model: ${modelId}` };
@@ -313,8 +520,8 @@ ipcMain.handle('desktop-stt:download-model', async (_event, modelId) => {
       emitModelDownloadProgress({ modelId, state: 'downloading', ...progress });
     });
     const status = sttManager.refreshModels();
-    const setResult = sttManager.setModel(destination);
-    const startResult = sttManager.startSidecar();
+    const setResult = await sttManager.setModel(destination);
+    const startResult = await sttManager.startSidecar();
     emitModelDownloadProgress({ modelId, state: 'done', percent: 100 });
     return { ok: true, path: destination, status: startResult?.status || setResult?.status || status };
   } catch (error) {
@@ -336,14 +543,16 @@ ipcMain.handle('desktop-stt:delete-model', async (_event, modelId) => {
   if (deletingSelected) sttManager.stop();
   await fs.promises.rm(modelPath, { force: true });
   const status = sttManager.refreshModels();
-  return { ok: true, status };
+  const startResult = deletingSelected ? await sttManager.startSidecar() : null;
+  return { ok: true, status: startResult?.status || status };
 });
 
-ipcMain.handle('desktop-stt:set-backend', (_event, backendId) => {
-  if (typeof backendId !== 'string' || backendId.length > 32) {
-    return { ok: false, error: 'Invalid backend id' };
+ipcMain.handle('desktop-stt:set-backend-preference', async (_event, backendPreference) => {
+  if (!BACKEND_PREFERENCES.includes(backendPreference)) {
+    return { ok: false, error: 'Invalid backend preference' };
   }
-  return sttManager.setBackend(backendId);
+  await sttPreferences.save(backendPreference);
+  return sttManager.setBackendPreference(backendPreference);
 });
 
 ipcMain.handle('desktop-stt:set-model', (_event, modelPath) => {
@@ -354,7 +563,11 @@ ipcMain.handle('desktop-stt:set-model', (_event, modelPath) => {
 });
 
 ipcMain.handle('desktop-stt:send-audio-frame', (_event, frame) => {
-  if (!frame || typeof frame !== 'object') {
+  const validIdentity = typeof frame?.meetingId === 'string' && frame.meetingId.length > 0 && frame.meetingId.length <= 200 &&
+    typeof frame?.speakerId === 'string' && frame.speakerId.length > 0 && frame.speakerId.length <= 200;
+  const validAudio = Array.isArray(frame?.audio) && frame.audio.length > 0 && frame.audio.length <= 32000 &&
+    frame.audio.every((sample) => Number.isFinite(sample) && sample >= -2 && sample <= 2);
+  if (!validIdentity || !validAudio || frame.sampleRate !== 16000 || !Number.isSafeInteger(frame.sequence)) {
     return { ok: false, error: 'Invalid audio frame' };
   }
   return sttManager.sendAudioFrame(frame);
@@ -371,21 +584,33 @@ ipcMain.handle('desktop-stt:stop', () => sttManager.stop());
 
 app.whenReady().then(async () => {
   try {
-    const sttBaseDir = app.isPackaged
-      ? path.join(process.resourcesPath, 'stt')
-      : path.join(__dirname, 'stt');
+    const sttBaseDir = getSttBaseDir();
+    backendInstaller = createBackendInstaller({ installRoot: getDownloadedBackendsDir() });
+    sttPreferences = createSttPreferences(getSttPreferencesPath());
+    await backendInstaller.cleanupStaging();
+    const [preferences, cudaStatus] = await Promise.all([
+      sttPreferences.load(),
+      backendInstaller.status(CUDA_CATALOG_ID)
+    ]);
     sttManager = new NativeSttManager({
       baseDir: sttBaseDir,
-      modelDirs: [getDownloadedModelsDir()]
+      modelDirs: [getDownloadedModelsDir()],
+      installedBackends: getNativeBackendDescriptors(sttBaseDir, cudaStatus.installed),
+      backendPreference: preferences.backend,
+      nodeBinary: process.execPath
     });
-    sttManager.detectBackends();
-    sttManager.startSidecar();
     sttManager.on('transcript', (event) => {
-      mainWindow?.webContents.send('desktop-stt:transcript', event);
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('desktop-stt:transcript', event);
     });
     sttManager.on('status', (status) => {
-      mainWindow?.webContents.send('desktop-stt:status', status);
+      if (runtimeConfig) {
+        runtimeConfig.stt = status;
+        runtimeConfig.features.nativeStt = status.nativeReady === true;
+      }
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('desktop-stt:status', status);
     });
+    sttManager.detectBackends();
+    await sttManager.startSidecar();
 
     await initializeRuntimeConfig();
     createWindow();
@@ -401,6 +626,7 @@ app.whenReady().then(async () => {
 
 app.on('before-quit', () => {
   app.isQuiting = true;
+  for (const operation of activeBackendInstalls.values()) operation.controller.abort();
   if (backendProcess && !backendProcess.killed) {
     backendProcess.kill();
   }

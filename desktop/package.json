@@ -7,6 +7,8 @@
     "dev": "electron .",
     "start": "electron .",
     "build": "electron-builder",
+    "test": "node --test",
+    "benchmark:prepare-ami": "node stt/prepare-ami-benchmark.js",
     "benchmark:whisper": "node stt/benchmark-whisper.cpp.js",
     "validate:vulkan": "node stt/validate-vulkan.js"
   },
@@ -17,16 +19,29 @@
       "main.js",
       "preload.js",
       "package.json",
-      "stt/sidecar-manager.js"
+      "stt/backend-catalog.js",
+      "stt/backend-installer.js",
+      "stt/sidecar-manager.js",
+      "stt/stt-preferences.js",
+      "THIRD_PARTY_NOTICES.md"
     ],
     "extraResources": [
       {
         "from": "stt",
         "to": "stt",
         "filter": [
-          "**/*",
-          "!models/*.bin",
-          "!models/*.gguf"
+          "whisper-streaming-sidecar.js",
+          "bin/cpu/whisper-cli.exe",
+          "bin/cpu/whisper.dll",
+          "bin/cpu/ggml.dll",
+          "bin/cpu/ggml-base.dll",
+          "bin/cpu/ggml-cpu-*.dll",
+          "bin/vulkan/whisper-cli.exe",
+          "bin/vulkan/whisper.dll",
+          "bin/vulkan/ggml.dll",
+          "bin/vulkan/ggml-base.dll",
+          "bin/vulkan/ggml-cpu.dll",
+          "bin/vulkan/ggml-vulkan.dll"
         ]
       },
       {
@@ -43,6 +58,11 @@
   },
   "devDependencies": {
     "electron": "^33.4.11",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "yazl": "^2.5.1"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^5.10.1",
+    "yauzl": "^2.10.0"
   }
 }

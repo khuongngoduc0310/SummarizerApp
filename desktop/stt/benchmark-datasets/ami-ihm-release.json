@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "dataset": {
+    "name": "ami-ihm-release",
+    "description": "Full native streaming STT release benchmark using one rotating headset channel per AMI evaluation submeeting",
+    "partition": "Full-corpus-ASR SC",
+    "microphone": "Individual headset"
+  },
+  "samples": [
+    { "meetingId": "ES2004a", "speakerId": "A", "startSec": 0, "endSec": null },
+    { "meetingId": "ES2004b", "speakerId": "B", "startSec": 0, "endSec": null },
+    { "meetingId": "ES2004c", "speakerId": "C", "startSec": 0, "endSec": null },
+    { "meetingId": "ES2004d", "speakerId": "D", "startSec": 0, "endSec": null },
+    { "meetingId": "IS1009a", "speakerId": "A", "startSec": 0, "endSec": null },
+    { "meetingId": "IS1009b", "speakerId": "B", "startSec": 0, "endSec": null },
+    { "meetingId": "IS1009c", "speakerId": "C", "startSec": 0, "endSec": null },
+    { "meetingId": "IS1009d", "speakerId": "D", "startSec": 0, "endSec": null },
+    { "meetingId": "TS3003a", "speakerId": "A", "startSec": 0, "endSec": null },
+    { "meetingId": "TS3003b", "speakerId": "B", "startSec": 0, "endSec": null },
+    { "meetingId": "TS3003c", "speakerId": "C", "startSec": 0, "endSec": null },
+    { "meetingId": "TS3003d", "speakerId": "D", "startSec": 0, "endSec": null },
+    { "meetingId": "EN2002a", "speakerId": "A", "startSec": 0, "endSec": null },
+    { "meetingId": "EN2002b", "speakerId": "B", "startSec": 0, "endSec": null },
+    { "meetingId": "EN2002c", "speakerId": "C", "startSec": 0, "endSec": null },
+    { "meetingId": "EN2002d", "speakerId": "D", "startSec": 0, "endSec": null }
+  ]
+}
