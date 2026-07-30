@@ -31,16 +31,16 @@ function ensureStructs(koffi) {
     translate: 'bool', no_context: 'bool', no_timestamps: 'bool',
     single_segment: 'bool', print_special: 'bool', print_progress: 'bool',
     print_realtime: 'bool', print_timestamps: 'bool', token_timestamps: 'bool',
-    _p1: pad(7),
+    _p1: pad(3),
     thold_pt: 'float', thold_ptsum: 'float', max_len: 'int',
     split_on_word: 'bool', _p2: pad(3), max_tokens: 'int',
     debug_mode: 'bool', _p3: pad(3), audio_ctx: 'int',
-    tdrz_enable: 'bool', _p4: pad(7),
+    tdrz_enable: 'bool', _p4: pad(3),
     suppress_regex: 'void*', initial_prompt: 'void*',
     carry_initial_prompt: 'bool', _p5: pad(7),
     prompt_tokens: 'void*', prompt_n_tokens: 'int', _p6: pad(4),
     language: 'void*',
-    detect_language: 'bool', suppress_blank: 'bool', suppress_nst: 'bool', _p7: pad(5),
+    detect_language: 'bool', suppress_blank: 'bool', suppress_nst: 'bool', _p7: pad(1),
     temperature: 'float', max_initial_ts: 'float', length_penalty: 'float',
     temperature_inc: 'float', entropy_thold: 'float', logprob_thold: 'float',
     no_speech_thold: 'float',
@@ -51,7 +51,7 @@ function ensureStructs(koffi) {
     abort_callback: 'void*', abort_callback_user_data: 'void*',
     logits_filter_callback: 'void*', logits_filter_callback_user_data: 'void*',
     grammar_rules: 'void*', n_grammar_rules: 'size_t', i_start_rule: 'size_t',
-    grammar_penalty: 'float', _p8: pad(4),
+    grammar_penalty: 'float',
     vad: 'bool', _p9: pad(7),
     vad_model_path: 'void*',
     vad_threshold: 'float', vad_min_speech_duration_ms: 'int',
@@ -166,7 +166,11 @@ class WhisperFFI {
     const params = this._getDefaultParamsFn(this._WHISPER_SAMPLING_GREEDY);
     params.n_threads = n_threads;
     params.no_timestamps = !!no_timestamps;
-    if (language) params.language = _koffi.as(language, 'const char*');
+    let _langRef = null;
+    if (language) {
+      _langRef = _koffi.as(language, 'const char*');
+      params.language = _langRef;
+    }
 
     const ret = this._fullFn(this._ctx, params, pcmF32, pcmF32.length);
     if (ret !== 0) throw new Error(`whisper_full failed with code ${ret}`);

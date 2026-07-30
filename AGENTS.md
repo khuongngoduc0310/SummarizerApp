@@ -1,3 +1,35 @@
+# Objective
+
+Struct padding bug fixed in `desktop/stt/whisper-ffi-bridge.js` — 4 misplaced pad fields caused an 8-byte offset shift from `language` onward, making whisper auto-detect the wrong language. Now `whisper_full` produces correct English transcription (lang_id=0) in 189ms on Vulkan GPU (159× real-time). FFI Vulkan pipeline works end to end.
+
+# Work State
+
+## Current state
+
+The struct padding bug is now fixed in `desktop/stt/whisper-ffi-bridge.js`. The fix changed:
+1. `_p1: pad(7)` → `pad(3)` (after 9 bools, align float to 4)
+2. `_p4: pad(7)` → `pad(3)` (after tdrz_enable, align void* to 8)
+3. `_p7: pad(5)` → `pad(1)` (after 3 bools, align float to 4)
+4. Removed `_p8: pad(4)` (no padding between grammar_penalty and vad)
+
+Verified by reading each struct field via koffi at the correct offsets and running whisper_full on ES2004c-C (30s) which now produces correct English transcription lang_id=0 in 189ms on Vulkan GPU (159× real-time).
+
+## Previous state
+
+The struct had wrong padding at 4 places causing an 8-byte offset shift from the `language` field onward. `p.language` wrote to offset 112 (actually `detect_language`) rather than 104, so setting the language string or detect_language flag had no effect, causing whisper to auto-detect the wrong language. The pointer `p.language` read 256n (half of a bool+float pair) instead of the real "en" string pointer.
+
+## Blocked
+
+None anymore — the FFI Vulkan pipeline now works end to end.
+
+## Next moves
+
+- Update `whisper-ffi-bridge.js`'s `loadAndTranscribe` function to use proper `whisper_full` signature (`WhisperFullParams` by value, not `void*`)
+- Update `koffi.as(audioData, 'float*')` for array conversion
+- Re-run Vulkan FFI offline benchmark on all 12 AMI samples
+- Run Vulkan FFI streaming test
+- Commit the struct fix
+
 # Repository Guide
 
 ## Packages and entrypoints
