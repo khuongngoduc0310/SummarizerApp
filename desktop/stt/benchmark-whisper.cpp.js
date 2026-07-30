@@ -52,6 +52,7 @@ Optional:
   --normalizeAudio <true|false>
   --silenceTrim <true|false>
   --use-server                     Use whisper-server persistent process instead of per-inference spawn
+  --ffi <backend>                  Use FFI bridge instead of CLI binary (vulkan|cpu|auto)
 
 Notes:
   - Streaming mode requires mono 16 kHz 16-bit PCM WAV input.
@@ -357,6 +358,48 @@ function loadDataset(args) {
   };
 }
 
+function runOfflineWhisperFFI({ bridge, sample, language, timeoutMs }) {
+  return new Promise((resolve) => {
+    const startedAt = performance.now();
+    let wav;
+    try {
+      wav = parsePcmWav(sample);
+    } catch (error) {
+      resolve({ ok: false, error: error.message, elapsedMs: 0, stdout: '', stderr: '', args: ['ffi'] });
+      return;
+    }
+    let timer = null;
+    let timedOut = false;
+    if (timeoutMs > 0) {
+      timer = setTimeout(() => { timedOut = true; resolve({ ok: false, timedOut: true, elapsedMs: timeoutMs, stdout: '', stderr: 'Timed out', args: ['ffi'] }); }, timeoutMs);
+    }
+    try {
+      const result = bridge.transcribe(wav.samples, { n_threads: 4, language, no_timestamps: true });
+      if (timer) clearTimeout(timer);
+      if (!timedOut) {
+        resolve({
+          ok: true, code: 0, signal: null, error: null, timedOut: false,
+          elapsedMs: performance.now() - startedAt,
+          stdout: result.text,
+          stderr: '',
+          args: ['ffi']
+        });
+      }
+    } catch (error) {
+      if (timer) clearTimeout(timer);
+      if (!timedOut) {
+        resolve({
+          ok: false, code: null, signal: null, error: error.message, timedOut: false,
+          elapsedMs: performance.now() - startedAt,
+          stdout: '',
+          stderr: error.message,
+          args: ['ffi']
+        });
+      }
+    }
+  });
+}
+
 function runOfflineWhisper({ binary, model, sample, language, timeoutMs }) {
   return new Promise((resolve) => {
     const startedAt = performance.now();
@@ -413,15 +456,13 @@ function streamingConfigFromArgs(args) {
   };
 }
 
-async function runStreamingSidecar({ sidecar, binary, model, backend, language, wav, sampleId, config, pace, timeoutMs, useServer }) {
+async function runStreamingSidecar({ sidecar, binary, model, backend, language, wav, sampleId, config, pace, timeoutMs, useServer, useFFI = false, ffiBackend = null, ffiDir = null }) {
   const meetingId = `benchmark-${sampleId}`.replace(/[^a-zA-Z0-9_-]/g, '-');
   const speakerId = 'speaker-1';
   const sidecarArgs = [
     sidecar,
-    '--binary', binary,
     '--model', model,
     '--backend', backend,
-    '--language', language,
     '--windowSec', String(config.windowSec),
     '--overlapSec', String(config.overlapSec),
     '--maxBufferSec', String(config.maxBufferSec),
@@ -433,12 +474,19 @@ async function runStreamingSidecar({ sidecar, binary, model, backend, language, 
     '--silenceTrim', String(config.silenceTrim),
     '--inferenceTimeoutMs', String(timeoutMs)
   ];
-  if (useServer) {
-    const binaryDir = path.dirname(binary);
-    const serverExecutable = process.platform === 'win32' ? 'whisper-server.exe' : 'whisper-server';
-    const serverBinary = path.join(binaryDir, serverExecutable);
-    if (fs.existsSync(serverBinary)) {
-      sidecarArgs.push('--server-binary', serverBinary);
+  if (useFFI) {
+    if (ffiBackend) sidecarArgs.push('--backend', ffiBackend);
+    if (ffiDir) sidecarArgs.push('--ffi-dir', ffiDir);
+    sidecarArgs.push('--n-threads', '4');
+  } else if (binary) {
+    sidecarArgs.push('--binary', binary);
+    if (useServer) {
+      const binaryDir = path.dirname(binary);
+      const serverExecutable = process.platform === 'win32' ? 'whisper-server.exe' : 'whisper-server';
+      const serverBinary = path.join(binaryDir, serverExecutable);
+      if (fs.existsSync(serverBinary)) {
+        sidecarArgs.push('--server-binary', serverBinary);
+      }
     }
   }
   const childStartedAt = performance.now();
@@ -759,7 +807,8 @@ function aggregateReport(results, mode) {
 
 async function main() {
   const args = parseArgs(process.argv);
-  if (args.help || !args.binary || !args.model || (!args.samples && !args.manifest)) {
+  const useFFI = args.ffi !== undefined && args.ffi !== false;
+  if (args.help || (useFFI ? false : !args.binary) || !args.model || (!args.samples && !args.manifest)) {
     usage();
     process.exit(args.help ? 0 : 1);
   }
@@ -769,19 +818,37 @@ async function main() {
   if (!['offline', 'streaming', 'both'].includes(mode)) throw new Error(`Unsupported mode: ${mode}`);
   if (!['realtime', 'fast'].includes(pace)) throw new Error(`Unsupported pace: ${pace}`);
 
-  const binary = path.resolve(args.binary);
   const model = path.resolve(args.model);
-  const sidecar = path.resolve(args.sidecar || path.join(__dirname, 'whisper-streaming-sidecar.js'));
-  const backend = args.backend || 'unknown';
+  const backend = args.backend || (useFFI ? String(args.ffi) : 'unknown');
   const language = args.language || 'en';
   const timeoutMs = parseFiniteNumber(args.timeoutMs, DEFAULT_TIMEOUT_MS, 'timeoutMs');
-  const useServer = args['use-server'] === true || args['use-server'] === 'true';
+  const useServer = !useFFI && (args['use-server'] === true || args['use-server'] === 'true');
   const config = streamingConfigFromArgs(args);
   const dataset = loadDataset(args);
   const out = args.out ? path.resolve(args.out) : null;
 
-  if (!fs.existsSync(binary)) throw new Error(`Binary not found: ${binary}`);
   if (!fs.existsSync(model)) throw new Error(`Model not found: ${model}`);
+
+  let binary = null;
+  let sidecar = null;
+  let ffiBridge = null;
+  if (useFFI) {
+    const { WhisperFFI } = require('./whisper-ffi-bridge.js');
+    const baseDir = __dirname;
+    const backends = WhisperFFI.availableBackends(baseDir);
+    const ffiBackend = args.ffi === true || args.ffi === 'true' || args.ffi === 'auto'
+      ? (backends.find((b) => b.id === 'vulkan') || backends[0])
+      : backends.find((b) => b.id === String(args.ffi));
+    if (!ffiBackend) throw new Error(`No FFI backend available for: ${args.ffi}`);
+    ffiBridge = new WhisperFFI();
+    ffiBridge.initialize(ffiBackend.dllDir);
+    ffiBridge.loadModel(model, { use_gpu: ffiBackend.id !== 'cpu', flash_attn: ffiBackend.id !== 'cpu', gpu_device: 0 });
+    sidecar = path.resolve(args.sidecar || path.join(__dirname, 'whisper-ffi-sidecar.js'));
+  } else {
+    binary = path.resolve(args.binary);
+    if (!fs.existsSync(binary)) throw new Error(`Binary not found: ${binary}`);
+    sidecar = path.resolve(args.sidecar || path.join(__dirname, 'whisper-streaming-sidecar.js'));
+  }
   if ((mode === 'streaming' || mode === 'both') && !fs.existsSync(sidecar)) throw new Error(`Sidecar not found: ${sidecar}`);
   if (!dataset.samples.length) throw new Error('No audio samples found');
 
@@ -817,12 +884,13 @@ async function main() {
       pace,
       backend,
       language,
-      binary,
-      binarySha256: sha256File(binary),
+      binary: useFFI ? `ffi:${backend}` : binary,
+      binarySha256: useFFI ? null : sha256File(binary),
       model,
       modelSha256: sha256File(model),
+      ffi: useFFI ? { backend, koffiVersion: (() => { try { return require(path.join(path.dirname(require.resolve('koffi')), 'package.json')).version; } catch { return 'unknown'; } })() } : null,
       sidecar: mode === 'offline' ? null : sidecar,
-      useServer: mode === 'offline' ? false : useServer,
+      useServer: useFFI ? false : (mode === 'offline' ? false : useServer),
       streamingConfig: mode === 'offline' ? null : config,
       platform: process.platform,
       arch: process.arch,
@@ -859,7 +927,9 @@ async function main() {
     const referenceText = sample.reference ? fs.readFileSync(sample.reference, 'utf8') : null;
 
     if (mode === 'offline' || mode === 'both') {
-      const result = await runOfflineWhisper({ binary, model, sample: sample.audio, language, timeoutMs });
+      const result = useFFI
+        ? await runOfflineWhisperFFI({ bridge: ffiBridge, sample: sample.audio, language, timeoutMs })
+        : await runOfflineWhisper({ binary, model, sample: sample.audio, language, timeoutMs });
       const hypothesis = result.ok ? cleanHypothesis(result.stdout) : null;
       row.offline = {
         ok: result.ok,
@@ -873,7 +943,7 @@ async function main() {
         signal: result.signal,
         error: result.error,
         stderrTail: result.stderr.slice(-4000),
-        args: [binary, ...result.args]
+        args: result.args || (useFFI ? ['ffi'] : [binary, ...result.args])
       };
       if (!result.ok) hadFailure = true;
     }
@@ -882,18 +952,22 @@ async function main() {
       try {
         if (!wav) throw new Error(`Streaming mode requires WAV input: ${sample.audio}`);
         validateStreamingWav(wav, sample.audio);
+        const streamingBackendLabel = useFFI ? `ffi-${backend}` : backend;
         const result = await runStreamingSidecar({
           sidecar,
           binary,
           model,
-          backend,
+          backend: streamingBackendLabel,
           language,
           wav,
           sampleId: sample.id,
           config,
           pace,
           timeoutMs,
-          useServer
+          useServer,
+          useFFI,
+          ffiBackend: useFFI ? backend : null,
+          ffiDir: useFFI && ffiBridge ? ffiBridge._dllDir : null
         });
         row.streaming = {
           ...result,
@@ -931,6 +1005,9 @@ async function main() {
   if (out) {
     writeJsonAtomic(out, report);
     console.log(`Wrote benchmark report: ${out}`);
+  }
+  if (useFFI && ffiBridge) {
+    try { ffiBridge.free(); } catch {}
   }
   if (hadFailure) process.exitCode = 2;
 }

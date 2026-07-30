@@ -4,6 +4,14 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
 
+let _koffiAvailable = null;
+function isKoffiAvailable() {
+  if (_koffiAvailable !== null) return _koffiAvailable;
+  try { require('koffi'); _koffiAvailable = true; }
+  catch { _koffiAvailable = false; }
+  return _koffiAvailable;
+}
+
 function killProcessTree(child) {
   if (process.platform !== 'win32') {
     child.kill();
@@ -23,23 +31,30 @@ function killProcessTree(child) {
 function defaultBackendDescriptors(baseDir) {
   const executable = process.platform === 'win32' ? 'whisper-cli.exe' : 'whisper-cli';
   const serverExecutable = process.platform === 'win32' ? 'whisper-server.exe' : 'whisper-server';
+  const ffiDll = process.platform === 'win32' ? 'whisper.dll' : 'libwhisper.so';
+  const koffiOk = isKoffiAvailable();
   return [
     {
       id: 'cuda', label: 'CUDA GPU', acceleration: 'gpu', priority: 15,
       binary: path.join(baseDir, 'bin', 'cuda', executable),
       serverBinary: path.join(baseDir, 'bin', 'cuda', serverExecutable),
+      hasFFI: false,
       requiredFiles: [executable]
     },
     {
       id: 'vulkan', label: 'Vulkan GPU', acceleration: 'gpu', priority: 10,
       binary: path.join(baseDir, 'bin', 'vulkan', executable),
       serverBinary: path.join(baseDir, 'bin', 'vulkan', serverExecutable),
+      hasFFI: koffiOk && fs.existsSync(path.join(baseDir, 'bin', 'vulkan', ffiDll)),
+      ffiDir: path.join(baseDir, 'bin', 'vulkan'),
       requiredFiles: process.platform === 'win32' ? [executable, 'ggml-vulkan.dll'] : [executable]
     },
     {
       id: 'cpu', label: 'CPU', acceleration: 'cpu', priority: 5,
       binary: path.join(baseDir, 'bin', 'cpu', executable),
       serverBinary: path.join(baseDir, 'bin', 'cpu', serverExecutable),
+      hasFFI: koffiOk && fs.existsSync(path.join(baseDir, 'bin', 'cpu', ffiDll)),
+      ffiDir: path.join(baseDir, 'bin', 'cpu'),
       requiredFiles: [executable]
     }
   ];
@@ -125,6 +140,7 @@ class NativeSttManager extends EventEmitter {
       stepSec: 3,
       maxBufferSec: 8,
       vadThreshold: 0.003,
+      nThreads: 4,
       dcOffsetRemoval: true,
       highPassFilter: true,
       highPassCutoffHz: 100,
@@ -332,10 +348,6 @@ class NativeSttManager extends EventEmitter {
     if (!this.selectedModel || !fs.existsSync(this.selectedModel)) {
       return this._failGeneration(generation, 'No selected Whisper model is available');
     }
-    const sidecarScript = process.env.STT_SIDECAR_SCRIPT
-      ? path.resolve(process.env.STT_SIDECAR_SCRIPT)
-      : path.join(this.baseDir, 'whisper-streaming-sidecar.js');
-    if (!fs.existsSync(sidecarScript)) return this._failGeneration(generation, `STT sidecar script not found: ${sidecarScript}`);
 
     const excluded = new Set(excludeBackends);
     const rank = { cuda: 0, vulkan: 1, cpu: 2 };
@@ -365,6 +377,18 @@ class NativeSttManager extends EventEmitter {
         continue;
       }
       this._setBackendValidation(backend, 'passed', null);
+
+      const ffiSidecar = path.join(this.baseDir, 'whisper-ffi-sidecar.js');
+      const cliSidecar = path.join(this.baseDir, 'whisper-streaming-sidecar.js');
+      const useFFI = backend.hasFFI && process.env.STT_SIDECAR_SCRIPT === undefined && fs.existsSync(ffiSidecar);
+      const sidecarScript = process.env.STT_SIDECAR_SCRIPT
+        ? path.resolve(process.env.STT_SIDECAR_SCRIPT)
+        : useFFI ? ffiSidecar : cliSidecar;
+      if (!fs.existsSync(sidecarScript)) {
+        this._recordFailure(backend.id, 'startup', `STT sidecar script not found: ${sidecarScript}`, generation);
+        if (this.backendPreference !== 'auto') break;
+        continue;
+      }
 
       this.phase = 'starting';
       this.emit('status', this.getStatus());
@@ -460,9 +484,9 @@ class NativeSttManager extends EventEmitter {
 
   _launchSidecar(backend, sidecarScript, generation) {
     return new Promise((resolve) => {
+      const isFFI = path.basename(sidecarScript).includes('ffi');
       const args = [
         sidecarScript,
-        '--binary', backend.binary,
         '--model', this.selectedModel,
         '--backend', backend.id,
         '--windowSec', String(this.config.windowSec),
@@ -472,9 +496,15 @@ class NativeSttManager extends EventEmitter {
         '--vadThreshold', String(this.config.vadThreshold),
         '--highPassCutoffHz', String(this.config.highPassCutoffHz)
       ];
-      const serverBinary = backend.serverBinary ? path.resolve(backend.serverBinary) : null;
-      if (serverBinary && fs.existsSync(serverBinary)) {
-        args.push('--server-binary', serverBinary);
+      if (isFFI) {
+        if (backend.ffiDir) args.push('--ffi-dir', backend.ffiDir);
+        args.push('--n-threads', String(this.config.nThreads ?? 4));
+      } else {
+        args.push('--binary', backend.binary);
+        const serverBinary = backend.serverBinary ? path.resolve(backend.serverBinary) : null;
+        if (serverBinary && fs.existsSync(serverBinary)) {
+          args.push('--server-binary', serverBinary);
+        }
       }
       let child;
       try {
