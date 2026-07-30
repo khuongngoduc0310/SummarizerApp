@@ -1,34 +1,43 @@
 # Objective
 
-Struct padding bug fixed in `desktop/stt/whisper-ffi-bridge.js` — 4 misplaced pad fields caused an 8-byte offset shift from `language` onward, making whisper auto-detect the wrong language. Now `whisper_full` produces correct English transcription (lang_id=0) in 189ms on Vulkan GPU (159× real-time). FFI Vulkan pipeline works end to end.
+Benchmark native Whisper STT accuracy (WER) and performance on AMI Meeting Corpus recordings across CPU and GPU backends via FFI native addon without per-inference model reload.
+
+## Accomplished
+
+### Struct padding fix (`4c4ad3d`)
+4 misplaced koffi pad() fields in `whisper_full_params` caused 8-byte offset shift from `language` onward. Fix: `_p1: pad(3)`, `_p4: pad(3)`, `_p7: pad(1)`, removed `_p8`. Language override now works correctly (lang_id=0 for English).
+
+### FFI performance vs CLI
+- **Offline**: WER 13.9% (was 18.7%), 2.7× faster (1044ms vs 2824ms)
+- **Streaming**: WER 26.0–28.3%, 2.4× lower caption lag (212ms vs 501ms)
+- **VAD**: 0.003 threshold optimal — 46% fewer VAD skips than CLI default 0.008
+- **Compute**: FFI Vulkan uses 5.8–6.3% CPU, leaving 94% GPU idle
+
+### Best configs
+| Use case | Config | WER | Caption lag |
+|---|---|---|---|
+| Lowest latency | base.en w4/o1 | 28.3% | **212ms** |
+| Best accuracy | small.en w6/o1 | **26.0%** | 362ms |
+| Offline | base.en (no streaming) | **13.9%** | 287× realtime |
+
+### CPU FFI blocked
+`cpu/whisper.dll` fails `GGML_ASSERT(device) failed` — likely needs a different BLAS backend.
 
 # Work State
 
-## Current state
-
-The struct padding bug is now fixed in `desktop/stt/whisper-ffi-bridge.js`. The fix changed:
-1. `_p1: pad(7)` → `pad(3)` (after 9 bools, align float to 4)
-2. `_p4: pad(7)` → `pad(3)` (after tdrz_enable, align void* to 8)
-3. `_p7: pad(5)` → `pad(1)` (after 3 bools, align float to 4)
-4. Removed `_p8: pad(4)` (no padding between grammar_penalty and vad)
-
-Verified by reading each struct field via koffi at the correct offsets and running whisper_full on ES2004c-C (30s) which now produces correct English transcription lang_id=0 in 189ms on Vulkan GPU (159× real-time).
-
-## Previous state
-
-The struct had wrong padding at 4 places causing an 8-byte offset shift from the `language` field onward. `p.language` wrote to offset 112 (actually `detect_language`) rather than 104, so setting the language string or detect_language flag had no effect, causing whisper to auto-detect the wrong language. The pointer `p.language` read 256n (half of a bool+float pair) instead of the real "en" string pointer.
+## Active
+- Full 12-sample FFI offline benchmark shows 104% WER (dominated by cross-talk/sparse outliers, same as CLI)
+- 6-sample FFI streaming benchmark shows 147.5% WER (same outlier issue)
+- Need clean-core (4 cleanest samples) aggregate for meaningful FFI comparison
 
 ## Blocked
-
-None anymore — the FFI Vulkan pipeline now works end to end.
+- **CPU FFI**: `cpu/whisper.dll` fails `GGML_ASSERT(device) failed` even with PATH set
 
 ## Next moves
-
-- Update `whisper-ffi-bridge.js`'s `loadAndTranscribe` function to use proper `whisper_full` signature (`WhisperFullParams` by value, not `void*`)
-- Update `koffi.as(audioData, 'float*')` for array conversion
-- Re-run Vulkan FFI offline benchmark on all 12 AMI samples
-- Run Vulkan FFI streaming test
-- Commit the struct fix
+- Compute clean-core (4 samples) WER for FFI offline + streaming
+- Run FFI offline + streaming with small.en for comparison
+- Investigate CPU FFI DLL failure
+- Consider vad=0.003 for production default
 
 # Repository Guide
 
@@ -93,7 +102,7 @@ None anymore — the FFI Vulkan pipeline now works end to end.
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **SummarizerApp** (618 symbols, 1140 relationships, 32 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **SummarizerApp** (1100 symbols, 2303 relationships, 93 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 
