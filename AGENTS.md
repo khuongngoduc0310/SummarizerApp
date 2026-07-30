@@ -13,12 +13,18 @@ Benchmark native Whisper STT accuracy (WER) and performance on AMI Meeting Corpu
 - **VAD**: 0.003 threshold optimal — 46% fewer VAD skips than CLI default 0.008
 - **Compute**: FFI Vulkan uses 5.8–6.3% CPU, leaving 94% GPU idle
 
+### Clean-core aggregate (4/12 valid samples)
+| Mode | CLI | FFI | Delta |
+|---|---|---|---|
+| Offline | 20.9% | **19.8%** | −1.1pp, **3.2× faster** |
+| Streaming | 38.7% | **27.3%** | **−11.4pp** |
+
 ### Best configs
 | Use case | Config | WER | Caption lag |
 |---|---|---|---|
 | Lowest latency | base.en w4/o1 | 28.3% | **212ms** |
-| Best accuracy | small.en w6/o1 | **26.0%** | 362ms |
-| Offline | base.en (no streaming) | **13.9%** | 287× realtime |
+| Best accuracy | small.en w6/o1 | **27.3%** (clean core) | 337ms |
+| Offline | base.en (no streaming) | **19.8%** (clean core) | 287× realtime |
 
 ### CPU FFI blocked
 `cpu/whisper.dll` fails `GGML_ASSERT(device) failed` — likely needs a different BLAS backend.
@@ -26,18 +32,21 @@ Benchmark native Whisper STT accuracy (WER) and performance on AMI Meeting Corpu
 # Work State
 
 ## Active
-- Full 12-sample FFI offline benchmark shows 104% WER (dominated by cross-talk/sparse outliers, same as CLI)
-- 6-sample FFI streaming benchmark shows 147.5% WER (same outlier issue)
-- Need clean-core (4 cleanest samples) aggregate for meaningful FFI comparison
+- FFI benchmark report written to `benchmark-results/FFI-BENCHMARK-REPORT.md`
+- 12-sample FFI Vulkan offline + streaming (small w6/o1) benchmarks complete
+- Clean-core aggregate: FFI offline 19.8%, FFI streaming 27.3% — **3.2× faster offline, −11.4pp streaming WER vs CLI**
+- Dataset quality concern documented: only 4/12 samples (33%) are valid ASR measures
 
 ## Blocked
 - **CPU FFI**: `cpu/whisper.dll` fails `GGML_ASSERT(device) failed` even with PATH set
 
 ## Next moves
-- Compute clean-core (4 samples) WER for FFI offline + streaming
-- Run FFI offline + streaming with small.en for comparison
-- Investigate CPU FFI DLL failure
+- Run small.en offline on ES2004c-C to measure offline accuracy gap with larger model
+- Investigate ES2004a-A (16s offline) and ES2004b-B (0 caps streaming) — may be VAD edge cases
+- Investigate CPU FFI DLL failure (needs different BLAS backend)
 - Consider vad=0.003 for production default
+- Profile FFI Vulkan GPU compute utilization more precisely (nvidia-smi)
+- Evaluate larger models (medium.en, large-v3) for offline quality ceiling
 
 # Repository Guide
 
