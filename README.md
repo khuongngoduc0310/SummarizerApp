@@ -264,7 +264,7 @@ Models and the optional CUDA runtime are downloaded from **Settings → Speech-t
 
 ### Native STT Performance
 
-Benchmarked on AMI Meeting Corpus (clean-core: 4/12 samples). Vulkan GPU via FFI bridge.
+Benchmarked on AMI Meeting Corpus (clean-core: 4/12 samples). Vulkan GPU via **new** koffi FFI bridge — no per-inference model reload.
 
 | Mode | Model | WER | Caption lag | vs CLI |
 |------|-------|-----|-------------|--------|
