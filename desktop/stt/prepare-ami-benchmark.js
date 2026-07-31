@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { XMLParser } = require('fast-xml-parser');
 const { parsePcmWav, validateSampleId, validateStreamingWav } = require('./benchmark-whisper.cpp');
+const { parseArgs } = require('./args-utils');
+const { sha256File } = require('./hash-utils');
 
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
@@ -11,22 +12,6 @@ const xmlParser = new XMLParser({
   textNodeName: '#text',
   processEntities: true
 });
-
-function parseArgs(argv) {
-  const args = {};
-  for (let i = 2; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (!next || next.startsWith('--')) args[key] = true;
-    else {
-      args[key] = next;
-      i += 1;
-    }
-  }
-  return args;
-}
 
 function usage() {
   console.log(`Usage:
@@ -38,10 +23,6 @@ function usage() {
 The AMI root must contain corpusResources/meetings.xml, words/*.words.xml,
 and the selected individual headset WAV files.
 `);
-}
-
-function sha256File(filePath) {
-  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
 }
 
 function indexFiles(root) {

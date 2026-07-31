@@ -34,8 +34,10 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
     const nativeTranscriptUnsubscribeRef = useRef(null);
     const samplesRef = useRef([]); // Browser WebGPU chunk buffer
     const nativeFrameBufferRef = useRef([]); // Native STT short-frame buffer
+    const nativeBatchBufferRef = useRef([]); // Batched frames for IPC reduction
     const chunkSequenceRef = useRef(0);
     const nativeFrameSequenceRef = useRef(0);
+    const flushNativeBatchRef = useRef(() => {});
     const telemetryRef = useRef({
         droppedChunkCount: 0,
         lastRealtimeFactor: null,
@@ -45,11 +47,12 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
     const CHUNK_DURATION = 15; // Browser WebGPU fallback chunk size
     const NATIVE_FRAME_DURATION = 0.1; // 100ms frames for native STT
     const NATIVE_FRAME_SAMPLES = Math.round(16000 * NATIVE_FRAME_DURATION);
+    const NATIVE_FRAME_BATCH_SIZE = 5; // batch 5 frames (500ms) per IPC call
     const SAMPLE_RATE = 16000;
     const useNativeStt = Boolean(
         runtimeConfig?.features?.nativeStt &&
         typeof window !== 'undefined' &&
-        window.desktopStt?.sendAudioFrame &&
+        window.desktopStt?.sendAudioFrames &&
         window.desktopStt?.onTranscript
     );
     
@@ -59,6 +62,22 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
         const cleanText = text.trim();
         return !cleanText || IGNORED_CAPTIONS.has(cleanText) || cleanText.includes("[");
     }, []);
+
+    const buildSttConfigPayload = useCallback(() => {
+        const windowSec = Number(sttConfig?.windowSec ?? 4);
+        const overlapSec = Math.min(Number(sttConfig?.overlapSec ?? 1), windowSec - 0.5);
+        const stepSec = Math.max(0.5, windowSec - overlapSec);
+        const maxBufferSec = Number(sttConfig?.maxBufferSec ?? 8);
+        return {
+            windowSec, overlapSec, stepSec, maxBufferSec,
+            vadThreshold: Number(sttConfig?.vadThreshold ?? 0.008),
+            highPassCutoffHz: Number(sttConfig?.highPassCutoffHz ?? 100),
+            dcOffsetRemoval: sttConfig?.dcOffsetRemoval ?? true,
+            highPassFilter: sttConfig?.highPassFilter ?? true,
+            normalizeAudio: sttConfig?.normalizeAudio ?? true,
+            silenceTrim: sttConfig?.silenceTrim ?? true
+        };
+    }, [sttConfig]);
 
     const initializeNativeStt = useCallback(() => {
         if (!useNativeStt || nativeTranscriptUnsubscribeRef.current) return;
@@ -114,48 +133,40 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
         while (nativeFrameBufferRef.current.length >= NATIVE_FRAME_SAMPLES) {
             const frame = nativeFrameBufferRef.current.slice(0, NATIVE_FRAME_SAMPLES);
             nativeFrameBufferRef.current = nativeFrameBufferRef.current.slice(NATIVE_FRAME_SAMPLES);
-            const sequence = ++nativeFrameSequenceRef.current;
+            nativeBatchBufferRef.current.push({
+                audio: frame,
+                sequence: ++nativeFrameSequenceRef.current,
+                capturedAt: Date.now()
+            });
+            if (nativeBatchBufferRef.current.length >= NATIVE_FRAME_BATCH_SIZE) {
+                flushNativeBatchRef.current();
+            }
+        }
+    }, [NATIVE_FRAME_SAMPLES]);
 
-            const windowSec = Number(sttConfig?.windowSec ?? 4);
-            // Important: use ?? instead of || so overlapSec=0 is preserved.
-            const overlapSec = Math.min(Number(sttConfig?.overlapSec ?? 1), windowSec - 0.5);
-            const stepSec = Math.max(0.5, windowSec - overlapSec);
-            const maxBufferSec = Number(sttConfig?.maxBufferSec ?? 8);
-
-            Promise.resolve(window.desktopStt.sendAudioFrame({
+    useEffect(() => {
+        flushNativeBatchRef.current = () => {
+            const batch = nativeBatchBufferRef.current.splice(0);
+            if (batch.length === 0) return;
+            Promise.resolve(window.desktopStt.sendAudioFrames({
                 meetingId,
                 speakerId: userId,
-                sequence,
                 sampleRate: SAMPLE_RATE,
                 format: 'f32le',
-                durationSec: NATIVE_FRAME_DURATION,
-                capturedAt: Date.now(),
-                sttConfig: {
-                    windowSec,
-                    overlapSec,
-                    stepSec,
-                    maxBufferSec,
-                    vadThreshold: Number(sttConfig?.vadThreshold ?? 0.008),
-                    highPassCutoffHz: Number(sttConfig?.highPassCutoffHz ?? 100),
-                    dcOffsetRemoval: sttConfig?.dcOffsetRemoval ?? true,
-                    highPassFilter: sttConfig?.highPassFilter ?? true,
-                    normalizeAudio: sttConfig?.normalizeAudio ?? true,
-                    silenceTrim: sttConfig?.silenceTrim ?? true
-                },
-                audio: frame
+                framesCount: batch.length,
+                framesDurationSec: NATIVE_FRAME_DURATION,
+                perFrameSequences: batch.map(f => f.sequence),
+                perFrameCapturedAts: batch.map(f => f.capturedAt),
+                audio: batch.flatMap(f => f.audio),
+                sttConfig: buildSttConfigPayload()
             })).then((result) => {
-                if (!result?.ok) throw new Error(result?.error || 'Native STT rejected the audio frame');
+                if (!result?.ok) throw new Error(result?.error || 'Native STT rejected the audio batch');
             }).catch((error) => {
-                console.warn('[Native STT] sendAudioFrame failed; backend status will select fallback', error);
-                onSttMetric?.({
-                    event: 'send-failed',
-                    backend: 'native',
-                    timestamp: Date.now(),
-                    error: error.message
-                });
+                console.warn('[Native STT] sendAudioFrames failed; backend status will select fallback', error);
+                onSttMetric?.({ event: 'send-failed', backend: 'native', timestamp: Date.now(), error: error.message });
             });
-        }
-    }, [NATIVE_FRAME_SAMPLES, meetingId, onSttMetric, sttConfig, userId]);
+        };
+    });
 
     const initializeWorker = useCallback(() => {
         if (!workerRef.current) {
@@ -386,6 +397,8 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
             }
             samplesRef.current = [];
             startTimeRef.current = null;
+            flushNativeBatchRef.current();
+            nativeBatchBufferRef.current = [];
             nativeFrameBufferRef.current = [];
             chunkSequenceRef.current = 0;
             nativeFrameSequenceRef.current = 0;

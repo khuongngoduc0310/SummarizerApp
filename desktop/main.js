@@ -573,6 +573,17 @@ ipcMain.handle('desktop-stt:send-audio-frame', (_event, frame) => {
   return sttManager.sendAudioFrame(frame);
 });
 
+ipcMain.handle('desktop-stt:send-audio-frames', (_event, payload) => {
+  if (!payload || typeof payload !== 'object') return { ok: false, error: 'Invalid payload' };
+  const { audio, perFrameSequences, framesCount, sampleRate } = payload;
+  if (sampleRate !== 16000) return { ok: false, error: 'Invalid sample rate' };
+  const validCount = Number.isSafeInteger(framesCount) && framesCount > 0 && framesCount <= 60;
+  const validSeqs = Array.isArray(perFrameSequences) && perFrameSequences.length === framesCount;
+  const validAudio = Array.isArray(audio) && audio.length > 0 && audio.length <= 1920000;
+  if (!validCount || !validSeqs || !validAudio) return { ok: false, error: 'Invalid batch payload' };
+  return sttManager.sendAudioFrames(payload);
+});
+
 ipcMain.handle('desktop-stt:update-config', (_event, config) => {
   if (!config || typeof config !== 'object') {
     return { ok: false, error: 'Invalid STT config' };

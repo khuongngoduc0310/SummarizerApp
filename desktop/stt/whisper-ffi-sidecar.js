@@ -4,19 +4,7 @@ const os = require('os');
 const path = require('path');
 const readline = require('readline');
 const { WhisperFFI } = require('./whisper-ffi-bridge.js');
-
-function parseArgs(argv) {
-  const args = {};
-  for (let i = 2; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (!next || next.startsWith('--')) { args[key] = true; }
-    else { args[key] = next; i += 1; }
-  }
-  return args;
-}
+const { parseArgs } = require('./args-utils');
 
 function computeAudioStats(samples) {
   if (!samples.length) return { rms: 0, peak: 0 };
@@ -457,7 +445,7 @@ async function main() {
     maybeInfer(session).catch((error) => emit({ type: 'error', backend, error: error.message }));
   });
 
-  process.on('exit', () => {
+  process.once('exit', () => {
     try { ffi.free(); } catch {}
   });
 }

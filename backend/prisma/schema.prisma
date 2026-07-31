@@ -18,7 +18,6 @@ datasource db {
 model User {
   id          String   @id @default(uuid())
   displayName String
-  email       String?  @unique
   createdAt   DateTime @default(now())
 
   meetingsHosted Meeting[]    @relation("HostedMeetings")
@@ -66,7 +65,7 @@ model Transcript {
   segments  TranscriptSegment[]
   summaries Summary[]
 
-  @@index([meetingId])
+  @@unique([meetingId, ownerUserId])
 }
 
 // =====================
@@ -85,6 +84,7 @@ model TranscriptSegment {
   createdAt        DateTime  @default(now())
   sessionStartedAt DateTime?
 
+  @@index([transcriptId, sessionStartedAt, start])
   @@index([transcriptId, sessionStartedAt, createdAt, id])
 }
 

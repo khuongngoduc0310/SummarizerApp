@@ -393,4 +393,4 @@ const SettingsModal = ({
   );
 };
 
-export default SettingsModal;
+export default React.memo(SettingsModal);

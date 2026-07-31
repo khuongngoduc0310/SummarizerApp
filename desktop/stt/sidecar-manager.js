@@ -350,11 +350,10 @@ class NativeSttManager extends EventEmitter {
     }
 
     const excluded = new Set(excludeBackends);
-    const rank = { cuda: 0, vulkan: 1, cpu: 2 };
     const candidates = this.backends
       .filter((backend) => backend.available && !excluded.has(backend.id))
       .filter((backend) => this.backendPreference === 'auto' || backend.id === this.backendPreference)
-      .sort((left, right) => (rank[left.id] ?? 100) - (rank[right.id] ?? 100));
+      .sort((left, right) => (right.priority ?? 0) - (left.priority ?? 0));
     if (!candidates.length) {
       const reason = this.backendPreference === 'auto'
         ? 'No native STT backend is available'
@@ -657,6 +656,33 @@ class NativeSttManager extends EventEmitter {
       ));
     }
     return result;
+  }
+
+  sendAudioFrames(payload) {
+    if (!this.process || !this.nativeReady || this.status !== 'running') return { ok: false, error: 'Native STT sidecar is not running' };
+    const { audio, perFrameSequences, perFrameCapturedAts, framesCount, framesDurationSec, sampleRate, format, meetingId, speakerId, sttConfig } = payload;
+    let frameSize = Math.round(sampleRate * framesDurationSec);
+    let offset = 0;
+    for (let i = 0; i < framesCount; i++) {
+      const frame = audio.slice(offset, offset + frameSize);
+      const result = this._writeMessage({
+        type: 'audio',
+        meetingId,
+        speakerId,
+        sequence: perFrameSequences[i],
+        sampleRate,
+        format,
+        durationSec: framesDurationSec,
+        capturedAt: perFrameCapturedAts[i],
+        sttConfig,
+        audio: frame
+      });
+      if (!result.ok) {
+        return result;
+      }
+      offset += frameSize;
+    }
+    return { ok: true };
   }
 
   _writeMessage(message) {

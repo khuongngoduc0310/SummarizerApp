@@ -413,4 +413,4 @@ const JoinScreen = ({
     );
 };
 
-export default JoinScreen;
+export default React.memo(JoinScreen);

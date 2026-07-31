@@ -10,6 +10,9 @@ const { truncateSegments } = require('./tokenEstimator');
 const { SUMMARY_SCHEMA, resolveLlmConfig, parseSummaryText, SummaryFormatError } = require('./llmConfig');
 const { CaptionHistoryError, getCaptionHistoryPage } = require('./captionHistory');
 
+const DEBUG = false;
+const debugLog = DEBUG ? (...args) => console.log(...args) : () => {};
+
 const app = express();
 const server = http.createServer(app);
 const configuredCorsOrigin = process.env.CORS_ORIGIN || "*";
@@ -75,21 +78,6 @@ app.post('/meetings', async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating meeting:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Join Meeting (GET info)
-app.get('/meetings/:id', async (req, res) => {
-  try {
-    const meeting = await prisma.meeting.findUnique({
-      where: { id: req.params.id },
-      include: { host: true }
-    });
-    
-    if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
-    res.json(meeting);
-  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
@@ -230,10 +218,8 @@ Output ONLY valid JSON — no markdown, no commentary, no code fences — with t
     // 6. Validate the provider response before storing it
     const { parsed: parsedSummary, cleaned } = parseSummaryText(summaryText);
 
-    // 7. Find a transcript record for this meeting
-    const transcript = await prisma.transcript.findFirst({
-      where: { meetingId: meetingId }
-    });
+    // 7. Find a transcript record for this meeting (already loaded via segments include)
+    const transcript = segments[0].transcript;
 
     // 8. Store the summary
     await prisma.summary.create({
@@ -288,8 +274,18 @@ app.get('/meetings/:id/status', async (req, res) => {
 
 // In-memory host tracking
 const meetingHosts = new Map(); // meetingId -> hostSocketId
-const persistedCaptionKeys = new Set(); // idempotency keys for final caption events
+const persistedCaptionKeys = new Map(); // idempotency key -> timestamp (ms)
+const CAPTION_KEY_TTL_MS = 3_600_000; // 1 hour
 const meetingJoinLocks = new Map();
+
+// Prune stale caption keys every 5 minutes
+const CAPTION_KEY_CLEANUP_INTERVAL = 300_000;
+const captionKeyCleanupTimer = setInterval(() => {
+  const cutoff = Date.now() - CAPTION_KEY_TTL_MS;
+  for (const [key, ts] of persistedCaptionKeys) {
+    if (ts < cutoff) persistedCaptionKeys.delete(key);
+  }
+}, CAPTION_KEY_CLEANUP_INTERVAL);
 
 async function withMeetingJoinLock(meetingId, work) {
   const previous = meetingJoinLocks.get(meetingId) || Promise.resolve();
@@ -303,7 +299,7 @@ async function withMeetingJoinLock(meetingId, work) {
 }
 
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+      debugLog('User connected:', socket.id);
 
   // User joins a meeting room
   socket.on('join-meeting', async (data) => {
@@ -348,7 +344,7 @@ io.on('connection', (socket) => {
           where: { id: meetingId },
           data: { endedAt: null, sessionStartedAt: new Date() }
         });
-        console.log(`Meeting ${meetingId}: new session started`);
+        debugLog(`Meeting ${meetingId}: new session started`);
       }
 
       socket.join(meetingId);
@@ -357,7 +353,7 @@ io.on('connection', (socket) => {
       socket.sessionStartedAt = meeting.sessionStartedAt || meeting.startedAt || meeting.createdAt;
       socket.currentStatus = { displayName: user.displayName, isMuted: isMuted, isVideoOff: isVideoOff };
 
-      console.log(`User ${user.displayName} (${user.id}) joined meeting ${meetingId}`);
+      debugLog(`User ${user.displayName} (${user.id}) joined meeting ${meetingId}`);
 
       if (!meetingHosts.has(meetingId)) {
         meetingHosts.set(meetingId, socket.id);
@@ -464,34 +460,28 @@ io.on('connection', (socket) => {
       ? `${meetingId}:${speakerId}:${utteranceId}`
       : null;
 
-    if (idempotencyKey && persistedCaptionKeys.has(idempotencyKey)) {
-      return;
-    }
-
-    // Reserve the key before async DB work so duplicate client emits from
-    // multiple listeners cannot race and create duplicate transcript rows.
     if (idempotencyKey) {
-      persistedCaptionKeys.add(idempotencyKey);
+      const ts = persistedCaptionKeys.get(idempotencyKey);
+      if (ts && Date.now() - ts < CAPTION_KEY_TTL_MS) return;
+      persistedCaptionKeys.set(idempotencyKey, Date.now());
     }
     
     try {
       // 1. Ensure Transcript Metadata exists for this user in this meeting
-      let transcript = await prisma.transcript.findFirst({
+      let transcript = await prisma.transcript.upsert({
         where: {
+          meetingId_ownerUserId: {
+            meetingId: meetingId,
+            ownerUserId: speakerId
+          }
+        },
+        update: {},
+        create: {
           meetingId: meetingId,
-          ownerUserId: speakerId
+          ownerUserId: speakerId,
+          language: 'en'
         }
       });
-
-      if (!transcript) {
-        transcript = await prisma.transcript.create({
-          data: {
-            meetingId: meetingId,
-            ownerUserId: speakerId,
-            language: 'en'
-          }
-        });
-      }
 
       // 2. Create the Transcript Segment
       const segment = await prisma.transcriptSegment.create({
@@ -532,19 +522,19 @@ io.on('connection', (socket) => {
     const meetingId = socket.meetingId;
     if (!meetingId) return;
 
-    console.log(`User ${socket.id} is leaving meeting ${meetingId}`);
+      debugLog(`User ${socket.id} is leaving meeting ${meetingId}`);
     socket.to(meetingId).emit('user-left', { socketId: socket.id });
 
     // Handle host leaving
     if (meetingHosts.get(meetingId) === socket.id) {
-      console.log(`Host ${socket.id} left meeting ${meetingId}. Reassigning...`);
+      debugLog(`Host ${socket.id} left meeting ${meetingId}. Reassigning...`);
       const room = io.sockets.adapter.rooms.get(meetingId);
       if (room && room.size > 0) {
         const participants = Array.from(room).filter(id => id !== socket.id);
         if (participants.length > 0) {
           const newHostId = participants[Math.floor(Math.random() * participants.length)];
           meetingHosts.set(meetingId, newHostId);
-          console.log(`New host for ${meetingId} is ${newHostId}`);
+          debugLog(`New host for ${meetingId} is ${newHostId}`);
           io.to(meetingId).emit('host-info', { hostId: newHostId });
         } else {
           meetingHosts.delete(meetingId);
@@ -562,12 +552,16 @@ io.on('connection', (socket) => {
       // Recheck while serialized with joins so an active room is never marked ended.
       const room = io.sockets.adapter.rooms.get(meetingId);
       if (!room || room.size === 0) {
+        const prefix = `${meetingId}:`;
+        for (const key of persistedCaptionKeys.keys()) {
+          if (key.startsWith(prefix)) persistedCaptionKeys.delete(key);
+        }
         try {
           await prisma.meeting.update({
             where: { id: meetingId },
             data: { endedAt: new Date() }
           });
-          console.log(`Meeting ${meetingId}: ended (all participants left)`);
+          debugLog(`Meeting ${meetingId}: ended (all participants left)`);
         } catch (err) {
           console.error(`Failed to set endedAt for meeting ${meetingId}:`, err);
         }
@@ -576,12 +570,12 @@ io.on('connection', (socket) => {
   };
 
   socket.on('leave-meeting', () => {
-    handleUserLeaveRoom(socket);
+    handleUserLeaveRoom(socket).catch(err => console.error('leave-meeting error:', err));
   });
 
   socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-    handleUserLeaveRoom(socket);
+    debugLog('User disconnected:', socket.id);
+    handleUserLeaveRoom(socket).catch(err => console.error('disconnect error:', err));
   });
 });
 
@@ -589,8 +583,8 @@ const PORT = process.env.PORT || 4000;
 const RETENTION_DAYS = parseInt(process.env.RETENTION_DAYS || '30', 10);
 
 server.listen(PORT, () => {
-  console.log(`Backend server running on port ${PORT}`);
-  console.log(`Transcript retention: ${RETENTION_DAYS} days`);
+  debugLog(`Backend server running on port ${PORT}`);
+  debugLog(`Transcript retention: ${RETENTION_DAYS} days`);
 });
 
 // =====================
@@ -606,9 +600,18 @@ setInterval(async () => {
       }
     });
     if (count > 0) {
-      console.log(`Cleanup: deleted ${count} expired meeting(s) older than ${cutoff.toISOString()}`);
+      debugLog(`Cleanup: deleted ${count} expired meeting(s) older than ${cutoff.toISOString()}`);
     }
   } catch (err) {
     console.error('Cleanup scheduler error:', err);
   }
 }, 3600 * 1000); // every hour
+
+
+// Graceful shutdown
+function shutdown() {
+  clearInterval(captionKeyCleanupTimer);
+  server.close(() => process.exit(0));
+}
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

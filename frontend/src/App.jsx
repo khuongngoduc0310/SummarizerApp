@@ -181,13 +181,13 @@ function App() {
   // Initialize Audio Pipeline for transcription
   useAudioPipeline(socket, meetingId, localStream, userId, effectiveRuntimeConfig, sttConfig, handleSttMetric);
 
-  const toggleMute = () => {
+  const toggleMute = useCallback(() => {
     setIsMuted(prev => !prev);
-  };
+  }, []);
 
-  const toggleVideo = () => {
+  const toggleVideo = useCallback(() => {
     setIsVideoOff(prev => !prev);
-  };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -388,18 +388,20 @@ function App() {
     }
   }, [showSettings]);
 
-  const addRecentRoom = (id) => {
-    const updated = [id, ...recentRooms.filter(r => r !== id)].slice(0, 5);
-    setRecentRooms(updated);
-    storage.set('recent_rooms', updated, 24);
-  };
+  const addRecentRoom = useCallback((id) => {
+    setRecentRooms(prev => {
+      const updated = [id, ...prev.filter(r => r !== id)].slice(0, 5);
+      storage.set('recent_rooms', updated, 24);
+      return updated;
+    });
+  }, []);
 
-  const clearRecentRooms = () => {
+  const clearRecentRooms = useCallback(() => {
     setRecentRooms([]);
     storage.remove('recent_rooms');
-  };
+  }, []);
 
-  const beginMeetingJoin = (nextMeetingId) => {
+  const beginMeetingJoin = useCallback((nextMeetingId) => {
     const joinRequestId = createJoinRequestId();
     captionHistoryRequestIdRef.current += 1;
     activeMeetingIdRef.current = nextMeetingId;
@@ -411,9 +413,9 @@ function App() {
     setLoadingCaptionHistory(false);
     setCaptionHistoryError(null);
     return joinRequestId;
-  };
+  }, []);
 
-  const handleCreateMeeting = async (userData) => {
+  const handleCreateMeeting = useCallback(async (userData) => {
     try {
       const res = await fetch(`${runtimeConfig.apiBaseUrl}/meetings`, {
         method: 'POST',
@@ -428,10 +430,8 @@ function App() {
       setIsMuted(userData.isMuted);
       setIsVideoOff(userData.isVideoOff);
 
-      // Track as recent and active
       addRecentRoom(data.meetingId);
 
-      // Join the room via socket
       socket.emit('join-meeting', {
         meetingId: data.meetingId,
         joinRequestId,
@@ -446,20 +446,17 @@ function App() {
     } catch (error) {
       console.error('Failed to create meeting:', error);
     }
-  };
+  }, [runtimeConfig, socket, beginMeetingJoin, addRecentRoom]);
 
-  const handleJoinMeeting = (userData) => {
-
+  const handleJoinMeeting = useCallback((userData) => {
     const joinRequestId = beginMeetingJoin(userData.meetingId);
     setMeetingId(userData.meetingId);
     setUserDisplayName(userData.displayName);
     setIsMuted(userData.isMuted);
     setIsVideoOff(userData.isVideoOff);
 
-    // Track as recent and active
     addRecentRoom(userData.meetingId);
 
-    // Join the room via socket
     socket.emit('join-meeting', {
       meetingId: userData.meetingId,
       joinRequestId,
@@ -471,10 +468,9 @@ function App() {
     if (userData.selectedDevices) {
       setSelectedDevices(userData.selectedDevices);
     }
+  }, [socket, beginMeetingJoin, addRecentRoom]);
 
-  };
-
-  const handleLeave = () => {
+  const handleLeave = useCallback(() => {
     leave();
     captionHistoryRequestIdRef.current += 1;
     activeMeetingIdRef.current = null;
@@ -489,9 +485,9 @@ function App() {
     setSummary(null);
     setUserId(null);
     setSttMetrics([]);
-  };
+  }, [leave]);
 
-  const loadOlderCaptions = async () => {
+  const loadOlderCaptions = useCallback(async () => {
     if (!socket || !captionHistoryCursor || loadingCaptionHistory || !activeMeetingIdRef.current) return false;
 
     const requestedMeetingId = activeMeetingIdRef.current;
@@ -538,14 +534,14 @@ function App() {
         setLoadingCaptionHistory(false);
       }
     }
-  };
+  }, [socket, captionHistoryCursor, loadingCaptionHistory]);
 
-  const copyToClipboard = () => {
+  const copyToClipboard = useCallback(() => {
     if (!meetingId) return;
     navigator.clipboard.writeText(meetingId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
+  }, [meetingId]);
 
   const sttBenchmarkSummary = useMemo(() => {
     const numeric = (key) => sttMetrics
@@ -592,7 +588,7 @@ function App() {
     Number.isFinite(value) ? `${value.toFixed(digits)}${suffix}` : '—'
   );
 
-  const handleDownloadModel = async (modelId) => {
+  const handleDownloadModel = useCallback(async (modelId) => {
     const result = await window.desktopStt?.downloadModel?.(modelId);
     if (!result?.ok) {
       alert(result?.error || 'Failed to download model');
@@ -600,9 +596,9 @@ function App() {
     const status = await window.desktopStt?.getStatus?.();
     if (status) setSttStatus(status);
     await refreshModelCatalog();
-  };
+  }, [refreshModelCatalog]);
 
-  const handleUseModel = async (modelPath) => {
+  const handleUseModel = useCallback(async (modelPath) => {
     const result = await window.desktopStt?.setModel?.(modelPath);
     if (!result?.ok) {
       alert(result?.error || 'Failed to switch Whisper model');
@@ -610,9 +606,9 @@ function App() {
     const status = await window.desktopStt?.getStatus?.();
     if (status) setSttStatus(status);
     await refreshModelCatalog();
-  };
+  }, [refreshModelCatalog]);
 
-  const handleDeleteModel = async (modelId) => {
+  const handleDeleteModel = useCallback(async (modelId) => {
     const confirmed = window.confirm('Delete this downloaded model from this computer?');
     if (!confirmed) return;
     const result = await window.desktopStt?.deleteModel?.(modelId);
@@ -622,17 +618,17 @@ function App() {
     const status = await window.desktopStt?.getStatus?.();
     if (status) setSttStatus(status);
     await refreshModelCatalog();
-  };
+  }, [refreshModelCatalog]);
 
-  const handleBackendPreference = async (backendPreference) => {
+  const handleBackendPreference = useCallback(async (backendPreference) => {
     const result = await window.desktopStt?.setBackendPreference?.(backendPreference);
     if (!result?.ok) alert(result?.error || 'Failed to change STT backend preference');
     const status = await window.desktopStt?.getStatus?.();
     if (status) setSttStatus(status);
     await refreshBackendCatalog();
-  };
+  }, [refreshBackendCatalog]);
 
-  const handleInstallBackend = async (backendId) => {
+  const handleInstallBackend = useCallback(async (backendId) => {
     const backend = backendCatalog.find((candidate) => candidate.id === backendId);
     const downloadMiB = backend ? Math.round(backend.downloadSize / 1024 / 1024) : 266;
     const installedMiB = backend ? Math.round(backend.installedSize / 1024 / 1024) : 594;
@@ -645,21 +641,21 @@ function App() {
     const status = await window.desktopStt?.getStatus?.();
     if (status) setSttStatus(status);
     await refreshBackendCatalog();
-  };
+  }, [backendCatalog, refreshBackendCatalog]);
 
-  const handleCancelBackendInstall = async (backendId) => {
+  const handleCancelBackendInstall = useCallback(async (backendId) => {
     const result = await window.desktopStt?.cancelBackendInstall?.(backendId);
     if (!result?.ok) alert(result?.error || 'Failed to cancel backend installation');
-  };
+  }, []);
 
-  const handleRemoveBackend = async (backendId) => {
+  const handleRemoveBackend = useCallback(async (backendId) => {
     if (!window.confirm('Remove this downloaded STT backend from this computer?')) return;
     const result = await window.desktopStt?.removeBackend?.(backendId);
     if (!result?.ok) alert(result?.error || 'Failed to remove STT backend');
     const status = await window.desktopStt?.getStatus?.();
     if (status) setSttStatus(status);
     await refreshBackendCatalog();
-  };
+  }, [refreshBackendCatalog]);
 
   if (startupError) {
     return (

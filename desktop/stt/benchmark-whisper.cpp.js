@@ -1,32 +1,16 @@
 #!/usr/bin/env node
-const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 const { once } = require('events');
 const { StringDecoder } = require('string_decoder');
+const { parseArgs } = require('./args-utils');
+const { sha256File } = require('./hash-utils');
 
 const AUDIO_EXTENSIONS = /\.(wav|mp3|m4a|flac)$/i;
 const DEFAULT_TIMEOUT_MS = 120000;
 const FRAME_DURATION_SEC = 0.1;
-
-function parseArgs(argv) {
-  const args = {};
-  for (let i = 2; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (!next || next.startsWith('--')) {
-      args[key] = true;
-    } else {
-      args[key] = next;
-      i += 1;
-    }
-  }
-  return args;
-}
 
 function usage() {
   console.log(`Usage:
@@ -114,22 +98,6 @@ function summarize(values) {
     p95: percentile(valid, 0.95),
     max: Math.max(...valid)
   };
-}
-
-function sha256File(filePath) {
-  const hash = crypto.createHash('sha256');
-  const fd = fs.openSync(filePath, 'r');
-  const buffer = Buffer.alloc(1024 * 1024);
-  try {
-    let bytesRead;
-    do {
-      bytesRead = fs.readSync(fd, buffer, 0, buffer.length, null);
-      if (bytesRead) hash.update(buffer.subarray(0, bytesRead));
-    } while (bytesRead);
-  } finally {
-    fs.closeSync(fd);
-  }
-  return hash.digest('hex');
 }
 
 function parsePcmWav(filePath) {

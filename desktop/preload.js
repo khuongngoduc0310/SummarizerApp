@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('desktopStt', {
   downloadModel: (modelId) => ipcRenderer.invoke('desktop-stt:download-model', modelId),
   deleteModel: (modelId) => ipcRenderer.invoke('desktop-stt:delete-model', modelId),
   sendAudioFrame: (frame) => ipcRenderer.invoke('desktop-stt:send-audio-frame', frame),
+  sendAudioFrames: (payload) => ipcRenderer.invoke('desktop-stt:send-audio-frames', payload),
   onTranscript: (callback) => {
     if (typeof callback !== 'function') return () => {};
 

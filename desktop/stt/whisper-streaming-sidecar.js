@@ -6,29 +6,11 @@ const readline = require('readline');
 const { spawn } = require('child_process');
 const { StringDecoder } = require('string_decoder');
 const http = require('http');
+const { parseArgs } = require('./args-utils');
 
 const activeWhisperChildren = new Set();
-const SERVER_PORT_START = 9100;
-const SERVER_PORT_END = 9200;
 const SERVER_READY_POLL_MS = 100;
 const SERVER_READY_TIMEOUT_MS = 15000;
-
-function parseArgs(argv) {
-  const args = {};
-  for (let i = 2; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (!next || next.startsWith('--')) {
-      args[key] = true;
-    } else {
-      args[key] = next;
-      i += 1;
-    }
-  }
-  return args;
-}
 
 function wavToBuffer(floatSamples, sampleRate) {
   const dataSize = floatSamples.length * 2;
@@ -895,7 +877,7 @@ async function main() {
     maybeInfer(session).catch((error) => emit({ type: 'error', backend, error: error.message }));
   });
 
-  process.on('exit', () => {
+  process.once('exit', () => {
     if (whisperServer) whisperServer.stop().catch(() => {});
     for (const child of activeWhisperChildren) {
       try { child.kill(); } catch {}
