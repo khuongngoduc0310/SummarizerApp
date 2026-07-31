@@ -432,7 +432,7 @@ function createWindow() {
 
 ipcMain.handle('desktop-config:get-runtime-config', () => runtimeConfig);
 
-ipcMain.handle('desktop-stt:get-status', () => sttManager.getStatus());
+ipcMain.handle('desktop-stt:get-status', () => sttManager?.getStatus?.() ?? { nativeReady: false });
 
 ipcMain.handle('desktop-stt:list-model-catalog', () => getModelCatalogWithStatus());
 

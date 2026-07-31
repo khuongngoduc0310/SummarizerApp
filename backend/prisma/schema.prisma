@@ -112,4 +112,8 @@ model Summary {
   timeRangeStart Float?
   timeRangeEnd   Float?
   createdAt      DateTime @default(now())
+
+  @@index([meetingId])
+  @@index([transcriptId])
+  @@index([requestedById])
 }

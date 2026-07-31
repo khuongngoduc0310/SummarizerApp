@@ -3,7 +3,7 @@ import { useEffect, useRef, useCallback } from 'react';
 const IGNORED_CAPTIONS = new Set([
     "(Coughing)", "(sighing)", "(laughing)", "(crying)",
     "(sneezing)", "(breathing)", "(snoring)", "[BLANK_AUDIO]", "[ Pause ]", "[INAUDIBLE]", "(sad music)", "[Crying]", "[ Inaudible Remark ]", "(panting)", "(audience murmurs)", "(audience laughing)",
-    "(audience chantering)", "(coughing)", "[Coughing]"
+    "(audience chantering)", "[Coughing]"
 ]);
 
 const recordBenchmarkEvent = (event) => {
@@ -146,9 +146,9 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
 
     useEffect(() => {
         flushNativeBatchRef.current = () => {
-            const batch = nativeBatchBufferRef.current.splice(0);
+            const batch = nativeBatchBufferRef.current.splice(0, NATIVE_FRAME_BATCH_SIZE);
             if (batch.length === 0) return;
-            Promise.resolve(window.desktopStt.sendAudioFrames({
+            window.desktopStt.sendAudioFrames({
                 meetingId,
                 speakerId: userId,
                 sampleRate: SAMPLE_RATE,
@@ -159,7 +159,7 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
                 perFrameCapturedAts: batch.map(f => f.capturedAt),
                 audio: batch.flatMap(f => f.audio),
                 sttConfig: buildSttConfigPayload()
-            })).then((result) => {
+            }).then((result) => {
                 if (!result?.ok) throw new Error(result?.error || 'Native STT rejected the audio batch');
             }).catch((error) => {
                 console.warn('[Native STT] sendAudioFrames failed; backend status will select fallback', error);
@@ -330,6 +330,7 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
             sampleRate: SAMPLE_RATE
         });
         audioContextRef.current = audioContext;
+        audioContext.resume().catch(() => {});
 
         const source = audioContext.createMediaStreamSource(localStream);
         const silence = audioContext.createGain();
@@ -367,6 +368,7 @@ export const useAudioPipeline = (socket, meetingId, localStream, userId, runtime
                 silence.connect(audioContext.destination);
             } catch (err) {
                 console.error("Failed to setup AudioWorklet:", err);
+                if (audioContext.state !== 'closed') audioContext.close();
             }
         };
 

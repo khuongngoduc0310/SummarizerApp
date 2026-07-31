@@ -13,6 +13,8 @@ const { CaptionHistoryError, getCaptionHistoryPage } = require('./captionHistory
 const DEBUG = false;
 const debugLog = DEBUG ? (...args) => console.log(...args) : () => {};
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 const app = express();
 const server = http.createServer(app);
 const configuredCorsOrigin = process.env.CORS_ORIGIN || "*";
@@ -53,7 +55,19 @@ app.get('/health', async (req, res) => {
 // Create Meeting
 app.post('/meetings', async (req, res) => {
   const { displayName, title } = req.body;
-  
+  if (displayName !== undefined && typeof displayName !== 'string') {
+    return res.status(400).json({ error: 'displayName must be a string' });
+  }
+  if (typeof displayName === 'string' && displayName.length > 100) {
+    return res.status(400).json({ error: 'displayName must be at most 100 characters' });
+  }
+  if (title !== undefined && typeof title !== 'string') {
+    return res.status(400).json({ error: 'title must be a string' });
+  }
+  if (typeof title === 'string' && title.length > 200) {
+    return res.status(400).json({ error: 'title must be at most 200 characters' });
+  }
+
   try {
     // 1. Create or find the host user
     const host = await prisma.user.create({
@@ -88,6 +102,10 @@ app.post('/meetings/:id/summary', async (req, res) => {
   const { userId, llmConfig } = req.body;
   const { minutes } = req.query; // optional rolling summary: ?minutes=15
 
+  if (!UUID_RE.test(meetingId)) return res.status(400).json({ error: 'Invalid meeting ID format' });
+  if (typeof userId !== 'string' || userId.length === 0 || userId.length > 200) {
+    return res.status(400).json({ error: 'userId must be a non-empty string' });
+  }
   let resolvedLlmConfig;
   try {
     resolvedLlmConfig = resolveLlmConfig(llmConfig);
@@ -251,6 +269,7 @@ Output ONLY valid JSON — no markdown, no commentary, no code fences — with t
 
 // Meeting Status (check if room is active)
 app.get('/meetings/:id/status', async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid meeting ID format' });
   try {
     const room = io.sockets.adapter.rooms.get(req.params.id);
     const meeting = await prisma.meeting.findUnique({
@@ -387,6 +406,9 @@ io.on('connection', (socket) => {
         socket.emit('join-error', { meetingId, joinRequestId, error: 'Failed to join meeting.' });
       }
     });
+  }).catch((err) => {
+    console.error('join-meeting unhandled rejection:', err);
+    socket.emit('join-error', { meetingId: data?.meetingId, joinRequestId: data?.joinRequestId, error: 'Failed to join meeting.' });
   });
 
   socket.on('get-caption-history', async (data, callback) => {
