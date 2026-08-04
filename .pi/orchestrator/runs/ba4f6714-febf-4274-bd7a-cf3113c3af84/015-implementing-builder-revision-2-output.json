@@ -1,0 +1,32 @@
+{
+  "output": {
+    "summary": "Strengthened light-theme control boundaries for WCAG AA contrast.",
+    "changedFiles": [
+      "frontend/src/components/ThemeToggle.jsx",
+      "frontend/src/components/SettingsModal.jsx",
+      "frontend/src/components/JoinScreen.jsx"
+    ],
+    "commands": [],
+    "assumptions": [
+      "Prior fixes for waiting-state opacity and summary markdown markers remain intact."
+    ],
+    "unresolvedIssues": [
+      "Frontend checks were not run because shell execution is unavailable."
+    ]
+  },
+  "usage": {
+    "input": 74271,
+    "output": 3314,
+    "cacheRead": 154112,
+    "cacheWrite": 0,
+    "cost": 0.02191324,
+    "totalTokens": 231697,
+    "costBreakdown": {
+      "input": 0.014854200000000001,
+      "output": 0.0039768,
+      "cacheRead": 0.00308224,
+      "cacheWrite": 0
+    },
+    "reasoning": 2393
+  }
+}

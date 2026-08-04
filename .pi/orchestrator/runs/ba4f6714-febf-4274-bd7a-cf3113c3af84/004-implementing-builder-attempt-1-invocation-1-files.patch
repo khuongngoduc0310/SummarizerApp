@@ -1,0 +1,1662 @@
+diff --git a/frontend/src/App.jsx b/frontend/src/App.jsx
+index a293eae75436fe7dff032a66f9811639b736d763..ef7d44ac645bd1e8be8c33a55010b7a69e0188ac 100644
+--- a/frontend/src/App.jsx
++++ b/frontend/src/App.jsx
+@@ -1,4 +1,4 @@
+-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
++import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
+ import io from 'socket.io-client';
+ import {
+   Video,
+@@ -20,10 +20,12 @@ import SummaryPanel from './components/SummaryPanel';
+ import SettingsModal from './components/SettingsModal';
+ import SttStatusBar from './components/SttStatusBar';
+ import VideoView from './components/VideoView';
++import ThemeToggle from './components/ThemeToggle';
+ import { useWebRTC } from './hooks/useWebRTC';
+ import { useAudioPipeline } from './hooks/useAudioPipeline';
+ import { getActiveApiKey, getSelectedModelId, normalizeLlmConfig } from './config/llmModels';
+ import { mergeCaptions } from './utils/captions';
++import { getThemePreference, setThemePreference } from './utils/themePreference';
+ 
+ 
+ const getRuntimeConfig = async () => {
+@@ -96,6 +98,7 @@ function App() {
+   const [captionHistoryError, setCaptionHistoryError] = useState(null);
+   const activeMeetingIdRef = useRef(null);
+   const activeSessionStartedAtRef = useRef(null);
++  const themeInitializedRef = useRef(false);
+   const activeJoinRequestIdRef = useRef(null);
+   const captionHistoryRequestIdRef = useRef(0);
+   const [summary, setSummary] = useState(null);
+@@ -139,6 +142,31 @@ function App() {
+   const [isMuted, setIsMuted] = useState(true);
+   const [isVideoOff, setIsVideoOff] = useState(true);
+   const [recentRooms, setRecentRooms] = useState([]);
++  const [theme, setTheme] = useState(() => getThemePreference());
++
++  useLayoutEffect(() => {
++    if (typeof document === 'undefined') return undefined;
++
++    const root = document.documentElement;
++    root.dataset.theme = theme;
++    root.style.colorScheme = theme;
++
++    if (!themeInitializedRef.current) {
++      themeInitializedRef.current = true;
++      return undefined;
++    }
++
++    root.classList.add('theme-transition');
++    const timeoutId = window.setTimeout(() => root.classList.remove('theme-transition'), 220);
++    return () => {
++      window.clearTimeout(timeoutId);
++      root.classList.remove('theme-transition');
++    };
++  }, [theme]);
++
++  const handleThemeChange = useCallback((nextTheme) => {
++    setTheme(setThemePreference(nextTheme));
++  }, []);
+ 
+   const effectiveRuntimeConfig = useMemo(() => (
+     runtimeConfig
+@@ -659,10 +687,10 @@ function App() {
+ 
+   if (startupError) {
+     return (
+-      <div className="h-screen bg-[#0a0a0a] text-white flex items-center justify-center font-sans p-6">
+-        <div className="max-w-md rounded-3xl border border-red-500/20 bg-red-500/10 p-6 text-center shadow-2xl shadow-red-950/30">
+-          <div className="text-sm font-black uppercase tracking-widest text-red-300">Desktop launch required</div>
+-          <p className="mt-3 text-sm leading-6 text-red-100/80">{startupError}</p>
++      <div className="theme-shell h-screen bg-[#0a0a0a] text-white light:bg-slate-50 light:text-slate-900 flex items-center justify-center font-sans p-6">
++        <div className="max-w-md rounded-3xl border border-red-500/20 bg-red-500/10 p-6 text-center shadow-2xl shadow-red-950/30 light:border-red-200 light:bg-red-50 light:shadow-red-100/50">
++          <div className="text-sm font-black uppercase tracking-widest text-red-300 light:text-red-800">Desktop launch required</div>
++          <p className="mt-3 text-sm leading-6 text-red-100/80 light:text-red-700">{startupError}</p>
+         </div>
+       </div>
+     );
+@@ -670,8 +698,8 @@ function App() {
+ 
+   if (!runtimeConfig || !socket) {
+     return (
+-      <div className="h-screen bg-[#0a0a0a] text-white flex items-center justify-center font-sans">
+-        <div className="text-sm font-bold uppercase tracking-widest text-gray-500">Starting MeetSummarizer...</div>
++      <div className="theme-shell h-screen bg-[#0a0a0a] text-white light:bg-slate-50 light:text-slate-900 flex items-center justify-center font-sans">
++        <div className="text-sm font-bold uppercase tracking-widest text-gray-500 light:text-slate-600">Starting MeetSummarizer...</div>
+       </div>
+     );
+   }
+@@ -704,14 +732,16 @@ function App() {
+         sttModeLabel={sttModeLabel}
+         sttModeDetail={sttModeDetail}
+         nativeSttRunning={nativeSttRunning}
++        theme={theme}
++        onThemeChange={handleThemeChange}
+       />
+     );
+   }
+ 
+   return (
+-    <div className="h-screen bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.16),transparent_30%),#080a10] text-white flex flex-col font-sans overflow-hidden">
++    <div className="theme-shell meeting-shell h-screen bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.16),transparent_30%),#080a10] text-white light:bg-slate-100 light:text-slate-900 flex flex-col font-sans overflow-hidden">
+       {/* Top Header */}
+-      <header className="min-h-16 bg-slate-950/70 backdrop-blur-xl border-b border-white/10 flex items-center justify-between px-4 sm:px-6 shrink-0 z-50 gap-4">
++      <header className="min-h-16 bg-slate-950/70 backdrop-blur-xl border-b border-white/10 flex items-center justify-between px-4 sm:px-6 shrink-0 z-50 gap-4 light:bg-white/90 light:border-slate-200">
+         <div className="flex items-center gap-4">
+           <div className="flex items-center gap-3">
+             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-violet-500 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+@@ -719,32 +749,36 @@ function App() {
+             </div>
+             <div className="flex flex-col">
+               <span className="font-bold text-base tracking-tight leading-none">MeetSummarizer</span>
+-              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Live Meeting</span>
++              <span className="text-[10px] text-gray-500 light:text-slate-500 font-bold uppercase tracking-widest mt-1">Live Meeting</span>
+             </div>
+           </div>
+ 
+-          <div className="h-8 w-px bg-white/5 mx-2"></div>
++          <div className="h-8 w-px bg-white/5 mx-2 light:bg-slate-200"></div>
+ 
+           <div className="flex items-center gap-3">
+-            <div className="hidden sm:flex items-center gap-2 group cursor-pointer bg-white/[0.06] hover:bg-white/10 px-4 py-2 rounded-2xl border border-white/10 transition-all" onClick={copyToClipboard}>
+-              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">ID: <span className="text-gray-200 font-mono tracking-normal ml-1">{meetingId}</span></span>
+-              {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} className="text-gray-500 group-hover:text-blue-400 transition-colors" />}
+-            </div>
++            <button type="button" aria-label="Copy meeting ID" title="Copy meeting ID" className="hidden sm:flex items-center gap-2 group cursor-pointer bg-white/[0.06] hover:bg-white/10 px-4 py-2 rounded-2xl border border-white/10 transition-all light:bg-slate-100 light:hover:bg-slate-200 light:border-slate-300" onClick={copyToClipboard}>
++              <span className="text-xs font-bold text-gray-400 light:text-slate-600 uppercase tracking-wider">ID: <span className="text-gray-200 light:text-slate-800 font-mono tracking-normal ml-1">{meetingId}</span></span>
++              {copied ? <Check size={14} className="text-emerald-500 light:text-emerald-700" /> : <Copy size={14} className="text-gray-500 group-hover:text-blue-400 transition-colors" />}
++            </button>
+           </div>
+         </div>
+ 
+         <div className="flex items-center gap-4">
+-          <div className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border ${nativeSttRunning ? 'bg-purple-500/10 border-purple-500/20' : 'bg-blue-500/10 border-blue-500/20'}`} title={sttModeDetail}>
+-            <MessageSquare size={14} className={nativeSttRunning ? 'text-purple-400' : 'text-blue-400'} />
+-            <span className={`text-[10px] font-black uppercase tracking-widest ${nativeSttRunning ? 'text-purple-400' : 'text-blue-400'}`}>STT: {sttModeLabel}</span>
++          <div className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border ${nativeSttRunning ? 'bg-purple-500/10 border-purple-500/20 light:bg-purple-50 light:border-purple-200' : 'bg-blue-500/10 border-blue-500/20 light:bg-blue-50 light:border-blue-200'}`} title={sttModeDetail}>
++            <MessageSquare size={14} className={nativeSttRunning ? 'text-purple-400 light:text-purple-700' : 'text-blue-400 light:text-blue-700'} />
++            <span className={`text-[10px] font-black uppercase tracking-widest ${nativeSttRunning ? 'text-purple-400 light:text-purple-700' : 'text-blue-400 light:text-blue-700'}`}>STT: {sttModeLabel}</span>
+           </div>
+-          <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
+-            <ShieldCheck size={14} className="text-emerald-400" />
+-            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">End-to-End Encrypted</span>
++          <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full light:bg-emerald-50 light:border-emerald-200">
++            <ShieldCheck size={14} className="text-emerald-400 light:text-emerald-700" />
++            <span className="text-[10px] font-black text-emerald-400 light:text-emerald-700 uppercase tracking-widest">End-to-End Encrypted</span>
+           </div>
++          <ThemeToggle theme={theme} onThemeChange={handleThemeChange} />
+           <button
++            type="button"
++            aria-label={showSidebar ? 'Hide meeting sidebar' : 'Show meeting sidebar'}
++            title={showSidebar ? 'Hide meeting sidebar' : 'Show meeting sidebar'}
+             onClick={() => setShowSidebar(!showSidebar)}
+-            className={`p-2.5 rounded-xl transition-all border ${showSidebar ? 'bg-[#0E71EB]/10 border-[#0E71EB]/30 text-[#0E71EB]' : 'text-gray-500 border-transparent hover:bg-white/5 hover:text-gray-300'}`}
++            className={`p-2.5 rounded-xl transition-all border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 ${showSidebar ? 'bg-[#0E71EB]/10 border-[#0E71EB]/30 text-[#0E71EB] light:bg-blue-50 light:border-blue-200 light:text-blue-700' : 'text-gray-500 border-transparent hover:bg-white/5 hover:text-gray-300 light:text-slate-500 light:hover:bg-slate-100 light:hover:text-slate-800'}`}
+           >
+             {showSidebar ? <PanelRightClose size={22} /> : <PanelRightOpen size={22} />}
+           </button>
+@@ -789,7 +823,7 @@ function App() {
+                     <div className="flex-1 flex items-center justify-center">
+                       <div className="flex flex-col items-center space-y-4 opacity-20">
+                         <Users size={64} />
+-                        <span className="text-sm font-bold uppercase tracking-widest">Waiting for others...</span>
++                        <span className="text-sm font-bold uppercase tracking-widest text-white light:text-slate-700">Waiting for others...</span>
+                       </div>
+                     </div>
+                   ) : (
+@@ -856,26 +890,26 @@ function App() {
+               </main>
+ 
+               {/* Sidebar: Integrated Design */}
+-              <aside className={`h-full min-h-0 bg-slate-950/80 backdrop-blur-xl border-l border-white/10 flex flex-col transition-all duration-500 ease-in-out ${showSidebar ? 'w-[min(420px,40vw)] max-lg:absolute max-lg:right-0 max-lg:top-0 max-lg:bottom-0 max-lg:w-[min(390px,100vw)] max-lg:z-30' : 'w-0 opacity-0 pointer-events-none overflow-hidden'}`}>
++              <aside className={`h-full min-h-0 bg-slate-950/80 backdrop-blur-xl border-l border-white/10 flex flex-col transition-all duration-500 ease-in-out light:bg-white/90 light:border-slate-200 ${showSidebar ? 'w-[min(420px,40vw)] max-lg:absolute max-lg:right-0 max-lg:top-0 max-lg:bottom-0 max-lg:w-[min(390px,100vw)] max-lg:z-30' : 'w-0 opacity-0 pointer-events-none overflow-hidden'}`}>
+                 {/* Tabs */}
+-                <div className="shrink-0 flex border-b border-white/10 bg-slate-950/80 p-1.5 gap-1.5">
++                <div className="shrink-0 flex border-b border-white/10 bg-slate-950/80 p-1.5 gap-1.5 light:bg-white/90 light:border-slate-200">
+                   <button
+                     onClick={() => setSidebarTab('summary')}
+-                    className={`flex-1 rounded-xl py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all flex items-center justify-center gap-2 ${sidebarTab === 'summary' ? 'text-blue-200 bg-blue-500/15 border border-blue-400/20' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent'}`}
++                    className={`flex-1 rounded-xl py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all flex items-center justify-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 ${sidebarTab === 'summary' ? 'text-blue-200 bg-blue-500/15 border border-blue-400/20 light:text-blue-800 light:bg-blue-50 light:border-blue-200' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent light:text-slate-600 light:hover:text-slate-900 light:hover:bg-slate-100'}`}
+                   >
+                     <FileText size={16} />
+                     Summary
+                   </button>
+                   <button
+                     onClick={() => setSidebarTab('transcript')}
+-                    className={`flex-1 rounded-xl py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all flex items-center justify-center gap-2 ${sidebarTab === 'transcript' ? 'text-blue-200 bg-blue-500/15 border border-blue-400/20' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent'}`}
++                    className={`flex-1 rounded-xl py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all flex items-center justify-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 ${sidebarTab === 'transcript' ? 'text-blue-200 bg-blue-500/15 border border-blue-400/20 light:text-blue-800 light:bg-blue-50 light:border-blue-200' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent light:text-slate-600 light:hover:text-slate-900 light:hover:bg-slate-100'}`}
+                   >
+                     <MessageSquare size={16} />
+                     Transcript
+                   </button>
+                   <button
+                     onClick={() => setSidebarTab('benchmarks')}
+-                    className={`flex-1 rounded-xl py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all flex items-center justify-center gap-2 ${sidebarTab === 'benchmarks' ? 'text-blue-200 bg-blue-500/15 border border-blue-400/20' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent'}`}
++                    className={`flex-1 rounded-xl py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all flex items-center justify-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 ${sidebarTab === 'benchmarks' ? 'text-blue-200 bg-blue-500/15 border border-blue-400/20 light:text-blue-800 light:bg-blue-50 light:border-blue-200' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent light:text-slate-600 light:hover:text-slate-900 light:hover:bg-slate-100'}`}
+                   >
+                     <Monitor size={16} />
+                     Bench
+@@ -933,16 +967,17 @@ function App() {
+                     />
+                   ) : (
+                     <div className="h-full overflow-y-auto no-scrollbar space-y-4">
+-                      <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10">
++                      <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 light:bg-white light:border-slate-200">
+                         <div className="flex items-center justify-between gap-3">
+                           <div>
+-                            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">STT Benchmark Monitor</p>
+-                            <p className="text-sm font-bold text-white mt-1">{sttModeLabel}</p>
+-                            <p className="text-[11px] text-gray-500 mt-1">{sttBenchmarkSummary.sampleCount} telemetry events · {sttBenchmarkSummary.captionCount} captions</p>
++                            <p className="text-[10px] font-black text-gray-500 light:text-slate-600 uppercase tracking-widest">STT Benchmark Monitor</p>
++                            <p className="text-sm font-bold text-white light:text-slate-900 mt-1">{sttModeLabel}</p>
++                            <p className="text-[11px] text-gray-500 light:text-slate-600 mt-1">{sttBenchmarkSummary.sampleCount} telemetry events · {sttBenchmarkSummary.captionCount} captions</p>
+                           </div>
+                           <button
++                            type="button"
+                             onClick={() => setSttMetrics([])}
+-                            className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-black uppercase tracking-widest text-gray-400"
++                            className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-black uppercase tracking-widest text-gray-400 light:bg-slate-100 light:hover:bg-slate-200 light:border-slate-300 light:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                           >
+                             Reset
+                           </button>
+@@ -960,16 +995,16 @@ function App() {
+                           ['Dropped', sttBenchmarkSummary.droppedChunkCount],
+                           ['Errors', sttBenchmarkSummary.errorCount]
+                         ].map(([label, value]) => (
+-                          <div key={label} className="p-4 rounded-2xl bg-slate-900/70 border border-white/10">
+-                            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{label}</p>
+-                            <p className="text-xl font-black text-white mt-1">{value}</p>
++                          <div key={label} className="p-4 rounded-2xl bg-slate-900/70 border border-white/10 light:bg-white light:border-slate-200">
++                            <p className="text-[10px] font-black text-gray-500 light:text-slate-600 uppercase tracking-widest">{label}</p>
++                            <p className="text-xl font-black text-white light:text-slate-900 mt-1">{value}</p>
+                           </div>
+                         ))}
+                       </div>
+ 
+-                      <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/20">
+-                        <p className="text-[10px] font-black text-purple-300 uppercase tracking-widest">Resume Metrics</p>
+-                        <ul className="mt-3 space-y-2 text-xs text-purple-100/80 leading-relaxed list-disc pl-4">
++                      <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/20 light:bg-purple-50 light:border-purple-200">
++                        <p className="text-[10px] font-black text-purple-300 light:text-purple-800 uppercase tracking-widest">Resume Metrics</p>
++                        <ul className="mt-3 space-y-2 text-xs text-purple-100/80 light:text-purple-900 leading-relaxed list-disc pl-4">
+                           <li>Realtime factor p50/p95 across WebGPU and whisper.cpp.</li>
+                           <li>Caption latency p50/p95 from audio chunk to transcript.</li>
+                           <li>Dropped chunks, inference time, duplicate suppression, and fallback errors.</li>
+@@ -977,20 +1012,20 @@ function App() {
+                       </div>
+ 
+                       <div className="space-y-2">
+-                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-1">Recent Events</p>
++                        <p className="text-[10px] font-black text-gray-500 light:text-slate-600 uppercase tracking-widest px-1">Recent Events</p>
+                         {sttMetrics.slice(-12).reverse().map((metric) => (
+-                          <div key={metric.id} className="p-3 rounded-xl bg-white/[0.03] border border-white/10">
++                          <div key={metric.id} className="p-3 rounded-xl bg-white/[0.03] border border-white/10 light:bg-slate-50 light:border-slate-200">
+                             <div className="flex items-center justify-between gap-3">
+-                              <span className="text-xs font-bold text-white">{metric.event || 'metric'}</span>
+-                              <span className="text-[10px] font-black uppercase text-blue-300">{metric.backend || 'n/a'}</span>
++                              <span className="text-xs font-bold text-white light:text-slate-800">{metric.event || 'metric'}</span>
++                              <span className="text-[10px] font-black uppercase text-blue-300 light:text-blue-700">{metric.backend || 'n/a'}</span>
+                             </div>
+-                            <p className="text-[11px] text-gray-500 mt-1">
++                            <p className="text-[11px] text-gray-500 light:text-slate-600 mt-1">
+                               RTF {formatMetric(metric.realtimeFactor, 'x')} · Infer {formatMetric(metric.inferenceTimeMs, 'ms', 0)} · Latency {formatMetric(metric.captionLatencyMs, 'ms', 0)}
+                             </p>
+                           </div>
+                         ))}
+                         {sttMetrics.length === 0 && (
+-                          <div className="p-6 rounded-2xl border border-dashed border-white/10 text-center text-xs text-gray-500 font-bold">
++                          <div className="p-6 rounded-2xl border border-dashed border-white/10 text-center text-xs text-gray-500 light:text-slate-600 light:border-slate-300 font-bold">
+                             Start speaking to collect STT benchmark events.
+                           </div>
+                         )}
+@@ -1036,6 +1071,8 @@ function App() {
+           sttModeLabel={sttModeLabel}
+           sttModeDetail={sttModeDetail}
+           nativeSttRunning={nativeSttRunning}
++          theme={theme}
++          onThemeChange={handleThemeChange}
+           llmConfig={llmConfig}
+           setLlmConfig={setLllmConfig}
+         />
+diff --git a/frontend/src/components/CaptionPanel.jsx b/frontend/src/components/CaptionPanel.jsx
+index 4aa8c5b52ffea76b76ccbe8f3e111fac1d7f0978..5f23e16cd0428320dd1e38fc1b551521b210d2a9 100644
+--- a/frontend/src/components/CaptionPanel.jsx
++++ b/frontend/src/components/CaptionPanel.jsx
+@@ -103,13 +103,13 @@ const CaptionPanel = ({
+ 
+     return (
+         <div className="flex h-full min-h-0 flex-col overflow-hidden">
+-            <div className="mb-3 shrink-0 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-3">
++            <div className="mb-3 shrink-0 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-3 light:border-slate-200 light:bg-white">
+                 <div className="flex items-center justify-between gap-3">
+-                    <div className="flex items-center gap-2 text-sm font-bold text-slate-200">
+-                        <MessageSquare size={15} className="text-blue-300" />
++                    <div className="flex items-center gap-2 text-sm font-bold text-slate-200 light:text-slate-900">
++                        <MessageSquare size={15} className="text-blue-300 light:text-blue-700" />
+                         <span>Transcript</span>
+                     </div>
+-                    <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600">
++                    <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600 light:text-slate-500">
+                         {captions.length} loaded
+                     </span>
+                 </div>
+@@ -121,7 +121,7 @@ const CaptionPanel = ({
+                         type="button"
+                         onClick={handleLoadOlder}
+                         disabled={loadingHistory}
+-                        className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 transition hover:bg-white/[0.08] hover:text-slate-200 disabled:cursor-wait disabled:opacity-50"
++                        className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 transition hover:bg-white/[0.08] hover:text-slate-200 disabled:cursor-wait disabled:opacity-50 light:border-slate-300 light:bg-slate-50 light:text-slate-700 light:hover:bg-slate-100 light:hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                     >
+                         {loadingHistory ? <LoaderCircle size={14} className="animate-spin" /> : <History size={14} />}
+                         {loadingHistory ? 'Loading history...' : 'Load older captions'}
+@@ -129,28 +129,28 @@ const CaptionPanel = ({
+                 )}
+ 
+                 {historyError && (
+-                    <div className="mb-3 rounded-xl border border-red-400/15 bg-red-400/[0.07] px-3 py-2 text-xs leading-5 text-red-200/80">
++                    <div className="mb-3 rounded-xl border border-red-400/15 bg-red-400/[0.07] px-3 py-2 text-xs leading-5 text-red-200/80 light:border-red-200 light:bg-red-50 light:text-red-800">
+                         {historyError}
+                     </div>
+                 )}
+ 
+                 {captions.length === 0 ? (
+-                    <div className="flex h-full min-h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 p-6 text-center text-slate-500">
++                    <div className="flex h-full min-h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 p-6 text-center text-slate-500 light:border-slate-300 light:text-slate-600">
+                         {loadingHistory ? <LoaderCircle size={24} className="animate-spin" /> : <MessageSquare size={24} />}
+-                        <p className="mt-3 text-sm font-bold text-slate-300">{loadingHistory ? 'Loading transcript' : 'Waiting for speech'}</p>
++                        <p className="mt-3 text-sm font-bold text-slate-300 light:text-slate-800">{loadingHistory ? 'Loading transcript' : 'Waiting for speech'}</p>
+                         <p className="mt-1 text-xs leading-5">{loadingHistory ? 'Retrieving this session’s captions.' : 'Live captions will appear here.'}</p>
+                     </div>
+                 ) : (
+                     <div className="space-y-2.5 pb-1">
+                         {captions.map((caption, index) => (
+-                            <article key={getCaptionId(caption) || `caption-${index}`} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition hover:bg-white/[0.07]">
++                            <article key={getCaptionId(caption) || `caption-${index}`} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition hover:bg-white/[0.07] light:border-slate-200 light:bg-white light:hover:bg-slate-50">
+                                 <div className="mb-1.5 flex items-center justify-between gap-3">
+-                                    <span className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-blue-300">
++                                    <span className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-blue-300 light:text-blue-700">
+                                         {getSpeakerName(caption)}
+                                     </span>
+-                                    <time className="shrink-0 text-[10px] font-semibold text-slate-600">{formatTime(caption)}</time>
++                                    <time className="shrink-0 text-[10px] font-semibold text-slate-600 light:text-slate-500">{formatTime(caption)}</time>
+                                 </div>
+-                                <p className="break-words text-xs font-medium leading-5 text-slate-300">{caption.text}</p>
++                                <p className="break-words text-xs font-medium leading-5 text-slate-300 light:text-slate-700">{caption.text}</p>
+                             </article>
+                         ))}
+                     </div>
+@@ -161,7 +161,7 @@ const CaptionPanel = ({
+                 <button
+                     type="button"
+                     onClick={() => scrollToBottom()}
+-                    className="mt-2 flex shrink-0 items-center justify-center gap-2 rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-blue-200 transition hover:bg-blue-400/20"
++                    className="mt-2 flex shrink-0 items-center justify-center gap-2 rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-blue-200 transition hover:bg-blue-400/20 light:border-blue-200 light:bg-blue-50 light:text-blue-800 light:hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                 >
+                     <ArrowDown size={14} /> New captions
+                 </button>
+diff --git a/frontend/src/components/JoinScreen.jsx b/frontend/src/components/JoinScreen.jsx
+index 7a81b503a7988c5448be0b5e6f2ad2103507079a..62273a68e366e91557712cf51cde86c65fd397e7 100644
+--- a/frontend/src/components/JoinScreen.jsx
++++ b/frontend/src/components/JoinScreen.jsx
+@@ -19,6 +19,7 @@ import {
+     Zap
+ } from 'lucide-react';
+ import SettingsModal from './SettingsModal';
++import ThemeToggle from './ThemeToggle';
+ import { getProviderConfig, getSelectedModel } from '../config/llmModels';
+ 
+ const FieldLabel = ({ icon: Icon, children }) => (
+@@ -53,7 +54,9 @@ const JoinScreen = ({
+     onRemoveBackend,
+     sttModeLabel,
+     sttModeDetail,
+-    nativeSttRunning
++    nativeSttRunning,
++    theme = 'dark',
++    onThemeChange
+ }) => {
+     const [displayName, setDisplayName] = useState('');
+     const [meetingId, setMeetingId] = useState('');
+@@ -197,26 +200,29 @@ const JoinScreen = ({
+     const sttLabel = sttStatus?.nativeReady ? 'Native STT' : 'WebGPU STT';
+ 
+     return (
+-        <div className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.22),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(124,58,237,0.18),transparent_34%),#090b12] text-white selection:bg-blue-500/30">
+-            <header className="relative z-10 flex h-14 items-center justify-between border-b border-white/10 bg-slate-950/55 px-4 backdrop-blur-xl sm:px-6">
++        <div className="theme-shell join-shell h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.22),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(124,58,237,0.18),transparent_34%),#090b12] text-white selection:bg-blue-500/30 light:bg-slate-100 light:text-slate-900">
++            <header className="relative z-10 flex h-14 items-center justify-between border-b border-white/10 bg-slate-950/55 px-4 backdrop-blur-xl sm:px-6 light:bg-white/90 light:border-slate-200">
+                 <div className="flex items-center gap-3">
+                     <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 shadow-lg shadow-blue-500/20">
+                         <Video size={19} />
+                     </div>
+                     <div>
+                         <p className="text-sm font-black tracking-tight">MeetSummarizer</p>
+-                        <p className="hidden text-[9px] font-bold uppercase tracking-[0.22em] text-slate-500 sm:block">Private meeting intelligence</p>
++                        <p className="hidden text-[9px] font-bold uppercase tracking-[0.22em] text-slate-500 light:text-slate-600 sm:block">Private meeting intelligence</p>
+                     </div>
+                 </div>
+-                <div className="flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-[11px] font-bold text-emerald-300">
+-                    <ShieldCheck size={13} /> Audio local
++                <div className="flex items-center gap-2">
++                    <div className="flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-[11px] font-bold text-emerald-300 light:border-emerald-200 light:bg-emerald-50 light:text-emerald-800">
++                        <ShieldCheck size={13} /> Audio local
++                    </div>
++                    <ThemeToggle theme={theme} onThemeChange={onThemeChange} />
+                 </div>
+             </header>
+ 
+             <main className="relative z-10 mx-auto grid h-[calc(100vh-3.5rem)] w-full max-w-7xl gap-4 overflow-hidden px-4 py-4 lg:grid-cols-[minmax(0,1fr)_390px] xl:grid-cols-[minmax(0,1.05fr)_400px]">
+                 <section className="flex min-h-0 flex-col gap-3">
+-                    <div className="min-h-0 flex-1 rounded-3xl border border-white/10 bg-white/[0.04] p-2 shadow-2xl shadow-black/30 backdrop-blur-xl">
+-                        <div className="relative h-full min-h-[260px] max-h-[calc(100vh-11rem)] overflow-hidden rounded-[1.35rem] bg-slate-950">
++                    <div className="min-h-0 flex-1 rounded-3xl border border-white/10 bg-white/[0.04] p-2 shadow-2xl shadow-black/30 backdrop-blur-xl light:border-slate-200 light:bg-white light:shadow-slate-300/40">
++                        <div className="media-surface relative h-full min-h-[260px] max-h-[calc(100vh-11rem)] overflow-hidden rounded-[1.35rem] bg-slate-950">
+                             <video
+                                 ref={videoRef}
+                                 autoPlay
+@@ -247,7 +253,7 @@ const JoinScreen = ({
+                                 {isVideoOff && <span className="rounded-full bg-slate-800 px-2.5 py-1 text-[10px] font-bold text-white">Camera off</span>}
+                             </div>
+ 
+-                            <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-2 rounded-2xl border border-white/10 bg-black/40 p-1.5 backdrop-blur-xl">
++                            <div className="media-controls absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-2 rounded-2xl border border-white/10 bg-black/40 p-1.5 backdrop-blur-xl">
+                                 <button
+                                     onClick={toggleMute}
+                                     aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
+@@ -273,22 +279,22 @@ const JoinScreen = ({
+                         </div>
+                     </div>
+ 
+-                    <div className="shrink-0 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-bold text-slate-400 backdrop-blur-xl">
++                    <div className="shrink-0 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-bold text-slate-400 backdrop-blur-xl light:border-slate-200 light:bg-white light:text-slate-700">
+                         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+-                            <span className="inline-flex items-center gap-1.5"><ShieldCheck size={14} className="text-emerald-300" /> Local audio</span>
+-                            <span className="inline-flex items-center gap-1.5"><Zap size={14} className="text-blue-300" /> {sttLabel}</span>
+-                            <span className="inline-flex items-center gap-1.5"><MonitorCog size={14} className="text-violet-300" /> {runtimeLabel}</span>
++                            <span className="inline-flex items-center gap-1.5"><ShieldCheck size={14} className="text-emerald-300 light:text-emerald-700" /> Local audio</span>
++                            <span className="inline-flex items-center gap-1.5"><Zap size={14} className="text-blue-300 light:text-blue-700" /> {sttLabel}</span>
++                            <span className="inline-flex items-center gap-1.5"><MonitorCog size={14} className="text-violet-300 light:text-violet-700" /> {runtimeLabel}</span>
+                         </div>
+                     </div>
+                 </section>
+ 
+-                <aside className="flex min-h-0 flex-col rounded-3xl border border-white/10 bg-slate-950/75 p-4 shadow-2xl shadow-black/30 backdrop-blur-xl">
++                <aside className="flex min-h-0 flex-col rounded-3xl border border-white/10 bg-slate-950/75 p-4 shadow-2xl shadow-black/30 backdrop-blur-xl light:border-slate-200 light:bg-white light:shadow-slate-300/40">
+                     <div className="shrink-0">
+-                        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1.5 text-[10px] font-bold text-blue-200">
++                        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1.5 text-[10px] font-bold text-blue-200 light:border-blue-200 light:bg-blue-50 light:text-blue-800">
+                             <Sparkles size={13} /> AI meeting notes
+                         </div>
+-                        <h1 className="text-3xl font-black tracking-tight text-white">Join with clarity.</h1>
+-                        <p className="mt-2 text-sm leading-5 text-slate-400">Live captions and action-focused summaries for every meeting.</p>
++                        <h1 className="text-3xl font-black tracking-tight text-white light:text-slate-950">Join with clarity.</h1>
++                        <p className="mt-2 text-sm leading-5 text-slate-400 light:text-slate-600">Live captions and action-focused summaries for every meeting.</p>
+                     </div>
+ 
+                     <div className="mt-4 shrink-0 space-y-3">
+@@ -300,7 +306,7 @@ const JoinScreen = ({
+                                 value={displayName}
+                                 onChange={(e) => setDisplayName(e.target.value)}
+                                 placeholder="e.g. Alex Johnson"
+-                                className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white placeholder:text-slate-600 focus:border-blue-400/70 focus:ring-2 focus:ring-blue-500/20"
++                                className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white placeholder:text-slate-600 focus:border-blue-400/70 focus:ring-2 focus:ring-blue-500/20 light:border-slate-300 light:bg-slate-50 light:text-slate-900 light:placeholder:text-slate-500"
+                                 aria-required="true"
+                             />
+                         </div>
+@@ -308,16 +314,16 @@ const JoinScreen = ({
+                         <button
+                             onClick={handleCreateRoom}
+                             disabled={!displayName.trim()}
+-                            className="group flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-blue-500 to-violet-500 px-4 py-3.5 text-left text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
++                            className="group flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-blue-500 to-violet-500 light:from-blue-700 light:to-violet-800 px-4 py-3.5 text-left text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
+                         >
+                             <span className="flex items-center gap-2"><Plus size={18} /> Create new meeting</span>
+                             <ArrowRight size={18} className="transition group-hover:translate-x-1" />
+                         </button>
+ 
+                         <div className="flex items-center gap-3 py-0.5">
+-                            <div className="h-px flex-1 bg-white/10" />
+-                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">or</span>
+-                            <div className="h-px flex-1 bg-white/10" />
++                            <div className="h-px flex-1 bg-white/10 light:bg-slate-200" />
++                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 light:text-slate-500">or</span>
++                            <div className="h-px flex-1 bg-white/10 light:bg-slate-200" />
+                         </div>
+ 
+                         <div className="space-y-2">
+@@ -327,32 +333,32 @@ const JoinScreen = ({
+                                 value={meetingId}
+                                 onChange={(e) => setMeetingId(e.target.value)}
+                                 placeholder="abc-123-xyz"
+-                                className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-center font-mono text-sm tracking-wider text-white placeholder:text-slate-600 focus:border-violet-400/70 focus:ring-2 focus:ring-violet-500/20"
++                                className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-center font-mono text-sm tracking-wider text-white placeholder:text-slate-600 focus:border-violet-400/70 focus:ring-2 focus:ring-violet-500/20 light:border-slate-300 light:bg-slate-50 light:text-slate-900 light:placeholder:text-slate-500"
+                             />
+                             <button
+                                 onClick={handleJoinRoom}
+                                 disabled={!displayName.trim() || !meetingId.trim()}
+-                                className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.1] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
++                                className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.1] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 light:border-slate-300 light:bg-slate-100 light:text-slate-900 light:hover:bg-slate-200"
+                             >
+                                 Join meeting <ArrowRight size={16} />
+                             </button>
+                         </div>
+ 
+-                        <div className="flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2.5 text-xs font-semibold text-emerald-100/80">
+-                            <CheckCircle2 size={15} className="shrink-0 text-emerald-300" />
++                        <div className="flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2.5 text-xs font-semibold text-emerald-100/80 light:border-emerald-200 light:bg-emerald-50 light:text-emerald-800">
++                            <CheckCircle2 size={15} className="shrink-0 text-emerald-300 light:text-emerald-700" />
+                             <span>Audio local · summaries use {summaryProvider.label} · {summaryModel.label}</span>
+                         </div>
+                     </div>
+ 
+-                    <div className="mt-4 min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-3">
++                    <div className="mt-4 min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-3 light:border-slate-200 light:bg-slate-50">
+                         <div className="mb-2 flex items-center justify-between gap-3">
+-                            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
++                            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 light:text-slate-600">
+                                 <History size={14} /> Recent
+                             </div>
+                             {recentRooms.length > 0 && (
+                                 <button
+                                     onClick={onClearHistory}
+-                                    className="rounded-lg p-1.5 text-slate-500 transition hover:bg-red-500/10 hover:text-red-300"
++                                    className="rounded-lg p-1.5 text-slate-500 transition hover:bg-red-500/10 hover:text-red-300 light:hover:bg-red-50 light:hover:text-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
+                                     title="Clear room history"
+                                 >
+                                     <Trash2 size={14} />
+@@ -361,17 +367,17 @@ const JoinScreen = ({
+                         </div>
+ 
+                         {recentRooms.length === 0 ? (
+-                            <p className="rounded-xl border border-dashed border-white/10 p-3 text-xs leading-5 text-slate-500">Recent rooms appear here.</p>
++                            <p className="rounded-xl border border-dashed border-white/10 p-3 text-xs leading-5 text-slate-500 light:border-slate-300 light:text-slate-600">Recent rooms appear here.</p>
+                         ) : (
+                             <div className="space-y-1.5 overflow-hidden">
+                                 {recentRooms.slice(0, 4).map((id) => (
+                                     <button
+                                         key={id}
+                                         onClick={() => setMeetingId(id)}
+-                                        className="group flex w-full items-center justify-between rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-left transition hover:border-blue-400/40 hover:bg-blue-500/10"
++                                        className="group flex w-full items-center justify-between rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-left transition hover:border-blue-400/40 hover:bg-blue-500/10 light:border-slate-200 light:bg-white light:hover:border-blue-300 light:hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                                     >
+-                                        <span className="truncate font-mono text-xs text-slate-300">{id}</span>
+-                                        <ArrowRight size={14} className="text-slate-600 transition group-hover:translate-x-1 group-hover:text-blue-300" />
++                                        <span className="truncate font-mono text-xs text-slate-300 light:text-slate-700">{id}</span>
++                                        <ArrowRight size={14} className="text-slate-600 transition group-hover:translate-x-1 group-hover:text-blue-300 light:text-slate-500 light:group-hover:text-blue-700" />
+                                     </button>
+                                 ))}
+                             </div>
+@@ -404,6 +410,8 @@ const JoinScreen = ({
+                     sttModeLabel={sttModeLabel}
+                     sttModeDetail={sttModeDetail}
+                     nativeSttRunning={nativeSttRunning}
++                    theme={theme}
++                    onThemeChange={onThemeChange}
+                     llmConfig={llmConfig}
+                     setLlmConfig={setLlmConfig}
+                 />
+diff --git a/frontend/src/components/MeetingControls.jsx b/frontend/src/components/MeetingControls.jsx
+index 41d2897f24fee26b122101dffc230cea46f16c89..d6b38c5b42aa3ee3510efc11550c4939944bcb68 100644
+--- a/frontend/src/components/MeetingControls.jsx
++++ b/frontend/src/components/MeetingControls.jsx
+@@ -4,10 +4,11 @@ import { Mic, MicOff, PhoneOff, Settings, Video as VideoIcon, VideoOff } from 'l
+ const ControlButton = ({ active, danger, label, onClick, children }) => (
+     <div className="flex flex-col items-center gap-1.5">
+         <button
++            type="button"
+             onClick={onClick}
+             aria-label={label}
+             title={label}
+-            className={`flex size-12 items-center justify-center rounded-2xl border transition hover:-translate-y-0.5 active:translate-y-0 sm:size-14 ${danger
++            className={`flex size-12 items-center justify-center rounded-2xl border transition hover:-translate-y-0.5 active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 sm:size-14 ${danger
+                 ? 'border-red-400/30 bg-red-500 text-white shadow-lg shadow-red-500/20 hover:bg-red-400'
+                 : active
+                     ? 'border-red-400/25 bg-red-500/12 text-red-300 hover:bg-red-500/18'
+@@ -24,7 +25,7 @@ const ControlButton = ({ active, danger, label, onClick, children }) => (
+ 
+ const MeetingControls = ({ isMuted, isVideoOff, onToggleMute, onToggleVideo, onLeave, onSettingsClick }) => {
+     return (
+-        <div className="flex items-center gap-2 rounded-[1.75rem] border border-white/10 bg-slate-950/75 p-2.5 shadow-[0_24px_80px_rgba(0,0,0,0.55)] backdrop-blur-2xl sm:gap-3">
++        <div className="media-controls flex items-center gap-2 rounded-[1.75rem] border border-white/10 bg-slate-950/75 p-2.5 shadow-[0_24px_80px_rgba(0,0,0,0.55)] backdrop-blur-2xl sm:gap-3">
+             <ControlButton active={isMuted} label={isMuted ? 'Unmute' : 'Mute'} onClick={onToggleMute}>
+                 {isMuted ? <MicOff size={22} /> : <Mic size={22} />}
+             </ControlButton>
+diff --git a/frontend/src/components/SettingsModal.jsx b/frontend/src/components/SettingsModal.jsx
+index 740acb4b58bec252f7532d5ed9c7e0ffebf8eed8..94ece82fc8df1ad9edb1c393de4b1bdd5430a136 100644
+--- a/frontend/src/components/SettingsModal.jsx
++++ b/frontend/src/components/SettingsModal.jsx
+@@ -33,6 +33,8 @@ const SettingsModal = ({
+   sttModeLabel = 'Speech-to-text',
+   sttModeDetail = 'Not available',
+   nativeSttRunning = false,
++  theme = 'dark',
++  onThemeChange,
+   llmConfig,
+   setLlmConfig
+ }) => {
+@@ -47,30 +49,49 @@ const SettingsModal = ({
+   };
+ 
+   return (
+-    <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+-      <div className="w-full max-w-2xl max-h-[90vh] overflow-hidden bg-[#111] border border-white/10 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col">
+-        <div className="flex items-center justify-between px-8 py-6 border-b border-white/5 shrink-0">
++    <div className="theme-modal fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
++      <div className="w-full max-w-2xl max-h-[90vh] overflow-hidden bg-[#111] border border-white/10 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col light:bg-white light:border-slate-200 light:shadow-slate-400/30">
++        <div className="flex items-center justify-between px-8 py-6 border-b border-white/5 shrink-0 light:border-slate-200">
+           <div className="flex items-center gap-3">
+-            <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-400">
++            <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-400 light:bg-blue-50 light:text-blue-700">
+               <Settings size={20} />
+             </div>
+-            <h2 className="text-xl font-bold">Device Settings</h2>
++            <h2 className="text-xl font-bold text-white light:text-slate-950">Settings</h2>
+           </div>
+-          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg text-gray-400 hover:text-white transition-colors">
++          <button type="button" onClick={onClose} aria-label="Close settings" title="Close settings" className="p-2 hover:bg-white/5 rounded-lg text-gray-400 hover:text-white transition-colors light:text-slate-500 light:hover:bg-slate-100 light:hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500">
+             <PanelRightClose size={20} />
+           </button>
+         </div>
+ 
+         <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
+         <div className="space-y-6">
++          <section className="rounded-xl border border-blue-400/20 bg-blue-500/10 p-4 light:border-blue-200 light:bg-blue-50">
++            <div className="flex items-start justify-between gap-4">
++              <div>
++                <h3 className="text-sm font-bold text-blue-100 light:text-blue-950">Appearance</h3>
++                <p className="mt-1 text-xs leading-5 text-blue-100/70 light:text-blue-800">Choose the rendered interface theme. Changes apply immediately.</p>
++              </div>
++              <label className="sr-only" htmlFor="settings-theme">Theme</label>
++              <select
++                id="settings-theme"
++                value={theme}
++                onChange={(event) => onThemeChange?.(event.target.value)}
++                className="min-w-32 rounded-xl border border-blue-300/30 bg-slate-950/30 px-3 py-2 text-sm font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 light:border-blue-300 light:bg-white light:text-slate-900"
++              >
++                <option value="dark">Dark</option>
++                <option value="light">Light</option>
++              </select>
++            </div>
++          </section>
++
+           <div className="space-y-2">
+-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
++            <label className="text-xs font-bold text-gray-500 light:text-slate-600 uppercase tracking-wider flex items-center gap-2">
+               <Video size={14} /> Camera
+             </label>
+             <select
+               value={selectedDevices.video}
+               onChange={e => updateDevice('video', e.target.value)}
+-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 appearance-none"
++              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 appearance-none light:bg-slate-50 light:border-slate-300 light:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+             >
+               {devices.video.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Camera ${d.deviceId.slice(0, 4)}`}</option>)}
+               {devices.video.length === 0 && <option value="">No camera detected</option>}
+@@ -78,13 +99,13 @@ const SettingsModal = ({
+           </div>
+ 
+           <div className="space-y-2">
+-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
++            <label className="text-xs font-bold text-gray-500 light:text-slate-600 uppercase tracking-wider flex items-center gap-2">
+               <Monitor size={14} /> Microphone
+             </label>
+             <select
+               value={selectedDevices.audio}
+               onChange={e => updateDevice('audio', e.target.value)}
+-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 appearance-none"
++              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 appearance-none light:bg-slate-50 light:border-slate-300 light:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+             >
+               {devices.audio.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Mic ${d.deviceId.slice(0, 4)}`}</option>)}
+               {devices.audio.length === 0 && <option value="">No microphone detected</option>}
+@@ -92,13 +113,13 @@ const SettingsModal = ({
+           </div>
+ 
+           <div className="space-y-2">
+-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
++            <label className="text-xs font-bold text-gray-500 light:text-slate-600 uppercase tracking-wider flex items-center gap-2">
+               <Monitor size={14} /> Speaker
+             </label>
+             <select
+               value={selectedDevices.output}
+               onChange={e => updateDevice('output', e.target.value)}
+-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 appearance-none"
++              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 appearance-none light:bg-slate-50 light:border-slate-300 light:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+             >
+               {devices.output.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Speaker ${d.deviceId.slice(0, 4)}`}</option>)}
+               {devices.output.length === 0 && <option value="">No speaker detected</option>}
+@@ -106,31 +127,31 @@ const SettingsModal = ({
+           </div>
+         </div>
+ 
+-        <div className="pt-6 border-t border-white/5 space-y-6 mt-6">
++        <div className="pt-6 border-t border-white/5 space-y-6 mt-6 light:border-slate-200">
+           <div className="flex items-center gap-3">
+-            <div className="w-8 h-8 bg-emerald-500/10 rounded-lg flex items-center justify-center text-emerald-400">
++            <div className="w-8 h-8 bg-emerald-500/10 rounded-lg flex items-center justify-center text-emerald-400 light:bg-emerald-50 light:text-emerald-700">
+               <MessageSquare size={16} />
+             </div>
+-            <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400">Speech-to-Text Settings</h3>
++            <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 light:text-slate-700">Speech-to-Text Settings</h3>
+           </div>
+ 
+           <div className="p-4 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between gap-4">
+             <div>
+-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Active STT Engine</p>
+-              <p className="text-sm font-bold text-white mt-1">{sttModeLabel}</p>
+-              <p className="text-[11px] text-gray-500 mt-1">{sttModeDetail}</p>
++              <p className="text-[10px] font-black text-gray-500 light:text-slate-600 uppercase tracking-widest">Active STT Engine</p>
++              <p className="text-sm font-bold text-white light:text-slate-900 mt-1">{sttModeLabel}</p>
++              <p className="text-[11px] text-gray-500 light:text-slate-600 mt-1">{sttModeDetail}</p>
+             </div>
+-            <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${nativeSttRunning ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'}`}>
++            <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${nativeSttRunning ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20 light:bg-purple-50 light:text-purple-800 light:border-purple-200' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20 light:bg-blue-50 light:text-blue-800 light:border-blue-200'}`}>
+               {nativeSttRunning ? 'Native' : 'Fallback'}
+             </div>
+           </div>
+ 
+           <div className="space-y-3">
+-            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Backend Preference</label>
++            <label className="text-[10px] font-black text-gray-500 light:text-slate-600 uppercase tracking-widest ml-1">Backend Preference</label>
+             <select
+               value={sttStatus?.backendPreference || 'auto'}
+               onChange={(event) => onBackendPreference?.(event.target.value)}
+-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none"
++              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none light:bg-slate-50 light:border-slate-300 light:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+             >
+               <option value="auto">Auto (CUDA, Vulkan, CPU)</option>
+               {(sttStatus?.backends || []).map((backend) => (
+@@ -139,8 +160,8 @@ const SettingsModal = ({
+                 </option>
+               ))}
+             </select>
+-            <p className="text-[11px] text-gray-500">
+-              Active backend: <span className="font-bold text-gray-300">{sttStatus?.activeBackend?.toUpperCase() || 'WebGPU fallback'}</span>
++            <p className="text-[11px] text-gray-500 light:text-slate-600">
++              Active backend: <span className="font-bold text-gray-300 light:text-slate-800">{sttStatus?.activeBackend?.toUpperCase() || 'WebGPU fallback'}</span>
+               {sttStatus?.attemptBackend ? ` · Trying ${sttStatus.attemptBackend.toUpperCase()}` : ''}
+             </p>
+             <div className="grid grid-cols-1 gap-2">
+@@ -149,82 +170,82 @@ const SettingsModal = ({
+                 const progress = backendInstallProgress[backend.id];
+                 const installing = ['starting', 'download', 'extract'].includes(progress?.phase) || catalogBackend?.installing;
+                 return (
+-                  <div key={backend.id} className="rounded-xl bg-white/[0.03] border border-white/10 px-3 py-3 space-y-2">
++                  <div key={backend.id} className="rounded-xl bg-white/[0.03] border border-white/10 px-3 py-3 space-y-2 light:bg-slate-50 light:border-slate-200">
+                     <div className="flex items-center justify-between gap-3">
+                       <div>
+-                        <span className="text-xs font-bold text-gray-300">{backend.label}</span>
++                        <span className="text-xs font-bold text-gray-300 light:text-slate-800">{backend.label}</span>
+                         {catalogBackend && (
+-                          <p className="text-[10px] text-gray-600 mt-1">
++                          <p className="text-[10px] text-gray-600 light:text-slate-600 mt-1">
+                             {formatMiB(catalogBackend.downloadSize)} download · {formatMiB(catalogBackend.installedSize)} installed
+                           </p>
+                         )}
+                       </div>
+                       <div className="flex items-center gap-2">
+-                        <span className={`text-[10px] font-black uppercase tracking-widest ${backend.available ? 'text-emerald-400' : 'text-amber-400'}`}>
++                        <span className={`text-[10px] font-black uppercase tracking-widest ${backend.available ? 'text-emerald-400 light:text-emerald-700' : 'text-amber-400 light:text-amber-700'}`}>
+                           {backend.available ? backend.validationStatus || 'available' : catalogBackend?.installed ? backend.validationError || 'invalid' : 'not installed'}
+                         </span>
+                         {catalogBackend && !catalogBackend.installed && !installing && (
+-                          <button onClick={() => onInstallBackend?.(backend.id)} disabled={!catalogBackend.compatible} className="px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[10px] font-black uppercase text-blue-300 disabled:opacity-40">
++                          <button type="button" onClick={() => onInstallBackend?.(backend.id)} disabled={!catalogBackend.compatible} className="px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[10px] font-black uppercase text-blue-300 light:bg-blue-50 light:border-blue-200 light:text-blue-800 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500">
+                             Install
+                           </button>
+                         )}
+                         {catalogBackend && installing && (
+-                          <button onClick={() => onCancelBackendInstall?.(backend.id)} className="px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[10px] font-black uppercase text-amber-300">
++                          <button type="button" onClick={() => onCancelBackendInstall?.(backend.id)} className="px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[10px] font-black uppercase text-amber-300 light:bg-amber-50 light:border-amber-200 light:text-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600">
+                             Cancel
+                           </button>
+                         )}
+                         {catalogBackend?.installed && !installing && (
+-                          <button onClick={() => onRemoveBackend?.(backend.id)} className="px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-[10px] font-black uppercase text-red-300">
++                          <button type="button" onClick={() => onRemoveBackend?.(backend.id)} className="px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-[10px] font-black uppercase text-red-300 light:bg-red-50 light:border-red-200 light:text-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600">
+                             Remove
+                           </button>
+                         )}
+                       </div>
+                     </div>
+                     {installing && (
+-                      <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
++                      <div className="h-1.5 rounded-full bg-white/10 overflow-hidden light:bg-slate-200">
+                         <div className="h-full bg-blue-400 transition-all" style={{ width: `${progress?.percent || 0}%` }} />
+                       </div>
+                     )}
+-                    {progress?.phase === 'error' && <p className="text-[10px] font-bold text-red-300">{progress.error}</p>}
++                    {progress?.phase === 'error' && <p className="text-[10px] font-bold text-red-300 light:text-red-700">{progress.error}</p>}
+                   </div>
+                 );
+               })}
+             </div>
+             {backendCatalog.length > 0 && (
+-              <p className="text-[10px] text-gray-600 leading-relaxed">
++              <p className="text-[10px] text-gray-600 light:text-slate-600 leading-relaxed">
+                 CUDA installs executable code from the official whisper.cpp release and requires an NVIDIA GPU. At least 1.2 GB free disk space is required during installation. Audio remains local.
+               </p>
+             )}
+           </div>
+ 
+           <div className="space-y-3">
+-            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Whisper Models</label>
++            <label className="text-[10px] font-black text-gray-500 light:text-slate-600 uppercase tracking-widest ml-1">Whisper Models</label>
+             <div className="grid grid-cols-1 gap-3">
+               {modelCatalog.map((model) => {
+                 const progress = modelDownloadProgress[model.id];
+                 const isDownloading = progress?.state === 'starting' || progress?.state === 'downloading' || model.downloading;
+                 const isSelected = model.selected || (sttStatus?.selectedModel && model.path === sttStatus.selectedModel);
+                 return (
+-                  <div key={model.id} className={`rounded-xl border p-4 ${isSelected ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-white/[0.03] border-white/10'}`}>
++                  <div key={model.id} className={`rounded-xl border p-4 ${isSelected ? 'bg-emerald-500/10 border-emerald-500/30 light:bg-emerald-50 light:border-emerald-200' : 'bg-white/[0.03] border-white/10 light:bg-slate-50 light:border-slate-200'}`}>
+                     <div className="flex items-start justify-between gap-3">
+                       <div>
+-                        <p className="text-sm font-black text-white">{model.label}</p>
+-                        <p className="text-[11px] text-gray-500 mt-1">{model.size} · {model.description}</p>
+-                        {isDownloading && <p className="text-[11px] text-blue-300 mt-2 font-bold">Downloading {progress?.percent ?? 0}%</p>}
+-                        {progress?.state === 'error' && <p className="text-[11px] text-red-300 mt-2 font-bold">{progress.error}</p>}
++                        <p className="text-sm font-black text-white light:text-slate-900">{model.label}</p>
++                        <p className="text-[11px] text-gray-500 light:text-slate-600 mt-1">{model.size} · {model.description}</p>
++                        {isDownloading && <p className="text-[11px] text-blue-300 light:text-blue-700 mt-2 font-bold">Downloading {progress?.percent ?? 0}%</p>}
++                        {progress?.state === 'error' && <p className="text-[11px] text-red-300 light:text-red-700 mt-2 font-bold">{progress.error}</p>}
+                       </div>
+                       <div className="flex shrink-0 items-center gap-2">
+                         {model.downloaded ? (
+                           <>
+-                            <button onClick={() => onUseModel?.(model.path)} disabled={isSelected} className="px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-[10px] font-black uppercase tracking-widest text-emerald-300 disabled:opacity-50">
++                            <button type="button" onClick={() => onUseModel?.(model.path)} disabled={isSelected} className="px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-[10px] font-black uppercase tracking-widest text-emerald-300 light:bg-emerald-50 light:hover:bg-emerald-100 light:border-emerald-200 light:text-emerald-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600">
+                               {isSelected ? 'Selected' : 'Use'}
+                             </button>
+-                            <button onClick={() => onDeleteModel?.(model.id)} className="px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-[10px] font-black uppercase tracking-widest text-red-300">
++                            <button type="button" onClick={() => onDeleteModel?.(model.id)} className="px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-[10px] font-black uppercase tracking-widest text-red-300 light:bg-red-50 light:hover:bg-red-100 light:border-red-200 light:text-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600">
+                               Delete
+                             </button>
+                           </>
+                         ) : (
+-                          <button onClick={() => onDownloadModel?.(model.id)} disabled={isDownloading} className="px-3 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-[10px] font-black uppercase tracking-widest text-blue-300 disabled:opacity-50">
++                          <button type="button" onClick={() => onDownloadModel?.(model.id)} disabled={isDownloading} className="px-3 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-[10px] font-black uppercase tracking-widest text-blue-300 light:bg-blue-50 light:hover:bg-blue-100 light:border-blue-200 light:text-blue-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500">
+                             {isDownloading ? 'Downloading' : 'Download'}
+                           </button>
+                         )}
+@@ -233,20 +254,20 @@ const SettingsModal = ({
+                   </div>
+                 );
+               })}
+-              {modelCatalog.length === 0 && <div className="p-4 rounded-xl border border-dashed border-white/10 text-xs text-gray-500 font-bold">No Whisper models found.</div>}
++              {modelCatalog.length === 0 && <div className="p-4 rounded-xl border border-dashed border-white/10 text-xs text-gray-500 light:text-slate-600 light:border-slate-300 font-bold">No Whisper models found.</div>}
+             </div>
+-            <p className="text-[10px] text-gray-600 font-medium leading-relaxed italic">
++            <p className="text-[10px] text-gray-600 light:text-slate-600 font-medium leading-relaxed italic">
+               Models download after install to keep the app package light. Smaller models are faster; larger models are more accurate.
+             </p>
+           </div>
+ 
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+             <div className="space-y-2">
+-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Window</label>
++              <label className="text-[10px] font-black text-gray-500 light:text-slate-600 uppercase tracking-widest ml-1">Window</label>
+               <select
+                 value={sttConfig.windowSec}
+                 onChange={e => setSttConfig(prev => ({ ...prev, windowSec: Number(e.target.value), overlapSec: Math.min(prev.overlapSec, Number(e.target.value) - 0.5) }))}
+-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none"
++                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none light:bg-slate-50 light:border-slate-300 light:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+               >
+                 <option value={3}>3.0 sec</option>
+                 <option value={4}>4.0 sec</option>
+@@ -255,11 +276,11 @@ const SettingsModal = ({
+             </div>
+ 
+             <div className="space-y-2">
+-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Overlap</label>
++              <label className="text-[10px] font-black text-gray-500 light:text-slate-600 uppercase tracking-widest ml-1">Overlap</label>
+               <select
+                 value={sttConfig.overlapSec}
+                 onChange={e => setSttConfig(prev => ({ ...prev, overlapSec: Math.min(Number(e.target.value), prev.windowSec - 0.5) }))}
+-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none"
++                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none light:bg-slate-50 light:border-slate-300 light:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+               >
+                 <option value={0}>0.0 sec (none)</option>
+                 <option value={0.25}>0.25 sec</option>
+@@ -274,31 +295,31 @@ const SettingsModal = ({
+             </div>
+ 
+             <div className="space-y-2">
+-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Step</label>
+-              <div className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-gray-300">
++              <label className="text-[10px] font-black text-gray-500 light:text-slate-600 uppercase tracking-widest ml-1">Step</label>
++              <div className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-gray-300 light:bg-slate-50 light:border-slate-300 light:text-slate-700">
+                 {Math.max(0.5, sttConfig.windowSec - sttConfig.overlapSec).toFixed(1)} sec
+               </div>
+             </div>
+           </div>
+ 
+-          <p className="text-[10px] text-gray-600 font-medium leading-relaxed italic">
++          <p className="text-[10px] text-gray-600 light:text-slate-600 font-medium leading-relaxed italic">
+             Lower overlap reduces repeated captions. Higher overlap can protect words at chunk boundaries but may increase duplicate text.
+           </p>
+ 
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+-            <label className="flex items-center gap-3 text-xs font-bold text-gray-400">
++            <label className="flex items-center gap-3 text-xs font-bold text-gray-400 light:text-slate-700">
+               <input type="checkbox" checked={sttConfig.highPassFilter ?? true} onChange={e => setSttConfig(prev => ({ ...prev, highPassFilter: e.target.checked }))} />
+               High-pass filter
+             </label>
+-            <label className="flex items-center gap-3 text-xs font-bold text-gray-400">
++            <label className="flex items-center gap-3 text-xs font-bold text-gray-400 light:text-slate-700">
+               <input type="checkbox" checked={sttConfig.silenceTrim ?? true} onChange={e => setSttConfig(prev => ({ ...prev, silenceTrim: e.target.checked }))} />
+               Trim silence
+             </label>
+-            <label className="flex items-center gap-3 text-xs font-bold text-gray-400">
++            <label className="flex items-center gap-3 text-xs font-bold text-gray-400 light:text-slate-700">
+               <input type="checkbox" checked={sttConfig.normalizeAudio ?? true} onChange={e => setSttConfig(prev => ({ ...prev, normalizeAudio: e.target.checked }))} />
+               Normalize quiet speech
+             </label>
+-            <label className="flex items-center gap-3 text-xs font-bold text-gray-400">
++            <label className="flex items-center gap-3 text-xs font-bold text-gray-400 light:text-slate-700">
+               <input type="checkbox" checked={sttConfig.dcOffsetRemoval ?? true} onChange={e => setSttConfig(prev => ({ ...prev, dcOffsetRemoval: e.target.checked }))} />
+               Remove DC offset
+             </label>
+@@ -306,16 +327,16 @@ const SettingsModal = ({
+ 
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <div className="space-y-2">
+-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">VAD threshold</label>
+-              <select value={sttConfig.vadThreshold ?? 0.008} onChange={e => setSttConfig(prev => ({ ...prev, vadThreshold: Number(e.target.value) }))} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none">
++              <label className="text-[10px] font-black text-gray-500 light:text-slate-600 uppercase tracking-widest ml-1">VAD threshold</label>
++              <select value={sttConfig.vadThreshold ?? 0.008} onChange={e => setSttConfig(prev => ({ ...prev, vadThreshold: Number(e.target.value) }))} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none light:bg-slate-50 light:border-slate-300 light:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600">
+                 <option value={0.004}>Low</option>
+                 <option value={0.008}>Medium</option>
+                 <option value={0.014}>High</option>
+               </select>
+             </div>
+             <div className="space-y-2">
+-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">High-pass cutoff</label>
+-              <select value={sttConfig.highPassCutoffHz ?? 100} onChange={e => setSttConfig(prev => ({ ...prev, highPassCutoffHz: Number(e.target.value) }))} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none">
++              <label className="text-[10px] font-black text-gray-500 light:text-slate-600 uppercase tracking-widest ml-1">High-pass cutoff</label>
++              <select value={sttConfig.highPassCutoffHz ?? 100} onChange={e => setSttConfig(prev => ({ ...prev, highPassCutoffHz: Number(e.target.value) }))} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 appearance-none light:bg-slate-50 light:border-slate-300 light:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600">
+                 <option value={80}>80 Hz</option>
+                 <option value={100}>100 Hz</option>
+                 <option value={120}>120 Hz</option>
+@@ -325,32 +346,32 @@ const SettingsModal = ({
+           </div>
+         </div>
+ 
+-        <div className="pt-6 border-t border-white/5 space-y-6 mt-6">
++        <div className="pt-6 border-t border-white/5 space-y-6 mt-6 light:border-slate-200">
+           <div className="flex items-center gap-3">
+-            <div className="w-8 h-8 bg-purple-500/10 rounded-lg flex items-center justify-center text-purple-400">
++            <div className="w-8 h-8 bg-purple-500/10 rounded-lg flex items-center justify-center text-purple-400 light:bg-purple-50 light:text-purple-700">
+               <Sparkles size={16} />
+             </div>
+-            <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400">AI Summary Settings</h3>
++            <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 light:text-slate-700">AI Summary Settings</h3>
+           </div>
+ 
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <div className="space-y-2">
+-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">AI Provider</label>
+-              <select value={llmConfig.provider} onChange={e => setLlmConfig(prev => ({ ...prev, provider: e.target.value }))} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500/50 appearance-none">
++              <label className="text-[10px] font-black text-gray-500 light:text-slate-600 uppercase tracking-widest ml-1">AI Provider</label>
++              <select value={llmConfig.provider} onChange={e => setLlmConfig(prev => ({ ...prev, provider: e.target.value }))} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500/50 appearance-none light:bg-slate-50 light:border-slate-300 light:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-600">
+                 {Object.entries(LLM_PROVIDERS).map(([providerId, provider]) => (
+                   <option key={providerId} value={providerId}>{provider.label}</option>
+                 ))}
+               </select>
+             </div>
+             <div className="space-y-2">
+-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Summary Model</label>
++              <label className="text-[10px] font-black text-gray-500 light:text-slate-600 uppercase tracking-widest ml-1">Summary Model</label>
+               <select
+                 value={selectedModel.id}
+                 onChange={e => setLlmConfig(prev => ({
+                   ...prev,
+                   models: { ...prev.models, [prev.provider]: e.target.value }
+                 }))}
+-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500/50 appearance-none"
++                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500/50 appearance-none light:bg-slate-50 light:border-slate-300 light:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-600"
+               >
+                 {providerConfig.models.map((model) => (
+                   <option key={model.id} value={model.id}>{model.label} · {model.tier}</option>
+@@ -358,12 +379,12 @@ const SettingsModal = ({
+               </select>
+             </div>
+           </div>
+-          <div className="rounded-xl border border-purple-400/10 bg-purple-400/[0.05] px-4 py-3">
+-            <p className="text-xs font-bold text-purple-200">{selectedModel.label} · {selectedModel.tier}</p>
+-            <p className="mt-1 text-[11px] leading-5 text-gray-500">{selectedModel.description}</p>
++          <div className="rounded-xl border border-purple-400/10 bg-purple-400/[0.05] px-4 py-3 light:border-purple-200 light:bg-purple-50">
++            <p className="text-xs font-bold text-purple-200 light:text-purple-900">{selectedModel.label} · {selectedModel.tier}</p>
++            <p className="mt-1 text-[11px] leading-5 text-gray-500 light:text-slate-600">{selectedModel.description}</p>
+           </div>
+           <div className="space-y-2">
+-            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">{providerConfig.label} API Key</label>
++            <label className="text-[10px] font-black text-gray-500 light:text-slate-600 uppercase tracking-widest ml-1">{providerConfig.label} API Key</label>
+             <input
+               type="password"
+               value={activeApiKey}
+@@ -373,18 +394,18 @@ const SettingsModal = ({
+               }))}
+               placeholder={providerConfig.keyPlaceholder}
+               autoComplete="off"
+-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-700 focus:outline-none focus:border-purple-500/50"
++              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-700 focus:outline-none focus:border-purple-500/50 light:bg-slate-50 light:border-slate-300 light:text-slate-900 light:placeholder:text-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-600"
+             />
+           </div>
+-          <p className="text-[10px] text-gray-600 font-medium leading-relaxed italic">
++          <p className="text-[10px] text-gray-600 light:text-slate-600 font-medium leading-relaxed italic">
+             * Keys are stored locally and sent to the configured backend only when you generate a summary. They are not saved with meeting summaries.
+           </p>
+         </div>
+ 
+         </div>
+ 
+-        <div className="shrink-0 px-8 py-4 border-t border-white/5 bg-[#111]/95 backdrop-blur flex justify-end">
+-          <button onClick={onClose} className="px-6 py-2 bg-[#0E71EB] hover:bg-blue-600 text-white text-sm font-bold rounded-xl transition-colors">
++        <div className="shrink-0 px-8 py-4 border-t border-white/5 bg-[#111]/95 backdrop-blur flex justify-end light:border-slate-200 light:bg-white/95">
++          <button type="button" onClick={onClose} className="px-6 py-2 bg-[#0E71EB] hover:bg-blue-600 text-white light:text-white text-sm font-bold rounded-xl transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+             Done
+           </button>
+         </div>
+diff --git a/frontend/src/components/SttStatusBar.jsx b/frontend/src/components/SttStatusBar.jsx
+index 7c50ec8da0040b776327ba89171df5ca820bfdb4..b606034df54028ce841bab9a4bd096a71eaa7934 100644
+--- a/frontend/src/components/SttStatusBar.jsx
++++ b/frontend/src/components/SttStatusBar.jsx
+@@ -61,24 +61,24 @@ const SttStatusBar = ({
+ 
+   if (activeDownload) {
+     return (
+-      <div className="shrink-0 border-t border-white/10 bg-white/[0.03] px-4 py-3 space-y-2">
+-        <div className="flex items-center gap-2 text-[11px] font-bold text-blue-200/80">
+-          <Download size={14} className="text-blue-400 animate-bounce" />
++      <div className="shrink-0 border-t border-white/10 bg-white/[0.03] px-4 py-3 space-y-2 light:border-slate-200 light:bg-slate-50">
++        <div className="flex items-center gap-2 text-[11px] font-bold text-blue-200/80 light:text-blue-800">
++          <Download size={14} className="text-blue-400 light:text-blue-700 animate-bounce" />
+           <span>{activeDownload.action} {activeDownload.displayName}</span>
+         </div>
+         <div className="flex items-center gap-2">
+-          <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
++          <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden light:bg-slate-200">
+             <div
+               className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-300"
+               style={{ width: `${activeDownload.percent || 0}%` }}
+             />
+           </div>
+-          <span className="text-[10px] font-bold text-gray-400 tabular-nums w-8 text-right">
++          <span className="text-[10px] font-bold text-gray-400 light:text-slate-600 tabular-nums w-8 text-right">
+             {activeDownload.percent || 0}%
+           </span>
+         </div>
+         {activeDownload.downloadedBytes !== undefined && activeDownload.totalBytes > 0 && (
+-          <p className="text-[10px] text-gray-500 tabular-nums">
++          <p className="text-[10px] text-gray-500 light:text-slate-600 tabular-nums">
+             {formatBytes(activeDownload.downloadedBytes)} / {formatBytes(activeDownload.totalBytes)}
+           </p>
+         )}
+@@ -87,30 +87,30 @@ const SttStatusBar = ({
+   }
+ 
+   return (
+-    <div className="shrink-0 border-t border-white/10 bg-white/[0.03] px-4 py-3">
++    <div className="shrink-0 border-t border-white/10 bg-white/[0.03] px-4 py-3 light:border-slate-200 light:bg-slate-50">
+       <div className="flex items-center gap-3">
+         {/* Model pill */}
+-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] border border-white/10">
++        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] border border-white/10 light:bg-white light:border-slate-300">
+           {backend === 'VULKAN' || backend === 'CUDA' ? (
+             <Zap size={11} className="text-purple-400" />
+           ) : (
+             <Cpu size={11} className="text-blue-400" />
+           )}
+-          <span className="text-[10px] font-bold text-gray-200">{modelName}</span>
+-          <span className="text-[9px] font-black text-gray-500">{backend}</span>
++          <span className="text-[10px] font-bold text-gray-200 light:text-slate-800">{modelName}</span>
++          <span className="text-[9px] font-black text-gray-500 light:text-slate-600">{backend}</span>
+         </div>
+ 
+         {/* Status dot + label */}
+         <div className="flex items-center gap-1.5">
+           <div className={`w-2 h-2 rounded-full ${statusColor} ${statusPulse}`} />
+-          <span className="text-[10px] font-bold text-gray-400">{statusLabel}</span>
++          <span className="text-[10px] font-bold text-gray-400 light:text-slate-600">{statusLabel}</span>
+         </div>
+ 
+         {/* RTF */}
+         {rtf !== null && rtf !== undefined && (
+           <div className="flex items-center gap-1 ml-auto">
+-            <Circle size={8} className="text-gray-600" />
+-            <span className="text-[10px] font-bold text-gray-500 tabular-nums">
++            <Circle size={8} className="text-gray-600 light:text-slate-500" />
++            <span className="text-[10px] font-bold text-gray-500 light:text-slate-600 tabular-nums">
+               RTF {rtf.toFixed(2)}x
+             </span>
+           </div>
+diff --git a/frontend/src/components/SummaryPanel.jsx b/frontend/src/components/SummaryPanel.jsx
+index c5fdf03c619353c107adb0a8747a230fcb97b003..55f687b875154936b5cf1d10d515bf290d742587 100644
+--- a/frontend/src/components/SummaryPanel.jsx
++++ b/frontend/src/components/SummaryPanel.jsx
+@@ -19,19 +19,19 @@ const buildSummaryText = (summary) => {
+ };
+ 
+ const markdownComponents = {
+-    h1: ({ children }) => <h1 className="mb-3 mt-6 text-xl font-black tracking-tight text-white first:mt-0">{children}</h1>,
+-    h2: ({ children }) => <h2 className="mb-2.5 mt-5 text-base font-black tracking-tight text-slate-100 first:mt-0">{children}</h2>,
+-    h3: ({ children }) => <h3 className="mb-2 mt-4 text-sm font-bold text-blue-200 first:mt-0">{children}</h3>,
+-    p: ({ children }) => <p className="my-3 text-sm leading-6 text-slate-300 first:mt-0 last:mb-0">{children}</p>,
+-    ul: ({ children }) => <ul className="my-3 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-300 marker:text-blue-400">{children}</ul>,
+-    ol: ({ children }) => <ol className="my-3 list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-300 marker:font-bold marker:text-blue-300">{children}</ol>,
++    h1: ({ children }) => <h1 className="mb-3 mt-6 text-xl font-black tracking-tight text-white light:text-slate-950 first:mt-0">{children}</h1>,
++    h2: ({ children }) => <h2 className="mb-2.5 mt-5 text-base font-black tracking-tight text-slate-100 light:text-slate-900 first:mt-0">{children}</h2>,
++    h3: ({ children }) => <h3 className="mb-2 mt-4 text-sm font-bold text-blue-200 light:text-blue-800 first:mt-0">{children}</h3>,
++    p: ({ children }) => <p className="my-3 text-sm leading-6 text-slate-300 light:text-slate-700 first:mt-0 last:mb-0">{children}</p>,
++    ul: ({ children }) => <ul className="my-3 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-300 light:text-slate-700 marker:text-blue-400">{children}</ul>,
++    ol: ({ children }) => <ol className="my-3 list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-300 light:text-slate-700 marker:font-bold marker:text-blue-300">{children}</ol>,
+     li: ({ children }) => <li className="pl-1">{children}</li>,
+-    strong: ({ children }) => <strong className="font-bold text-slate-100">{children}</strong>,
+-    blockquote: ({ children }) => <blockquote className="my-4 border-l-2 border-blue-400/50 bg-blue-400/[0.06] py-1 pl-3 italic text-slate-300">{children}</blockquote>,
+-    a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-blue-300 underline decoration-blue-400/40 underline-offset-2 hover:text-blue-200">{children}</a>,
+-    code: ({ children }) => <code className="break-words rounded bg-black/30 px-1.5 py-0.5 font-mono text-[0.85em] text-blue-100">{children}</code>,
+-    pre: ({ children }) => <pre className="my-4 overflow-x-auto rounded-xl border border-white/10 bg-black/30 p-3 text-xs leading-5">{children}</pre>,
+-    hr: () => <hr className="my-5 border-white/10" />
++    strong: ({ children }) => <strong className="font-bold text-slate-100 light:text-slate-900">{children}</strong>,
++    blockquote: ({ children }) => <blockquote className="my-4 border-l-2 border-blue-400/50 bg-blue-400/[0.06] py-1 pl-3 italic text-slate-300 light:border-blue-500 light:bg-blue-50 light:text-slate-700">{children}</blockquote>,
++    a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-blue-300 underline decoration-blue-400/40 underline-offset-2 hover:text-blue-200 light:text-blue-700 light:hover:text-blue-900">{children}</a>,
++    code: ({ children }) => <code className="break-words rounded bg-black/30 px-1.5 py-0.5 font-mono text-[0.85em] text-blue-100 light:bg-slate-200 light:text-blue-900">{children}</code>,
++    pre: ({ children }) => <pre className="my-4 overflow-x-auto rounded-xl border border-white/10 bg-black/30 p-3 text-xs leading-5 light:border-slate-200 light:bg-slate-100 light:text-slate-800">{children}</pre>,
++    hr: () => <hr className="my-5 border-white/10 light:border-slate-200" />
+ };
+ 
+ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettings }) => {
+@@ -106,7 +106,7 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
+     ];
+ 
+     return (
+-        <div className="flex h-full min-h-0 flex-col overflow-hidden">
++        <div className="theme-summary flex h-full min-h-0 flex-col overflow-hidden">
+             {!summary || isConfiguringSummary ? (
+                 <div className="flex h-full min-h-0 flex-col gap-3">
+                     {summary && (
+@@ -114,32 +114,32 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
+                             type="button"
+                             onClick={() => setIsConfiguringSummary(false)}
+                             disabled={generating}
+-                            className="flex w-fit items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-300 transition hover:bg-white/[0.08] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 disabled:cursor-wait disabled:opacity-50"
++                            className="flex w-fit items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-300 transition hover:bg-white/[0.08] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 disabled:cursor-wait disabled:opacity-50 light:border-slate-300 light:bg-slate-50 light:text-slate-700 light:hover:bg-slate-100 light:hover:text-slate-950"
+                         >
+                             <ArrowLeft size={13} /> Back to summary
+                         </button>
+                     )}
+-                    <div className="rounded-2xl border border-blue-400/20 bg-blue-400/10 p-4">
+-                        <div className="mb-2 flex items-center gap-2 text-blue-200">
++                    <div className="rounded-2xl border border-blue-400/20 bg-blue-400/10 p-4 light:border-blue-200 light:bg-blue-50">
++                        <div className="mb-2 flex items-center gap-2 text-blue-200 light:text-blue-800">
+                             <Sparkles size={17} />
+                             <h3 className="text-sm font-black uppercase tracking-[0.16em]">AI Summary</h3>
+                         </div>
+-                        <p className="text-sm leading-5 text-blue-100/70">
++                        <p className="text-sm leading-5 text-blue-100/70 light:text-blue-900">
+                             Convert this meeting into summary, actions, and questions.
+                         </p>
+                     </div>
+ 
+                     <div className="flex flex-wrap gap-2">
+                         {['Summary', 'Actions', 'Questions'].map((item) => (
+-                            <span key={item} className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
++                            <span key={item} className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 light:border-slate-300 light:bg-slate-100 light:text-slate-700">
+                                 {item}
+                             </span>
+                         ))}
+                     </div>
+ 
+                     {/* Time range selector */}
+-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+-                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-500 mb-2">Summarize</p>
++                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 light:border-slate-200 light:bg-white">
++                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-500 light:text-slate-600 mb-2">Summarize</p>
+                         <div className="grid grid-cols-4 gap-1.5">
+                             {timeRangeOptions.map((opt) => (
+                                 <button
+@@ -148,8 +148,8 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
+                                     disabled={generating}
+                                     className={`rounded-xl py-2 text-[10px] font-black uppercase tracking-[0.12em] transition-all ${
+                                         timeRange === opt.value
+-                                            ? 'bg-blue-500/20 border border-blue-400/30 text-blue-200'
+-                                            : 'bg-white/[0.04] border border-white/10 text-gray-500 hover:text-gray-300 hover:bg-white/[0.08]'
++                                            ? 'bg-blue-500/20 border border-blue-400/30 text-blue-200 light:bg-blue-50 light:border-blue-200 light:text-blue-800'
++                                            : 'bg-white/[0.04] border border-white/10 text-gray-500 hover:text-gray-300 hover:bg-white/[0.08] light:bg-slate-50 light:border-slate-200 light:text-slate-600 light:hover:text-slate-900 light:hover:bg-slate-100'
+                                     } disabled:cursor-wait disabled:opacity-50`}
+                                 >
+                                     {opt.label}
+@@ -160,15 +160,15 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
+ 
+                     <div className="mt-auto">
+                         {!hasApiKey ? (
+-                            <div className="rounded-2xl border border-violet-400/20 bg-violet-400/10 p-4">
+-                                <div className="mb-2 flex items-center gap-2 text-violet-200">
++                            <div className="rounded-2xl border border-violet-400/20 bg-violet-400/10 p-4 light:border-violet-200 light:bg-violet-50">
++                                <div className="mb-2 flex items-center gap-2 text-violet-200 light:text-violet-800">
+                                     <Settings size={16} />
+                                     <h4 className="text-[10px] font-black uppercase tracking-[0.18em]">API key required</h4>
+                                 </div>
+-                                <p className="text-xs leading-5 text-violet-100/65">Add a provider key to generate notes.</p>
++                                <p className="text-xs leading-5 text-violet-100/65 light:text-violet-900">Add a provider key to generate notes.</p>
+                                 <button
+                                     onClick={onOpenSettings}
+-                                    className="mt-3 w-full rounded-xl border border-violet-300/20 bg-violet-400/15 px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-violet-100 transition hover:bg-violet-400/25"
++                                    className="mt-3 w-full rounded-xl border border-violet-300/20 bg-violet-400/15 px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-violet-100 transition hover:bg-violet-400/25 light:border-violet-300 light:bg-violet-100 light:text-violet-900 light:hover:bg-violet-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600"
+                                 >
+                                     Settings
+                                 </button>
+@@ -177,7 +177,7 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
+                             <button
+                                 onClick={handleGenerate}
+                                 disabled={generating}
+-                                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-violet-500 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110 disabled:cursor-wait disabled:opacity-60"
++                                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-violet-500 light:from-blue-700 light:to-violet-800 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110 disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                             >
+                                 <Sparkles size={16} className={generating ? 'animate-spin' : ''} />
+                                 {generating ? 'Reading transcript...' : 'Generate summary'}
+@@ -188,18 +188,18 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
+             ) : (
+                 <div className="h-full min-h-0 overflow-y-auto pr-1">
+                     <div className="space-y-3 pb-1">
+-                        <header className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-3">
++                        <header className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-3 light:border-slate-200 light:bg-white">
+                             <div className="min-w-0">
+-                                <div className="flex items-center gap-2 text-blue-200">
++                                <div className="flex items-center gap-2 text-blue-200 light:text-blue-800">
+                                     <FileText size={15} className="shrink-0" />
+                                     <h3 className="text-xs font-black uppercase tracking-[0.16em]">Meeting summary</h3>
+                                 </div>
+                                 {summary._meta?.type === 'rolling' && (
+-                                    <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
++                                    <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 light:text-slate-600">
+                                         Rolling · {summary._meta.segmentCount} segments
+                                     </p>
+                                 )}
+-                                <p className="mt-1 truncate text-[10px] font-bold text-slate-500">
++                                <p className="mt-1 truncate text-[10px] font-bold text-slate-500 light:text-slate-600">
+                                     {generatedProvider.label} · {generatedModel.label}
+                                 </p>
+                             </div>
+@@ -209,7 +209,7 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
+                                     onClick={handleStartAnotherSummary}
+                                     title="Generate another summary"
+                                     aria-label="Generate another summary"
+-                                    className="grid size-9 place-items-center rounded-xl border border-blue-400/15 bg-blue-400/[0.07] text-blue-200 transition hover:bg-blue-400/15 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
++                                    className="grid size-9 place-items-center rounded-xl border border-blue-400/15 bg-blue-400/[0.07] text-blue-200 transition hover:bg-blue-400/15 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 light:border-blue-200 light:bg-blue-50 light:text-blue-800 light:hover:bg-blue-100 light:hover:text-blue-950"
+                                 >
+                                     <RefreshCw size={15} />
+                                 </button>
+@@ -218,7 +218,7 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
+                                     onClick={handleCopy}
+                                     title={actionFeedback === 'copied' ? 'Copied' : 'Copy summary'}
+                                     aria-label={actionFeedback === 'copied' ? 'Summary copied' : 'Copy summary'}
+-                                    className="grid size-9 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-slate-300 transition hover:bg-white/[0.1] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
++                                    className="grid size-9 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-slate-300 transition hover:bg-white/[0.1] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 light:border-slate-300 light:bg-slate-50 light:text-slate-700 light:hover:bg-slate-100 light:hover:text-slate-950"
+                                 >
+                                     {actionFeedback === 'copied' ? <Check size={15} className="text-emerald-300" /> : <ClipboardCopy size={15} />}
+                                 </button>
+@@ -227,7 +227,7 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
+                                     onClick={handleShare}
+                                     title={actionFeedback === 'shared' ? 'Shared' : 'Share summary'}
+                                     aria-label={actionFeedback === 'shared' ? 'Summary shared' : 'Share summary'}
+-                                    className="grid size-9 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-slate-300 transition hover:bg-white/[0.1] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
++                                    className="grid size-9 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-slate-300 transition hover:bg-white/[0.1] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 light:border-slate-300 light:bg-slate-50 light:text-slate-700 light:hover:bg-slate-100 light:hover:text-slate-950"
+                                 >
+                                     {actionFeedback === 'shared' ? <Check size={15} className="text-emerald-300" /> : <Share2 size={15} />}
+                                 </button>
+@@ -238,15 +238,15 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
+                         </header>
+ 
+                         {typeof summary.raw === 'string' && summary.raw.trim() && summary.executive && (
+-                            <section className="rounded-2xl border border-blue-400/15 bg-blue-400/[0.07] p-3.5">
+-                                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-blue-300">Overview</div>
+-                                <p className="text-sm font-medium leading-6 text-slate-200">{summary.executive}</p>
++                            <section className="rounded-2xl border border-blue-400/15 bg-blue-400/[0.07] p-3.5 light:border-blue-200 light:bg-blue-50">
++                                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-blue-300 light:text-blue-800">Overview</div>
++                                <p className="text-sm font-medium leading-6 text-slate-200 light:text-slate-800">{summary.executive}</p>
+                             </section>
+                         )}
+ 
+-                        <section className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+-                            <div className="mb-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+-                                <Sparkles size={13} className="text-blue-300" /> Detailed notes
++                        <section className="rounded-2xl border border-white/10 bg-white/[0.025] p-4 light:border-slate-200 light:bg-white">
++                            <div className="mb-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 light:text-slate-600">
++                                <Sparkles size={13} className="text-blue-300 light:text-blue-700" /> Detailed notes
+                             </div>
+                             <div className="min-w-0 [overflow-wrap:anywhere]">
+                                 <ReactMarkdown components={markdownComponents}>
+@@ -255,52 +255,52 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
+                             </div>
+                         </section>
+ 
+-                        <section className="overflow-hidden rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.06]">
++                        <section className="overflow-hidden rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.06] light:border-emerald-200 light:bg-emerald-50">
+                             <button
+                                 type="button"
+                                 onClick={() => setActionsOpen((open) => !open)}
+                                 aria-expanded={actionsOpen}
+                                 aria-controls="summary-actions"
+-                                className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left transition hover:bg-emerald-300/[0.06] focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-emerald-300"
++                                className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left transition hover:bg-emerald-300/[0.06] focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-emerald-300 light:hover:bg-emerald-100"
+                             >
+-                                <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300">
++                                <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300 light:text-emerald-800">
+                                     <CheckCircle2 size={13} /> Actions
+-                                    <span className="rounded-full bg-emerald-300/10 px-2 py-0.5 text-[9px] text-emerald-200">
++                                    <span className="rounded-full bg-emerald-300/10 px-2 py-0.5 text-[9px] text-emerald-200 light:bg-emerald-100 light:text-emerald-800">
+                                         {Array.isArray(summary.actions) ? summary.actions.length : 0}
+                                     </span>
+                                 </span>
+-                                <ChevronDown size={15} className={`text-emerald-200 transition-transform ${actionsOpen ? 'rotate-180' : ''}`} />
++                                <ChevronDown size={15} className={`text-emerald-200 light:text-emerald-700 transition-transform ${actionsOpen ? 'rotate-180' : ''}`} />
+                             </button>
+                             {actionsOpen && (
+-                                <div id="summary-actions" className="space-y-2 border-t border-emerald-300/10 p-3">
++                                <div id="summary-actions" className="space-y-2 border-t border-emerald-300/10 p-3 light:border-emerald-200">
+                                     {Array.isArray(summary.actions) && summary.actions.length > 0 ? summary.actions.map((item, index) => (
+-                                        <div key={index} className="flex items-start gap-2.5 rounded-xl bg-black/10 p-2.5">
++                                        <div key={index} className="flex items-start gap-2.5 rounded-xl bg-black/10 p-2.5 light:bg-emerald-100">
+                                             <span className="mt-2 size-1.5 shrink-0 rounded-full bg-emerald-300" />
+-                                            <span className="min-w-0 break-words text-xs font-medium leading-5 text-slate-300">{item}</span>
++                                            <span className="min-w-0 break-words text-xs font-medium leading-5 text-slate-300 light:text-emerald-950">{item}</span>
+                                         </div>
+                                     )) : (
+-                                        <p className="px-1 text-xs leading-5 text-slate-400">No action items detected.</p>
++                                        <p className="px-1 text-xs leading-5 text-slate-400 light:text-slate-700">No action items detected.</p>
+                                     )}
+                                 </div>
+                             )}
+                         </section>
+ 
+-                        <section className="overflow-hidden rounded-2xl border border-amber-300/15 bg-amber-300/[0.07]">
++                        <section className="overflow-hidden rounded-2xl border border-amber-300/15 bg-amber-300/[0.07] light:border-amber-200 light:bg-amber-50">
+                             <button
+                                 type="button"
+                                 onClick={() => setQuestionsOpen((open) => !open)}
+                                 aria-expanded={questionsOpen}
+                                 aria-controls="summary-questions"
+-                                className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left transition hover:bg-amber-300/[0.06] focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-amber-200"
++                                className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left transition hover:bg-amber-300/[0.06] focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-amber-200 light:hover:bg-amber-100"
+                             >
+-                                <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-amber-200">
++                                <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-amber-200 light:text-amber-800">
+                                     <CircleHelp size={13} /> Open questions
+                                 </span>
+-                                <ChevronDown size={15} className={`text-amber-100/70 transition-transform ${questionsOpen ? 'rotate-180' : ''}`} />
++                                <ChevronDown size={15} className={`text-amber-100/70 light:text-amber-700 transition-transform ${questionsOpen ? 'rotate-180' : ''}`} />
+                             </button>
+                             {questionsOpen && (
+-                                <div id="summary-questions" className="border-t border-amber-300/10 px-3.5 py-3">
+-                                    <p className="whitespace-pre-wrap break-words text-xs font-medium leading-5 text-amber-50/75">
++                                <div id="summary-questions" className="border-t border-amber-300/10 px-3.5 py-3 light:border-amber-200">
++                                    <p className="whitespace-pre-wrap break-words text-xs font-medium leading-5 text-amber-50/75 light:text-amber-950">
+                                         {summary.questions || 'No open questions detected.'}
+                                     </p>
+                                 </div>
+diff --git a/frontend/src/components/ThemeToggle.jsx b/frontend/src/components/ThemeToggle.jsx
+new file mode 100644
+index 0000000000000000000000000000000000000000..7b3c3b1b5e1f72248db9b71121af0586c6da47ab
+--- /dev/null
++++ b/frontend/src/components/ThemeToggle.jsx
+@@ -0,0 +1,24 @@
++import React from 'react';
++import { Moon, Sun } from 'lucide-react';
++
++const ThemeToggle = ({ theme = 'dark', onThemeChange, className = '' }) => {
++    const nextTheme = theme === 'light' ? 'dark' : 'light';
++    const label = `Switch to ${nextTheme} theme`;
++    const Icon = theme === 'light' ? Moon : Sun;
++
++    return (
++        <button
++            type="button"
++            onClick={() => onThemeChange?.(nextTheme)}
++            aria-label={label}
++            aria-pressed={theme === 'light'}
++            title={label}
++            className={`flex size-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-slate-200 shadow-sm transition-colors hover:bg-white/[0.12] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 light:border-slate-300 light:bg-white light:text-slate-700 light:hover:bg-slate-100 light:hover:text-slate-950 ${className}`}
++        >
++            <Icon size={18} aria-hidden="true" />
++            <span className="sr-only">{label}</span>
++        </button>
++    );
++};
++
++export default React.memo(ThemeToggle);
+diff --git a/frontend/src/components/VideoView.jsx b/frontend/src/components/VideoView.jsx
+index e91b02ff17425150516f91160e499ed9b2fb04f3..16ebfbf9bda1e6d01ea8092f20bbe4bb48d4a550 100644
+--- a/frontend/src/components/VideoView.jsx
++++ b/frontend/src/components/VideoView.jsx
+@@ -26,7 +26,7 @@ const VideoView = ({
+     return (
+         <div
+             onClick={onClick}
+-            className={`relative isolate max-h-full max-w-full overflow-hidden rounded-[2rem] border bg-slate-950 shadow-2xl [contain:layout_paint] transition duration-300 ${!pinned ? 'aspect-video' : 'h-full w-full'} ${pinned ? 'border-blue-400/25 shadow-blue-950/20' : 'border-white/10'} ${onClick ? 'cursor-pointer hover:border-blue-300/35 hover:brightness-110' : ''} ${className}`}
++            className={`media-surface relative isolate max-h-full max-w-full overflow-hidden rounded-[2rem] border bg-slate-950 shadow-2xl [contain:layout_paint] transition duration-300 ${!pinned ? 'aspect-video' : 'h-full w-full'} ${pinned ? 'border-blue-400/25 shadow-blue-950/20' : 'border-white/10'} ${onClick ? 'cursor-pointer hover:border-blue-300/35 hover:brightness-110' : ''} ${className}`}
+         >
+             <div className="pointer-events-none absolute inset-0 z-10 rounded-[inherit] bg-gradient-to-b from-black/20 via-transparent to-black/55" />
+             <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.16),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(124,58,237,0.14),transparent_35%)]" />
+diff --git a/frontend/src/index.css b/frontend/src/index.css
+index e263a4bc23f84cf885e58f12ec548fe8312972ea..47953b6dc1d5edb7ca2d163f50aa7f4cbc0e1b7b 100644
+--- a/frontend/src/index.css
++++ b/frontend/src/index.css
+@@ -1,20 +1,65 @@
+ @import "tailwindcss";
+ 
++@custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
++
+ /* Base Styles */
+ * {
+   box-sizing: border-box;
+ }
+ 
+ option {
+-  color: black;
++  color: var(--foreground);
++  background-color: var(--surface-elevated);
+ }
+ 
+ :root {
+   --background: #0f0f0f;
+   --foreground: #ffffff;
+   --border: rgba(255, 255, 255, 0.05);
++  --surface: #171717;
++  --surface-elevated: #262626;
++  --muted-foreground: #94a3b8;
++  --theme-transition-duration: 180ms;
++  color-scheme: dark;
++}
++
++:root[data-theme='light'] {
++  --background: #f8fafc;
++  --foreground: #0f172a;
++  --border: #cbd5e1;
++  --surface: #ffffff;
++  --surface-elevated: #f1f5f9;
++  --muted-foreground: #475569;
++  --theme-transition-duration: 180ms;
++  color-scheme: light;
++}
++
++.theme-shell {
++  color: var(--foreground);
++}
++
++[data-theme='light'] .join-shell,
++[data-theme='light'] .meeting-shell {
++  background-image: linear-gradient(rgba(248, 250, 252, 0.94), rgba(248, 250, 252, 0.94));
++}
++
++.theme-transition,
++.theme-transition * {
++  transition-property: color, background-color, border-color, box-shadow, fill, stroke !important;
++  transition-duration: var(--theme-transition-duration) !important;
++  transition-timing-function: ease-out !important;
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .theme-transition,
++  .theme-transition * {
++    transition-duration: 1ms !important;
++    transition-delay: 0ms !important;
++  }
+ }
+ 
++/* Base Styles */
++
+ html,
+ body,
+ #root {
+@@ -23,6 +68,10 @@ body,
+   overflow: hidden;
+ }
+ 
++html {
++  background: var(--background);
++}
++
+ body {
+   background-color: var(--background);
+   color: var(--foreground);
+@@ -316,4 +365,75 @@ input:focus,
+ select:focus,
+ button:focus {
+   outline: none;
++}
++
++:focus-visible {
++  outline: 2px solid #60a5fa;
++  outline-offset: 2px;
++}
++
++[data-theme='light'] :focus-visible {
++  outline-color: #1d4ed8;
++}
++
++[data-theme='light'] ::-webkit-scrollbar-track {
++  background: #e2e8f0;
++}
++
++[data-theme='light'] ::-webkit-scrollbar-thumb {
++  background: #94a3b8;
++}
++
++[data-theme='light'] ::-webkit-scrollbar-thumb:hover {
++  background: #64748b;
++}
++
++option {
++  background: var(--surface-elevated);
++  color: var(--foreground);
++}
++
++/* Settings contains several legacy dark utility classes. These scoped fallbacks
++   keep every control readable while its explicit light variants are applied. */
++[data-theme='light'] .theme-modal [class*='bg-white/'] {
++  background-color: #f1f5f9;
++}
++
++[data-theme='light'] .theme-modal [class*='border-white/'] {
++  border-color: #cbd5e1;
++}
++
++[data-theme='light'] .theme-modal [class*='text-gray-500'],
++[data-theme='light'] .theme-modal [class*='text-gray-600'] {
++  color: #475569;
++}
++
++[data-theme='light'] .theme-modal [class*='text-gray-400'] {
++  color: #334155;
++}
++
++[data-theme='light'] .theme-modal [class*='text-gray-300'] {
++  color: #1e293b;
++}
++
++[data-theme='light'] .theme-modal [class*='text-white']:not([class*='light:text-']) {
++  color: #0f172a;
++}
++
++[data-theme='light'] .theme-modal [class*='bg-[#111]'] {
++  background-color: #ffffff;
++}
++
++[data-theme='light'] .theme-modal [class*='bg-[#111]/'] {
++  background-color: rgba(255, 255, 255, 0.95);
++}
++
++[data-theme='light'] .theme-modal [class*='border-white/'] {
++  border-color: #cbd5e1;
++}
++
++/* Media is intentionally dark in both themes. */
++[data-theme='light'] .media-surface,
++[data-theme='light'] .media-controls {
++  color-scheme: dark;
+ }
+\ No newline at end of file
+diff --git a/frontend/src/utils/themePreference.js b/frontend/src/utils/themePreference.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..356404eba429834ece66b0adb5aecd5669c6233d
+--- /dev/null
++++ b/frontend/src/utils/themePreference.js
+@@ -0,0 +1,35 @@
++export const DEFAULT_THEME = 'dark';
++export const THEME_STORAGE_KEY = 'meetsummarizer_theme';
++export const THEME_VALUES = Object.freeze(['dark', 'light']);
++
++export const isValidTheme = (value) => THEME_VALUES.includes(value);
++
++export const normalizeTheme = (value) => (isValidTheme(value) ? value : DEFAULT_THEME);
++
++const getStorage = (storage) => storage ?? globalThis.localStorage;
++
++export const getThemePreference = (storage) => {
++  try {
++    return normalizeTheme(getStorage(storage)?.getItem(THEME_STORAGE_KEY));
++  } catch {
++    return DEFAULT_THEME;
++  }
++};
++
++export const setThemePreference = (theme, storage) => {
++  const normalizedTheme = normalizeTheme(theme);
++
++  try {
++    getStorage(storage)?.setItem(THEME_STORAGE_KEY, normalizedTheme);
++  } catch {
++    // Renderer storage can be unavailable or disabled; the in-memory state still applies.
++  }
++
++  return normalizedTheme;
++};
++
++// Descriptive aliases keep the read/write behavior easy to discover at call sites.
++export const readThemePreference = getThemePreference;
++export const writeThemePreference = setThemePreference;
++export const getStoredTheme = getThemePreference;
++export const setStoredTheme = setThemePreference;
+diff --git a/frontend/test/themePreference.test.js b/frontend/test/themePreference.test.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..0dd3c27ca9eed55e4025fab4f59fac5e744b4fa7
+--- /dev/null
++++ b/frontend/test/themePreference.test.js
+@@ -0,0 +1,55 @@
++import assert from 'node:assert/strict';
++import test from 'node:test';
++import {
++  DEFAULT_THEME,
++  THEME_STORAGE_KEY,
++  getThemePreference,
++  isValidTheme,
++  setThemePreference
++} from '../src/utils/themePreference.js';
++
++const createStorage = (initial = {}) => {
++  const values = new Map(Object.entries(initial));
++  return {
++    getItem(key) {
++      return values.has(key) ? values.get(key) : null;
++    },
++    setItem(key, value) {
++      values.set(key, String(value));
++    },
++    value(key) {
++      return values.get(key);
++    }
++  };
++};
++
++test('theme preference defaults to dark when no value is stored', () => {
++  assert.equal(getThemePreference(createStorage()), DEFAULT_THEME);
++});
++
++test('invalid stored values fall back to dark without changing the raw entry', () => {
++  const storage = createStorage({ [THEME_STORAGE_KEY]: 'system' });
++
++  assert.equal(getThemePreference(storage), DEFAULT_THEME);
++  assert.equal(storage.value(THEME_STORAGE_KEY), 'system');
++});
++
++test('valid stored values are returned unchanged', () => {
++  const storage = createStorage({ [THEME_STORAGE_KEY]: 'light' });
++
++  assert.equal(getThemePreference(storage), 'light');
++  assert.equal(isValidTheme('dark'), true);
++  assert.equal(isValidTheme('light'), true);
++  assert.equal(isValidTheme('system'), false);
++});
++
++test('writing a theme uses a direct non-expiring storage value', () => {
++  const storage = createStorage();
++
++  assert.equal(setThemePreference('light', storage), 'light');
++  assert.equal(storage.value(THEME_STORAGE_KEY), 'light');
++  assert.equal(getThemePreference(storage), 'light');
++
++  assert.equal(setThemePreference('invalid', storage), DEFAULT_THEME);
++  assert.equal(storage.value(THEME_STORAGE_KEY), DEFAULT_THEME);
++});

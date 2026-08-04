@@ -1,0 +1,16 @@
+[
+  {
+    "command": "npm run build:desktop",
+    "exitCode": 1,
+    "stdout": "\n> build:desktop\n> npm run build:renderer && npm --prefix desktop run build\n\n\n> build:renderer\n> npm --prefix frontend run build\n\n\n> frontend@0.0.0 build\n> vite build\n\n\u001b[36mvite v7.3.1 \u001b[32mbuilding client environment for production...\u001b[36m\u001b[39m\ntransforming...\n\u001b[32m✓\u001b[39m 1904 modules transformed.\nrendering chunks...\ncomputing gzip size...\n\u001b[2mdist/\u001b[22m\u001b[32mindex.html                                        \u001b[39m\u001b[1m\u001b[2m     0.48 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip:     0.33 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[32massets/transcription.worker-Bik42ulV.js           \u001b[39m\u001b[1m\u001b[2m   869.56 kB\u001b[22m\u001b[1m\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[32massets/ort-wasm-simd-threaded.jsep-B0T3yYHD.wasm  \u001b[39m\u001b[1m\u001b[2m21,596.02 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 5,087.10 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[35massets/index-C_JmgPNQ.css                         \u001b[39m\u001b[1m\u001b[2m    83.00 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip:    13.57 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/index-bKtTGUJ9.js                          \u001b[39m\u001b[1m\u001b[2m   475.34 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip:   141.74 kB\u001b[22m\n\u001b[32m✓ built in 4.79s\u001b[39m\n\n> meetsummarizer-desktop@0.1.0 build\n> electron-builder\n\n",
+    "stderr": "Browserslist: browsers data (caniuse-lite) is 8 months old. Please run:\n  npx update-browserslist-db@latest\n  Why you should do it regularly: https://github.com/browserslist/update-db#readme\n'electron-builder' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n",
+    "stdoutTruncated": false,
+    "stderrTruncated": false,
+    "passed": false,
+    "timedOut": false,
+    "cancelled": false,
+    "startedAt": "2026-08-03T23:19:43.580Z",
+    "completedAt": "2026-08-03T23:19:50.103Z",
+    "durationMs": 6523
+  }
+]

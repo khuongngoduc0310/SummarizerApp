@@ -1,0 +1,34 @@
+{
+  "output": {
+    "category": "environment_error",
+    "rootCause": "The desktop package's installed dependencies lack the electron-builder executable; its package manifest and lockfile correctly declare it, so the failure is not caused by the theme implementation.",
+    "evidence": [
+      {
+        "path": "desktop/package.json",
+        "detail": "The build script invokes electron-builder and electron-builder is declared in devDependencies as ^26.0.12."
+      },
+      {
+        "path": "desktop/package-lock.json",
+        "detail": "The lockfile includes electron-builder and its electron-builder CLI bin mapping."
+      }
+    ],
+    "recommendedFix": "Install the desktop package dependencies with npm --prefix desktop ci, then rerun npm run build:desktop. No source change is supported.",
+    "affectedFiles": [],
+    "confidence": "high"
+  },
+  "usage": {
+    "input": 11967,
+    "output": 415,
+    "cacheRead": 20480,
+    "cacheWrite": 0,
+    "cost": 0.033010000000000005,
+    "totalTokens": 32862,
+    "costBreakdown": {
+      "input": 0.023934,
+      "output": 0.00498,
+      "cacheRead": 0.004096000000000001,
+      "cacheWrite": 0
+    },
+    "reasoning": 157
+  }
+}

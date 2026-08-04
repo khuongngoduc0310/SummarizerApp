@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "status": "available",
+  "beforeTree": "e2297ad702734a9a922382b5efb81dfc275dc27e",
+  "afterTree": "b1ec0e69958959f5df6e064d53303273db33c020",
+  "changedFiles": [
+    "frontend/src/components/JoinScreen.jsx",
+    "frontend/src/components/SettingsModal.jsx",
+    "frontend/src/components/ThemeToggle.jsx"
+  ],
+  "files": [
+    {
+      "status": "M",
+      "oldPath": "frontend/src/components/JoinScreen.jsx",
+      "newPath": "frontend/src/components/JoinScreen.jsx",
+      "oldMode": "100644",
+      "newMode": "100644",
+      "oldBlob": "fe3ccb32b33eb762f8e8188d61286a989b110ecd",
+      "newBlob": "611dfae1e316ece35a826978d7732184e88eb56e",
+      "binary": false
+    },
+    {
+      "status": "M",
+      "oldPath": "frontend/src/components/SettingsModal.jsx",
+      "newPath": "frontend/src/components/SettingsModal.jsx",
+      "oldMode": "100644",
+      "newMode": "100644",
+      "oldBlob": "94ece82fc8df1ad9edb1c393de4b1bdd5430a136",
+      "newBlob": "3f6472603c9318c946f55975f67b0e45ec41ba38",
+      "binary": false
+    },
+    {
+      "status": "M",
+      "oldPath": "frontend/src/components/ThemeToggle.jsx",
+      "newPath": "frontend/src/components/ThemeToggle.jsx",
+      "oldMode": "100644",
+      "newMode": "100644",
+      "oldBlob": "7b3c3b1b5e1f72248db9b71121af0586c6da47ab",
+      "newBlob": "96997ec250178385430c8736e765e580aeb2dc3d",
+      "binary": false
+    }
+  ],
+  "patchBytes": 4931,
+  "patchArtifact": "015-implementing-builder-revision-2-invocation-1-files.patch",
+  "patchDigest": "07f216273da4503e9dbf110524c750312dcca6ae8586983b3982bca946da4866"
+}

@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "status": "available",
+  "beforeTree": "c981dbefbea7f3f82132ad88ac258c7926f2a61a",
+  "afterTree": "0242b30a68a1efd280f3602dc206035f1ace6c77",
+  "changedFiles": [
+    "frontend/src/App.jsx",
+    "frontend/src/components/JoinScreen.jsx",
+    "frontend/src/components/SttStatusBar.jsx",
+    "frontend/src/components/SummaryPanel.jsx",
+    "frontend/src/index.css"
+  ],
+  "files": [
+    {
+      "status": "M",
+      "oldPath": "frontend/src/App.jsx",
+      "newPath": "frontend/src/App.jsx",
+      "oldMode": "100644",
+      "newMode": "100644",
+      "oldBlob": "ef7d44ac645bd1e8be8c33a55010b7a69e0188ac",
+      "newBlob": "71dc79ffc66f3097f62ad8b8f68dc5882960e7ee",
+      "binary": false
+    },
+    {
+      "status": "M",
+      "oldPath": "frontend/src/components/JoinScreen.jsx",
+      "newPath": "frontend/src/components/JoinScreen.jsx",
+      "oldMode": "100644",
+      "newMode": "100644",
+      "oldBlob": "62273a68e366e91557712cf51cde86c65fd397e7",
+      "newBlob": "fe3ccb32b33eb762f8e8188d61286a989b110ecd",
+      "binary": false
+    },
+    {
+      "status": "M",
+      "oldPath": "frontend/src/components/SttStatusBar.jsx",
+      "newPath": "frontend/src/components/SttStatusBar.jsx",
+      "oldMode": "100644",
+      "newMode": "100644",
+      "oldBlob": "b606034df54028ce841bab9a4bd096a71eaa7934",
+      "newBlob": "10c45702c1caa04ce5e4d52758deabe9c28a3be1",
+      "binary": false
+    },
+    {
+      "status": "M",
+      "oldPath": "frontend/src/components/SummaryPanel.jsx",
+      "newPath": "frontend/src/components/SummaryPanel.jsx",
+      "oldMode": "100644",
+      "newMode": "100644",
+      "oldBlob": "55f687b875154936b5cf1d10d515bf290d742587",
+      "newBlob": "0a2472a9c7a4a3e286f6f295814a86a235e44cd8",
+      "binary": false
+    },
+    {
+      "status": "M",
+      "oldPath": "frontend/src/index.css",
+      "newPath": "frontend/src/index.css",
+      "oldMode": "100644",
+      "newMode": "100644",
+      "oldBlob": "47953b6dc1d5edb7ca2d163f50aa7f4cbc0e1b7b",
+      "newBlob": "0d9a6b82b8c3799a5cacdd4055371fdd4cd30495",
+      "binary": false
+    }
+  ],
+  "patchBytes": 10345,
+  "patchArtifact": "005-implementing-builder-attempt-1-invocation-1-files.patch",
+  "patchDigest": "13617090025c73e8e3e1fd3e1fddd89a3ab19432aa27e686b6bf8c9a5c79b0b8"
+}

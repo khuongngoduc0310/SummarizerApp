@@ -1,0 +1,99 @@
+{
+  "route": "quick_implementation",
+  "summary": "Add a renderer-only, persisted dark/light theme system with shared accessible controls, Tailwind v4 light variants, and light styling for every non-media UI state while preserving dark media surfaces and native Electron chrome behavior.",
+  "assumptions": [
+    "A native select is an acceptable Appearance selector in Settings when it is labeled, keyboard accessible, and controlled by the same App-level theme state as the header buttons.",
+    "The browser-provided title attribute satisfies the requested tooltip for the compact header icon button.",
+    "Raw renderer localStorage is available in the Electron renderer profile and persists until renderer app data is cleared."
+  ],
+  "acceptanceCriteria": [
+    "Theme preference logic defaults to dark for missing or invalid stored values and writes valid selections as a non-expiring raw localStorage value.",
+    "With no saved preference, the rendered join, loading, error, and meeting interface initially uses the existing dark theme.",
+    "A sun/moon icon button with a descriptive accessible label and title tooltip is in the top-right header on both join and meeting screens.",
+    "Settings is renamed from Device Settings, includes an Appearance section near its top, and its selector and both header toggles immediately show and apply the same selected theme.",
+    "The selected light or dark theme remains active after restarting the renderer until the user changes it or clears renderer app data.",
+    "Light mode uses white and light-slate interface surfaces with AA-readable text, controls, status states, borders, and visible keyboard focus across join, meeting sidebar, Settings, loading, error, transcript, summary, and STT-status states while retaining blue-violet accents.",
+    "Video tiles, camera preview, and media overlays including their floating controls remain dark when light mode is selected.",
+    "Theme changes use a brief color-only transition that is suppressed or reduced for prefers-reduced-motion users.",
+    "Theme selection changes only renderer content and does not alter Electron's OS-managed native window chrome."
+  ],
+  "automatedAcceptanceCriteria": [
+    0
+  ],
+  "tasks": [
+    {
+      "id": "theme-preference-utility-tests",
+      "description": "Create a small renderer theme-preference utility that validates dark/light values, falls back to dark, and reads/writes a direct non-expiring localStorage entry; add Node tests using a fake storage implementation for missing, invalid, valid, and persisted values.",
+      "files": [
+        "frontend/src/utils/themePreference.js",
+        "frontend/test/themePreference.test.js"
+      ],
+      "testSupportFiles": [],
+      "dependencies": [],
+      "verification": [
+        "Run `npm --prefix frontend test -- test/themePreference.test.js` and confirm default fallback and raw persisted-value cases pass."
+      ]
+    },
+    {
+      "id": "app-theme-foundation-and-meeting-header",
+      "description": "Integrate the validated preference into App-level state with an idempotent pre-paint document theme update, persist changes through the new utility, and pass the controlled theme value/change handler to join and Settings paths. Add a reusable Sun/Moon header icon button with title, aria-label, and visible focus styling; use it in the meeting header. Add Tailwind v4 light variant, dark-default/light root tokens, color-only theme transition rules, reduced-motion overrides, and robust global keyboard-focus rules in the imported stylesheet. Apply light variants to App-owned loading/error branches, meeting shell/header, sidebar tabs, benchmark panels, and controls without touching Electron window options.",
+      "files": [
+        "frontend/src/App.jsx",
+        "frontend/src/index.css",
+        "frontend/src/components/ThemeToggle.jsx"
+      ],
+      "testSupportFiles": [],
+      "dependencies": [
+        "theme-preference-utility-tests"
+      ],
+      "verification": [
+        "Run `npx eslint src/App.jsx src/components/ThemeToggle.jsx` from `frontend/`.",
+        "In Electron, clear the theme storage key and verify dark first render; switch the meeting-header control, restart the app, and verify the selected renderer theme is restored while native chrome is unchanged.",
+        "Enable reduced-motion in the OS/browser and verify theme color changes do not animate noticeably."
+      ]
+    },
+    {
+      "id": "join-and-settings-light-appearance",
+      "description": "Thread the controlled theme props through JoinScreen and both SettingsModal entry points. Add the reusable quick toggle beside the join-header status pill. Rename the modal heading to Settings, insert a labeled Appearance section before device controls with a synchronized dark/light selector, and add light variants plus AA-safe accent/text/focus treatments for join cards, forms, recent-room states, modal surfaces, every form field/select, status cards, configuration sections, and modal actions. Preserve the preview stage, its permission error overlay, and preview controls as dark media UI.",
+      "files": [
+        "frontend/src/components/JoinScreen.jsx",
+        "frontend/src/components/SettingsModal.jsx"
+      ],
+      "testSupportFiles": [],
+      "dependencies": [
+        "app-theme-foundation-and-meeting-header"
+      ],
+      "verification": [
+        "Run `npx eslint src/components/JoinScreen.jsx src/components/SettingsModal.jsx` from `frontend/`.",
+        "Manually switch themes from the join header and Settings Appearance selector, confirming immediate synchronization, keyboard-visible focus, readable selected values, and a tooltip/accessible name on the header button.",
+        "Use a contrast checker on light-mode normal text, labels, buttons, inputs, and blue/violet/semantic status text; verify AA contrast and retain the dark camera-preview region."
+      ]
+    },
+    {
+      "id": "meeting-panel-light-states-and-dark-media",
+      "description": "Add light variants and AA-safe semantic/accent colors to transcript, summary (including markdown and empty/configuration states), and STT download/status panels. Add visible focus treatment to the floating media control buttons while keeping their dark overlay palette, and explicitly retain VideoView tile, nameplate, camera-off, and media-overlay dark classes with no light-surface override.",
+      "files": [
+        "frontend/src/components/CaptionPanel.jsx",
+        "frontend/src/components/SummaryPanel.jsx",
+        "frontend/src/components/SttStatusBar.jsx",
+        "frontend/src/components/MeetingControls.jsx",
+        "frontend/src/components/VideoView.jsx"
+      ],
+      "testSupportFiles": [],
+      "dependencies": [
+        "app-theme-foundation-and-meeting-header"
+      ],
+      "verification": [
+        "Run `npx eslint src/components/CaptionPanel.jsx src/components/SummaryPanel.jsx src/components/SttStatusBar.jsx src/components/MeetingControls.jsx src/components/VideoView.jsx` from `frontend/`.",
+        "In light mode, exercise transcript empty/history/error states, summary setup/generated/action/question states, and STT idle/download states; verify light surfaces, readable controls, and visible keyboard focus.",
+        "Verify active video, camera-off tiles, nameplates, preview, and floating media controls stay dark in light mode.",
+        "Run `npm --prefix frontend test`, `npm --prefix frontend run lint`, and `npm --prefix frontend run build`."
+      ]
+    }
+  ],
+  "risks": [
+    "The UI has many hard-coded dark utility classes; each affected text, border, surface, hover, disabled, and semantic status pairing must receive a deliberate light variant or it can fail contrast on a light surface.",
+    "A global theme-transition rule must be limited to color-related properties so it does not interfere with existing video, layout, or hover transform transitions; reduced-motion overrides must take precedence.",
+    "Existing Node tests do not render JSX components, so interactive synchronization, all visual state branches, contrast, and Electron chrome isolation require manual Electron verification in addition to the new persistence unit tests."
+  ]
+}

@@ -1,0 +1,454 @@
+{
+  "action": "finalize",
+  "report": {
+    "goal": "Add a light theme for the app while retaining the existing dark theme.",
+    "summary": "The app will default to dark mode and provide a persistent light-mode alternative. Users can switch themes through synchronized quick and Settings controls, with changes applied immediately. Light mode covers all rendered interface states using neutral white and light-slate surfaces, preserves blue-violet accents, keeps media areas dark, meets WCAG AA contrast requirements, and uses a reduced-motion-aware color transition.",
+    "openQuestions": [],
+    "scope": [
+      "Retain the existing dark theme and add light mode as an alternative.",
+      "Apply light styling to join, meeting, settings, loading, and error states.",
+      "Provide a quick theme toggle in the top-right header on both join and meeting screens.",
+      "Rename the existing settings modal to Settings and add an Appearance section near the top.",
+      "Persist the selected theme indefinitely in the renderer profile until changed or app data is cleared."
+    ],
+    "constraints": [
+      "Dark mode remains the default when no saved preference exists.",
+      "Light mode uses neutral white and light-slate surfaces while preserving existing blue-violet accents.",
+      "Video tiles and media overlays remain dark in light mode.",
+      "Theme selection affects only the rendered interface; native Electron window chrome remains OS-managed.",
+      "Theme controls must stay synchronized and satisfy WCAG AA contrast, visible-focus, and control-readability requirements.",
+      "Theme transitions must respect reduced-motion preferences."
+    ],
+    "acceptanceCriteria": [
+      "On first launch without a saved preference, the rendered interface uses dark mode.",
+      "Users can switch between light and dark themes using either the header toggle or the Appearance selector in Settings.",
+      "Changing the theme updates the open app immediately, and both controls display the same selected theme.",
+      "The selected theme remains active across app restarts until changed or renderer app data is cleared.",
+      "Light styling is present across join, meeting, settings, loading, and error states, while video tiles and media overlays remain dark.",
+      "The quick control is a sun/moon icon button with an accessible label and tooltip in the top-right header of join and meeting screens.",
+      "Light-theme text and controls meet WCAG AA contrast, have visible focus indicators, and remain readable.",
+      "Theme switching uses a brief color transition, which is suppressed or reduced when the user prefers reduced motion.",
+      "Changing the rendered theme does not alter native Electron window chrome."
+    ],
+    "qa": [
+      {
+        "question": {
+          "id": "q1",
+          "kind": "single",
+          "text": "Should the existing dark theme remain available?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Keep dark and add light as an alternative",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Replace dark with light"
+            },
+            {
+              "id": "c",
+              "text": "Add light now but allow more themes later"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q1",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q2",
+          "kind": "single",
+          "text": "How should the app choose a theme when it starts?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Follow the OS initially, then save any manual override",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Default to dark and save the user's choice"
+            },
+            {
+              "id": "c",
+              "text": "Default to light and save the user's choice"
+            },
+            {
+              "id": "d",
+              "text": "Always follow the OS with no manual override"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q2",
+          "selectedOptionIds": [
+            "b"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q3",
+          "kind": "single",
+          "text": "Where should users change the theme?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Quick toggle plus a selector in Settings",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Settings only"
+            },
+            {
+              "id": "c",
+              "text": "Quick toggle only"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q3",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q4",
+          "kind": "single",
+          "text": "Which interface states should receive light styling?",
+          "options": [
+            {
+              "id": "a",
+              "text": "All states, including join, meeting, settings, loading, and errors",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Join and meeting screens only"
+            },
+            {
+              "id": "c",
+              "text": "Meeting screen only"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q4",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q5",
+          "kind": "single",
+          "text": "In light mode, how should video tiles and their media overlays appear?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Keep media areas dark while making surrounding app chrome light",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Restyle tiles and overlays as light surfaces too"
+            },
+            {
+              "id": "c",
+              "text": "Change only overlays; keep tile backgrounds dark"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q5",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q6",
+          "kind": "single",
+          "text": "What visual direction should the light palette use?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Neutral white and light slate, preserving current blue-violet accents",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Warm off-white and gray, preserving current accents"
+            },
+            {
+              "id": "c",
+              "text": "High-contrast pure white and black"
+            },
+            {
+              "id": "d",
+              "text": "Custom palette"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q6",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q7",
+          "kind": "single",
+          "text": "What accessibility target should the light theme meet?",
+          "options": [
+            {
+              "id": "a",
+              "text": "WCAG AA contrast with visible focus and readable controls",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Match the dark theme visually without a formal contrast target"
+            },
+            {
+              "id": "c",
+              "text": "Aim for WCAG AAA contrast where practical"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q7",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q8",
+          "kind": "single",
+          "text": "Where should the quick theme toggle appear?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Top-right header on both join and meeting screens",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Join header and floating meeting controls"
+            },
+            {
+              "id": "c",
+              "text": "Meeting header only"
+            },
+            {
+              "id": "d",
+              "text": "Custom placement"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q8",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q9",
+          "kind": "single",
+          "text": "How should the quick toggle be presented?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Sun/moon icon button with an accessible label and tooltip",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Labeled Light/Dark button"
+            },
+            {
+              "id": "c",
+              "text": "Two-option segmented control"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q9",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q10",
+          "kind": "single",
+          "text": "How should theme selection fit into the existing settings modal?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Rename it to Settings and add an Appearance section near the top",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Add an Appearance section without changing the modal title"
+            },
+            {
+              "id": "c",
+              "text": "Add a compact theme selector in the modal header"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q10",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q11",
+          "kind": "single",
+          "text": "How long should the saved theme preference persist?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Indefinitely in the renderer profile until changed or app data is cleared",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Use the existing 24-hour expiring local storage behavior"
+            },
+            {
+              "id": "c",
+              "text": "Store it in Electron user-data configuration"
+            },
+            {
+              "id": "d",
+              "text": "Persist only for the current app session"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q11",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q12",
+          "kind": "single",
+          "text": "When a user changes the theme, when should it take effect?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Immediately across the open app, with toggle and Settings kept in sync",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "After closing Settings"
+            },
+            {
+              "id": "c",
+              "text": "After restarting the app"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q12",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q13",
+          "kind": "single",
+          "text": "Should theme selection affect the native Electron window frame as well as the rendered interface?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Theme the rendered interface only; leave native chrome OS-managed",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Synchronize native window chrome with the selected theme"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q13",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q14",
+          "kind": "single",
+          "text": "Should switching themes include a visual transition?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Brief color transition that respects reduced-motion preferences",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Switch instantly with no transition"
+            },
+            {
+              "id": "c",
+              "text": "Use a more noticeable animated transition"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q14",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      }
+    ]
+  }
+}

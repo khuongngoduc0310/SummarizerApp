@@ -1,0 +1,506 @@
+{
+  "action": "finalize",
+  "report": {
+    "goal": "Improve project maintainability, primarily in the backend, while preserving existing behavior.",
+    "summary": "Refactor a few high-value backend hotspots into feature-oriented modules, prioritizing Socket.io meeting lifecycle and caption persistence/history. Reduce complexity, duplication, unclear boundaries, and naming inconsistencies while retaining CommonJS conventions. Preserve backend API and Socket.io behavior, make no Prisma schema changes, add targeted regression coverage, and improve the maintained native Whisper benchmark runner, AMI preparation script, and related documentation.",
+    "openQuestions": [],
+    "scope": [
+      "Refactor selected responsibilities from backend/index.js into feature modules organized around meeting, summary, and caption domains.",
+      "Prioritize Socket.io meeting lifecycle and caption persistence/history responsibilities in backend/index.js.",
+      "Consolidate duplicated logic or configuration encountered within the selected backend hotspots.",
+      "Standardize affected backend naming and conventions according to existing CommonJS and nearby code style.",
+      "Improve maintainability of desktop/stt/benchmark-whisper.cpp.js and desktop/stt/prepare-ami-benchmark.js.",
+      "Keep relevant maintained benchmark documentation, including docs/STT_NATIVE_WER_BENCHMARK.md and docs/STT_WEBGPU_BENCHMARK.md, consistent with the benchmark scripts."
+    ],
+    "constraints": [
+      "Preserve externally observable behavior exactly.",
+      "Keep existing backend API and Socket.io contracts unchanged.",
+      "Do not change the Prisma schema or introduce stored-data migrations under backend/prisma/.",
+      "Preserve caption persistence and history behavior while extracting responsibilities from backend/index.js.",
+      "Continue using CommonJS and follow the surrounding backend style.",
+      "Limit the refactor to a few high-value hotspots rather than performing a comprehensive backend or repository-wide cleanup.",
+      "Do not reorganize generated artifacts under benchmark-results/."
+    ],
+    "acceptanceCriteria": [
+      "Socket.io meeting lifecycle and caption persistence/history responsibilities are separated into clear feature-oriented modules, with backend/index.js retaining orchestration responsibilities.",
+      "The selected hotspots exhibit clearer module boundaries, reduced file or function complexity, less duplicated logic or configuration, and naming consistent with nearby backend code.",
+      "Existing backend endpoints, response behavior, Socket.io events, payloads, and lifecycle behavior remain unchanged.",
+      "No Prisma schema or data migration files are added or modified for the refactor.",
+      "Unit tests cover the extracted backend modules, and regression tests verify backend API and Socket.io contracts.",
+      "All existing project checks continue to pass alongside the targeted regression tests.",
+      "The benchmark runner and AMI preparation script retain their existing behavior while becoming easier to understand and maintain.",
+      "Maintained benchmark documentation accurately reflects the benchmark scripts and procedures after the changes."
+    ],
+    "qa": [
+      {
+        "question": {
+          "id": "q1",
+          "kind": "single",
+          "text": "Which area should be the primary target of maintainability improvements?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Backend server and database code"
+            },
+            {
+              "id": "b",
+              "text": "Frontend React renderer"
+            },
+            {
+              "id": "c",
+              "text": "Electron desktop and preload code"
+            },
+            {
+              "id": "d",
+              "text": "STT and benchmark code"
+            },
+            {
+              "id": "e",
+              "text": "Cross-project structure and consistency",
+              "recommended": true
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q1",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q2",
+          "kind": "multiple",
+          "text": "Which maintainability problems should the work address?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Unclear module boundaries",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Duplicated logic or configuration"
+            },
+            {
+              "id": "c",
+              "text": "Large or complex files"
+            },
+            {
+              "id": "d",
+              "text": "Inconsistent naming and conventions"
+            },
+            {
+              "id": "e",
+              "text": "Insufficient tests"
+            },
+            {
+              "id": "f",
+              "text": "Outdated or fragmented documentation"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q2",
+          "selectedOptionIds": [
+            "a",
+            "b",
+            "d",
+            "c"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q3",
+          "kind": "single",
+          "text": "How much externally observable behavior may change?",
+          "options": [
+            {
+              "id": "a",
+              "text": "None; preserve behavior exactly",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Only minor internal-facing behavior"
+            },
+            {
+              "id": "c",
+              "text": "User-facing improvements are acceptable"
+            },
+            {
+              "id": "d",
+              "text": "Breaking changes are acceptable if documented"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q3",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q4",
+          "kind": "multiple",
+          "text": "Which compatibility boundaries must remain unchanged?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Backend API and Socket.io contracts",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Database schema and stored data"
+            },
+            {
+              "id": "c",
+              "text": "Electron preload and IPC contracts"
+            },
+            {
+              "id": "d",
+              "text": "Caption persistence and idempotency"
+            },
+            {
+              "id": "e",
+              "text": "STT sidecar lifecycle behavior"
+            },
+            {
+              "id": "f",
+              "text": "No new runtime dependencies"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q4",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q5",
+          "kind": "single",
+          "text": "What scope of refactoring is appropriate for this effort?",
+          "options": [
+            {
+              "id": "a",
+              "text": "A few high-value hotspots",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "One package comprehensively"
+            },
+            {
+              "id": "c",
+              "text": "Several related packages"
+            },
+            {
+              "id": "d",
+              "text": "Repository-wide cleanup"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q5",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q6",
+          "kind": "single",
+          "text": "What evidence should define success?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Existing checks pass plus targeted regression tests",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Reduced file or function complexity"
+            },
+            {
+              "id": "c",
+              "text": "Reduced duplication"
+            },
+            {
+              "id": "d",
+              "text": "Clearer package boundaries and documentation"
+            },
+            {
+              "id": "e",
+              "text": "A combination of all applicable measures"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q6",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q7",
+          "kind": "single",
+          "text": "How should benchmark-related assets be treated?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Include scripts and maintained benchmark documentation",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Include benchmark scripts only"
+            },
+            {
+              "id": "c",
+              "text": "Exclude benchmark-related work"
+            },
+            {
+              "id": "d",
+              "text": "Make benchmarks the primary focus"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q7",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q8",
+          "kind": "multiple",
+          "text": "Which backend/index.js hotspots should be prioritized?",
+          "options": [
+            {
+              "id": "a",
+              "text": "REST route handlers"
+            },
+            {
+              "id": "b",
+              "text": "Summary generation and LLM calls"
+            },
+            {
+              "id": "c",
+              "text": "Socket.io meeting lifecycle",
+              "recommended": true
+            },
+            {
+              "id": "d",
+              "text": "Caption persistence and history"
+            },
+            {
+              "id": "e",
+              "text": "Cleanup and shutdown logic"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q8",
+          "selectedOptionIds": [
+            "c",
+            "d"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q9",
+          "kind": "single",
+          "text": "What module-boundary style should replace backend/index.js responsibilities?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Feature modules by meeting, summary, and caption domain",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Technical layers: routes, services, and repositories"
+            },
+            {
+              "id": "c",
+              "text": "Minimal extraction of utility functions only"
+            },
+            {
+              "id": "d",
+              "text": "Custom structure (short answer)"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q9",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q10",
+          "kind": "single",
+          "text": "How should backend naming and code conventions be standardized?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Follow existing CommonJS and nearby style",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Define new backend-wide conventions"
+            },
+            {
+              "id": "c",
+              "text": "Fix only clearly inconsistent names"
+            },
+            {
+              "id": "d",
+              "text": "Custom convention (short answer)"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q10",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q11",
+          "kind": "single",
+          "text": "May the refactor change the Prisma schema or stored-data representation while preserving API behavior?",
+          "options": [
+            {
+              "id": "a",
+              "text": "No schema or data migration changes",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Additive schema changes only"
+            },
+            {
+              "id": "c",
+              "text": "Migrations are acceptable if data is preserved"
+            },
+            {
+              "id": "d",
+              "text": "Schema changes are unrestricted"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q11",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q12",
+          "kind": "single",
+          "text": "What targeted regression-test coverage should accompany backend extraction?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Unit tests for extracted modules plus API and Socket.io contract tests",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Unit tests for extracted modules only"
+            },
+            {
+              "id": "c",
+              "text": "API contract tests only"
+            },
+            {
+              "id": "d",
+              "text": "Socket.io contract tests only"
+            },
+            {
+              "id": "e",
+              "text": "Existing tests only"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q12",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      },
+      {
+        "question": {
+          "id": "q13",
+          "kind": "single",
+          "text": "Which benchmark maintainability scope is intended?",
+          "options": [
+            {
+              "id": "a",
+              "text": "Runner, AMI preparation script, and maintained benchmark docs",
+              "recommended": true
+            },
+            {
+              "id": "b",
+              "text": "Runner and maintained docs only"
+            },
+            {
+              "id": "c",
+              "text": "AMI preparation script and maintained docs only"
+            },
+            {
+              "id": "d",
+              "text": "Also reorganize generated benchmark reports"
+            },
+            {
+              "id": "e",
+              "text": "Documentation consistency only"
+            }
+          ]
+        },
+        "answer": {
+          "questionId": "q13",
+          "selectedOptionIds": [
+            "a"
+          ],
+          "customText": null
+        }
+      }
+    ]
+  }
+}

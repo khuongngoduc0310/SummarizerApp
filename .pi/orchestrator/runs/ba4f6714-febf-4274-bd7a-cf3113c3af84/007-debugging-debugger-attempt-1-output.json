@@ -1,0 +1,34 @@
+{
+  "output": {
+    "category": "environment_error",
+    "rootCause": "The frontend dependency installation is unavailable in the check environment, so the configured Vite executable cannot be resolved.",
+    "evidence": [
+      {
+        "path": "frontend/package.json",
+        "detail": "The build script is `vite build` and Vite is declared in devDependencies."
+      },
+      {
+        "path": "package.json",
+        "detail": "`build:desktop` invokes `npm --prefix frontend run build`, which fails before the desktop build starts."
+      }
+    ],
+    "recommendedFix": "Install frontend dependencies (for example, run `npm --prefix frontend ci`) in the check environment, then rerun the build. No repository code change is supported.",
+    "affectedFiles": [],
+    "confidence": "high"
+  },
+  "usage": {
+    "input": 11056,
+    "output": 391,
+    "cacheRead": 8704,
+    "cacheWrite": 0,
+    "cost": 0.0285448,
+    "totalTokens": 20151,
+    "costBreakdown": {
+      "input": 0.022112,
+      "output": 0.004692,
+      "cacheRead": 0.0017408000000000002,
+      "cacheWrite": 0
+    },
+    "reasoning": 173
+  }
+}

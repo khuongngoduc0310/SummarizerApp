@@ -1,0 +1,38 @@
+{
+  "role": "builder",
+  "policy": "plan_files",
+  "allowed": [
+    "frontend/src/App.jsx",
+    "frontend/src/components/CaptionPanel.jsx",
+    "frontend/src/components/JoinScreen.jsx",
+    "frontend/src/components/MeetingControls.jsx",
+    "frontend/src/components/SettingsModal.jsx",
+    "frontend/src/components/SttStatusBar.jsx",
+    "frontend/src/components/SummaryPanel.jsx",
+    "frontend/src/components/ThemeToggle.jsx",
+    "frontend/src/components/VideoView.jsx",
+    "frontend/src/index.css",
+    "frontend/src/utils/themePreference.js",
+    "frontend/test/themePreference.test.js"
+  ],
+  "reported": [
+    "frontend/src/components/ThemeToggle.jsx",
+    "frontend/src/components/SettingsModal.jsx",
+    "frontend/src/components/JoinScreen.jsx"
+  ],
+  "actual": {
+    "added": [],
+    "modified": [
+      "frontend/src/components/JoinScreen.jsx",
+      "frontend/src/components/SettingsModal.jsx",
+      "frontend/src/components/ThemeToggle.jsx"
+    ],
+    "deleted": [],
+    "changedFiles": [
+      "frontend/src/components/JoinScreen.jsx",
+      "frontend/src/components/SettingsModal.jsx",
+      "frontend/src/components/ThemeToggle.jsx"
+    ]
+  },
+  "violations": []
+}

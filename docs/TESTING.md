@@ -163,6 +163,17 @@ Do not use `docker compose up --build` as the documented application startup pat
 9. Confirm mute/video status changes propagate between participants.
 10. Add an LLM API key in Settings and generate a summary after final captions have been persisted.
 
+### Background blur smoke test
+
+1. Launch two Electron clients with `npm run dev:two-electron` and allow camera access in the first client.
+2. In the first client's Settings, enable **Background blur** before creating or joining a meeting. Confirm the pre-join preview shows the blurred background.
+3. Join the same meeting from the second client and confirm the first client's remote video is blurred while the second client's video is unchanged.
+4. Toggle **Blur on** and **Blur off** from the first client's meeting controls. Confirm the first preview and the remote video change together without interrupting audio or disconnecting the meeting.
+5. Turn the first camera off and back on, then switch to another camera if available. Confirm blur resumes when enabled and the remote peer continues receiving video.
+6. Join the first client with its camera off while the second client shares video, then enable the first camera. Confirm the second client receives it after WebRTC renegotiation.
+7. On a device where the effect cannot initialize or during a forced runtime failure, confirm the app reports it as unavailable and continues sharing the unfiltered camera stream without a black frame.
+8. With a 1080p camera, confirm 30 FPS blurred output remains smooth at the 640 x 360 limit while captions, controls, and audio remain responsive. Fast movement may briefly show mask-edge lag because segmentation runs at 8 FPS.
+
 ### Optional CUDA backend smoke test
 
 1. Use a Windows x64 machine with an NVIDIA GPU and current driver. A full CUDA Toolkit installation must not be required.

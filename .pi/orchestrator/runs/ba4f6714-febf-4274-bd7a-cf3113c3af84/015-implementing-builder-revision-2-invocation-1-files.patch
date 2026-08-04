@@ -1,0 +1,48 @@
+diff --git a/frontend/src/components/JoinScreen.jsx b/frontend/src/components/JoinScreen.jsx
+index fe3ccb32b33eb762f8e8188d61286a989b110ecd..611dfae1e316ece35a826978d7732184e88eb56e 100644
+--- a/frontend/src/components/JoinScreen.jsx
++++ b/frontend/src/components/JoinScreen.jsx
+@@ -306,7 +306,7 @@ const JoinScreen = ({
+                                 value={displayName}
+                                 onChange={(e) => setDisplayName(e.target.value)}
+                                 placeholder="e.g. Alex Johnson"
+-                                className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white placeholder:text-slate-600 focus:border-blue-400/70 focus:ring-2 focus:ring-blue-500/20 light:border-slate-300 light:bg-slate-50 light:text-slate-900 light:placeholder:text-slate-500"
++                                className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white placeholder:text-slate-600 focus:border-blue-400/70 focus:ring-2 focus:ring-blue-500/20 light:border-slate-500 light:bg-slate-50 light:text-slate-900 light:placeholder:text-slate-500"
+                                 aria-required="true"
+                             />
+                         </div>
+@@ -333,7 +333,7 @@ const JoinScreen = ({
+                                 value={meetingId}
+                                 onChange={(e) => setMeetingId(e.target.value)}
+                                 placeholder="abc-123-xyz"
+-                                className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-center font-mono text-sm tracking-wider text-white placeholder:text-slate-600 focus:border-violet-400/70 focus:ring-2 focus:ring-violet-500/20 light:border-slate-300 light:bg-slate-50 light:text-slate-900 light:placeholder:text-slate-500"
++                                className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-center font-mono text-sm tracking-wider text-white placeholder:text-slate-600 focus:border-violet-400/70 focus:ring-2 focus:ring-violet-500/20 light:border-slate-500 light:bg-slate-50 light:text-slate-900 light:placeholder:text-slate-500"
+                             />
+                             <button
+                                 onClick={handleJoinRoom}
+diff --git a/frontend/src/components/SettingsModal.jsx b/frontend/src/components/SettingsModal.jsx
+index 94ece82fc8df1ad9edb1c393de4b1bdd5430a136..3f6472603c9318c946f55975f67b0e45ec41ba38 100644
+--- a/frontend/src/components/SettingsModal.jsx
++++ b/frontend/src/components/SettingsModal.jsx
+@@ -76,7 +76,7 @@ const SettingsModal = ({
+                 id="settings-theme"
+                 value={theme}
+                 onChange={(event) => onThemeChange?.(event.target.value)}
+-                className="min-w-32 rounded-xl border border-blue-300/30 bg-slate-950/30 px-3 py-2 text-sm font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 light:border-blue-300 light:bg-white light:text-slate-900"
++                className="min-w-32 rounded-xl border border-blue-300/30 bg-slate-950/30 px-3 py-2 text-sm font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 light:border-blue-600 light:bg-white light:text-slate-900"
+               >
+                 <option value="dark">Dark</option>
+                 <option value="light">Light</option>
+diff --git a/frontend/src/components/ThemeToggle.jsx b/frontend/src/components/ThemeToggle.jsx
+index 7b3c3b1b5e1f72248db9b71121af0586c6da47ab..96997ec250178385430c8736e765e580aeb2dc3d 100644
+--- a/frontend/src/components/ThemeToggle.jsx
++++ b/frontend/src/components/ThemeToggle.jsx
+@@ -13,7 +13,7 @@ const ThemeToggle = ({ theme = 'dark', onThemeChange, className = '' }) => {
+             aria-label={label}
+             aria-pressed={theme === 'light'}
+             title={label}
+-            className={`flex size-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-slate-200 shadow-sm transition-colors hover:bg-white/[0.12] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 light:border-slate-300 light:bg-white light:text-slate-700 light:hover:bg-slate-100 light:hover:text-slate-950 ${className}`}
++            className={`flex size-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-slate-200 shadow-sm transition-colors hover:bg-white/[0.12] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 light:border-slate-500 light:bg-white light:text-slate-700 light:hover:bg-slate-100 light:hover:text-slate-950 ${className}`}
+         >
+             <Icon size={18} aria-hidden="true" />
+             <span className="sr-only">{label}</span>

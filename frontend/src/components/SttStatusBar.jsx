@@ -61,24 +61,24 @@ const SttStatusBar = ({
 
   if (activeDownload) {
     return (
-      <div className="shrink-0 border-t border-white/10 bg-white/[0.03] px-4 py-3 space-y-2">
-        <div className="flex items-center gap-2 text-[11px] font-bold text-blue-200/80">
-          <Download size={14} className="text-blue-400 animate-bounce" />
+      <div className="shrink-0 border-t border-white/10 bg-white/[0.03] px-4 py-3 space-y-2 light:border-slate-200 light:bg-slate-50">
+        <div className="flex items-center gap-2 text-[11px] font-bold text-blue-200/80 light:text-blue-800">
+          <Download size={14} className="text-blue-400 light:text-blue-700 animate-bounce" />
           <span>{activeDownload.action} {activeDownload.displayName}</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+          <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden light:bg-slate-200">
             <div
               className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-300"
               style={{ width: `${activeDownload.percent || 0}%` }}
             />
           </div>
-          <span className="text-[10px] font-bold text-gray-400 tabular-nums w-8 text-right">
+          <span className="text-[10px] font-bold text-gray-400 light:text-slate-600 tabular-nums w-8 text-right">
             {activeDownload.percent || 0}%
           </span>
         </div>
         {activeDownload.downloadedBytes !== undefined && activeDownload.totalBytes > 0 && (
-          <p className="text-[10px] text-gray-500 tabular-nums">
+          <p className="text-[10px] text-gray-500 light:text-slate-600 tabular-nums">
             {formatBytes(activeDownload.downloadedBytes)} / {formatBytes(activeDownload.totalBytes)}
           </p>
         )}
@@ -87,30 +87,30 @@ const SttStatusBar = ({
   }
 
   return (
-    <div className="shrink-0 border-t border-white/10 bg-white/[0.03] px-4 py-3">
+    <div className="shrink-0 border-t border-white/10 bg-white/[0.03] px-4 py-3 light:border-slate-200 light:bg-slate-50">
       <div className="flex items-center gap-3">
         {/* Model pill */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] border border-white/10">
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] border border-white/10 light:bg-white light:border-slate-300">
           {backend === 'VULKAN' || backend === 'CUDA' ? (
             <Zap size={11} className="text-purple-400" />
           ) : (
             <Cpu size={11} className="text-blue-400" />
           )}
-          <span className="text-[10px] font-bold text-gray-200">{modelName}</span>
-          <span className="text-[9px] font-black text-gray-500">{backend}</span>
+          <span className="text-[10px] font-bold text-gray-200 light:text-slate-800">{modelName}</span>
+          <span className="text-[9px] font-black text-gray-500 light:text-slate-600">{backend}</span>
         </div>
 
         {/* Status dot + label */}
         <div className="flex items-center gap-1.5">
           <div className={`w-2 h-2 rounded-full ${statusColor} ${statusPulse}`} />
-          <span className="text-[10px] font-bold text-gray-400">{statusLabel}</span>
+          <span className="text-[10px] font-bold text-gray-400 light:text-slate-600">{statusLabel}</span>
         </div>
 
         {/* RTF */}
         {rtf !== null && rtf !== undefined && (
           <div className="flex items-center gap-1 ml-auto">
-            <Circle size={8} className="text-gray-600" />
-            <span className="text-[10px] font-bold text-gray-500 tabular-nums">
+            <Circle size={8} className="text-gray-600 light:text-slate-500" />
+            <span className="text-[10px] font-bold text-gray-500 light:text-slate-600 tabular-nums">
               RTF {rtf.toFixed(2)}x
             </span>
           </div>

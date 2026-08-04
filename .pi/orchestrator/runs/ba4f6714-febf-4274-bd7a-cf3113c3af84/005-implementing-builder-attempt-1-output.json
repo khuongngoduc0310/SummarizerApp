@@ -1,0 +1,30 @@
+{
+  "output": {
+    "summary": "implementation completed",
+    "changedFiles": [
+      "frontend/src/App.jsx",
+      "frontend/src/components/JoinScreen.jsx",
+      "frontend/src/components/SummaryPanel.jsx",
+      "frontend/src/components/SttStatusBar.jsx",
+      "frontend/src/index.css"
+    ],
+    "commands": [],
+    "assumptions": [],
+    "unresolvedIssues": []
+  },
+  "usage": {
+    "input": 98382,
+    "output": 13871,
+    "cacheRead": 856576,
+    "cacheWrite": 0,
+    "cost": 0.05345312000000001,
+    "totalTokens": 968829,
+    "costBreakdown": {
+      "input": 0.019676400000000007,
+      "output": 0.016645200000000002,
+      "cacheRead": 0.017131519999999997,
+      "cacheWrite": 0
+    },
+    "reasoning": 11415
+  }
+}

@@ -1,0 +1,769 @@
+{
+  "schemaVersion": 6,
+  "checkpointNumber": 1,
+  "runId": "766d7331-786e-4e28-b760-4953b2cca40c",
+  "createdAt": "2026-08-03T21:34:22.557Z",
+  "workspaceDigest": "c4f5000f0931622e074d7eb2235058a147fe14af76469b85d30ba9f2e03ec6d6",
+  "workspaceRoot": "C:\\Projects\\SummarizerApp",
+  "config": {
+    "schemaVersion": 2,
+    "checks": [
+      "npm run build:desktop"
+    ],
+    "dashboard": {
+      "enabled": true,
+      "port": 0
+    },
+    "limits": {
+      "planRevisions": 2,
+      "implementationRetries": 3,
+      "reviewRevisions": 2,
+      "agentTimeoutMs": 1200000,
+      "checkTimeoutMs": 600000,
+      "maxOutputBytes": 262144,
+      "worktreeIsolation": true
+    },
+    "agents": {
+      "explorer": {
+        "model": "deepseek/deepseek-v4-flash",
+        "tools": [
+          "read",
+          "grep",
+          "find",
+          "ls"
+        ],
+        "promptFile": "explorer.md",
+        "thinking": "high"
+      },
+      "planner": {
+        "model": "openai-codex/gpt-5.6-terra",
+        "tools": [
+          "read",
+          "grep",
+          "find",
+          "ls"
+        ],
+        "promptFile": "planner.md",
+        "thinking": "xhigh"
+      },
+      "reviewer": {
+        "model": "openai-codex/gpt-5.6-luna",
+        "tools": [
+          "read",
+          "grep",
+          "find",
+          "ls"
+        ],
+        "promptFile": "reviewer.md",
+        "thinking": "max"
+      },
+      "tester": {
+        "model": "deepseek/deepseek-v4-flash",
+        "tools": [
+          "read",
+          "write",
+          "edit",
+          "grep",
+          "find",
+          "ls"
+        ],
+        "promptFile": "tester.md",
+        "thinking": "high"
+      },
+      "builder": {
+        "model": "openai-codex/gpt-5.6-luna",
+        "tools": [
+          "read",
+          "write",
+          "edit",
+          "grep",
+          "find",
+          "ls"
+        ],
+        "promptFile": "builder.md",
+        "thinking": "max"
+      },
+      "debugger": {
+        "model": "openai-codex/gpt-5.6-terra",
+        "tools": [
+          "read",
+          "grep",
+          "find",
+          "ls"
+        ],
+        "promptFile": "debugger.md",
+        "thinking": "xhigh"
+      },
+      "documenter": {
+        "model": "deepseek/deepseek-v4-flash",
+        "tools": [
+          "read",
+          "write",
+          "edit",
+          "grep",
+          "find",
+          "ls"
+        ],
+        "promptFile": "documenter.md",
+        "thinking": "high"
+      },
+      "interviewer": {
+        "model": "openai-codex/gpt-5.6-sol",
+        "tools": [
+          "read",
+          "grep",
+          "find",
+          "ls"
+        ],
+        "promptFile": "interviewer.md",
+        "thinking": "high"
+      }
+    },
+    "humanInTheLoop": {
+      "planApproval": true,
+      "planRevisionApproval": false,
+      "confirmBeforeMutation": true,
+      "importantDecisions": true,
+      "finalDeliveryApproval": true,
+      "diagnosisApproval": "low_confidence"
+    }
+  },
+  "configDigest": "54e13f2b056c9cc95279952a0ea99d804496a8dae1541cc0206315e7135061e8",
+  "memoryMode": "empty",
+  "memoryRevision": 0,
+  "memoryDigest": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+  "selectedMemoryIds": [],
+  "validatedChangedFiles": [],
+  "validatedFileAttestations": [],
+  "baselineRepaired": false,
+  "baselineContext": {
+    "gitHead": "9a710d481498298511d3cf6c2a3b5f3d65192199",
+    "hasUncommittedChanges": true,
+    "hasStagedChanges": false,
+    "diffVsHead": "diff --git a/backend/index.js b/backend/index.js\nindex c75de79..362a3fc 100644\n--- a/backend/index.js\n+++ b/backend/index.js\n@@ -6,634 +6,146 @@ const { PrismaClient } = require('@prisma/client');\n require('dotenv').config();\n const OpenAI = require('openai');\n const Anthropic = require('@anthropic-ai/sdk');\n-const { truncateSegments } = require('./tokenEstimator');\n-const { SUMMARY_SCHEMA, resolveLlmConfig, parseSummaryText, SummaryFormatError } = require('./llmConfig');\n-const { CaptionHistoryError, getCaptionHistoryPage } = require('./captionHistory');\n+\n+const { createSummaryFeature } = require('./features/summary');\n+const { createMeetingFeature } = require('./features/meeting');\n+const { createCaptionFeature } = require('./features/caption');\n \n const DEBUG = false;\n const debugLog = DEBUG ? (...args) => console.log(...args) : () => {};\n \n-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\n-\n-const app = express();\n-const server = http.createServer(app);\n-const configuredCorsOrigin = process.env.CORS_ORIGIN || \"*\";\n-const localOriginPattern = /^https?:\\/\\/(localhost|127\\.0\\.0\\.1)(:\\d+)?$/;\n-const resolveCorsOrigin = (origin, callback) => {\n-  if (configuredCorsOrigin === \"*\") return callback(null, true);\n-  if (!origin || origin === 'null' || origin === configuredCorsOrigin || localOriginPattern.test(origin)) {\n-    return callback(null, true);\n-  }\n-  return callback(new Error(`Origin ${origin} is not allowed by CORS`));\n-};\n-const io = new Server(server, {\n-  cors: {\n-    origin: resolveCorsOrigin,\n-  }\n-});\n-\n-const prisma = new PrismaClient();\n-\n-app.use(cors({ origin: resolveCorsOrigin }));\n-app.use(express.json());\n-\n-// Health Check\n-app.get('/health', async (req, res) => {\n-  try {\n-    await prisma.$queryRaw`SELECT 1`;\n-    res.json({ status: 'ok', database: 'connected' });\n-  } catch (error) {\n-    console.error('Health check failed:', error);\n-    res.status(503).json({ status: 'error', database: 'disconnected'",
+    "untrackedFiles": [
+      ".pi/orchestrator/config.json",
+      ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/requirements.json",
+      ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/requirements.md",
+      ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-1-interviewer-ask_questions-invocation-1-output.json",
+      ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-1-interviewer-ask_questions-invocation-1-transcript.json",
+      ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-2-interviewer-assess-invocation-1-output.json",
+      ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-2-interviewer-assess-invocation-1-transcript.json",
+      ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-3-interviewer-ask_questions-invocation-1-output.json",
+      ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-3-interviewer-ask_questions-invocation-1-transcript.json",
+      ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-4-interviewer-assess-invocation-1-output.json",
+      ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-4-interviewer-assess-invocation-1-transcript.json",
+      ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-5-interviewer-finalize-invocation-1-output.json",
+      ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-5-interviewer-finalize-invocation-1-transcript.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/requirements.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/requirements.md",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-1-interviewer-ask_questions-invocation-1-output.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-1-interviewer-ask_questions-invocation-1-transcript.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-2-interviewer-assess-invocation-1-output.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-2-interviewer-assess-invocation-1-transcript.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-3-interviewer-ask_questions-invocation-1-output.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-3-interviewer-ask_questions-invocation-1-transcript.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-4-interviewer-assess-invocation-1-output.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-4-interviewer-assess-invocation-1-transcript.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-5-interviewer-finalize-invocation-1-output.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-5-interviewer-finalize-invocation-1-transcript.json",
+      ".pi/orchestrator/runs/766d7331-786e-4e28-b760-4953b2cca40c/run-lease.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/001-exploring-explorer-invocation-1-file-diff.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/001-exploring-explorer-invocation-1-transcript.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/001-exploring-explorer-mutation.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/001-exploring-explorer-output.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/002-planning-planner-revision-0-invocation-1-file-diff.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/002-planning-planner-revision-0-invocation-1-transcript.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/002-planning-planner-revision-0-mutation.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/002-planning-planner-revision-0-output.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/003-baseline-checks.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/004-baseline-debugger-invocation-1-file-diff.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/004-baseline-debugger-invocation-1-transcript.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/004-baseline-debugger-mutation.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/004-baseline-debugger-output.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/005-baseline-planner-invocation-1-file-diff.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/005-baseline-planner-invocation-1-transcript.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/005-baseline-planner-mutation.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/005-baseline-planner-output.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/006-baseline-builder-invocation-1-file-diff.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/006-baseline-builder-invocation-1-transcript.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/006-baseline-builder-mutation.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/006-baseline-builder-output.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/007-baseline-baseline-verify.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/008-baseline-baseline-verify.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/baseline-fix-plan.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/baseline.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-000001.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-000002.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-000003.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-000004.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-000005.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-000006.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-000007.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-000008.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-000009.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-latest.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/events.jsonl",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/manifest.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/plan.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/resume-precondition-error.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/state.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/worktree.json",
+      ".pi/orchestrator/worktrees/eb394525-dc86-46f9-86ae-59d136b310a9/",
+      "backend/features/caption.js",
+      "backend/features/meeting.js",
+      "backend/features/summary.js",
+      "backend/test/caption.test.js",
+      "backend/test/meeting.test.js",
+      "backend/test/serverContracts.test.js",
+      "backend/test/summary.test.js",
+      "docs/specs/backend-refactor-spec.md"
+    ],
+    "statusPorcelain": " M backend/index.js\n M backend/package-lock.json\n M backend/package.json\n?? .pi/\n?? backend/features/\n?? backend/test/caption.test.js\n?? backend/test/meeting.test.js\n?? backend/test/serverContracts.test.js\n?? backend/test/summary.test.js\n?? docs/specs/\n",
+    "diffArtifact": "baseline-diff.patch"
+  },
+  "baselineReviewContext": {
+    "summary": {
+      "gitHead": "9a710d481498298511d3cf6c2a3b5f3d65192199",
+      "hasUncommittedChanges": true,
+      "hasStagedChanges": false,
+      "diffVsHead": "diff --git a/backend/index.js b/backend/index.js\nindex c75de79..362a3fc 100644\n--- a/backend/index.js\n+++ b/backend/index.js\n@@ -6,634 +6,146 @@ const { PrismaClient } = require('@prisma/client');\n require('dotenv').config();\n const OpenAI = require('openai');\n const Anthropic = require('@anthropic-ai/sdk');\n-const { truncateSegments } = require('./tokenEstimator');\n-const { SUMMARY_SCHEMA, resolveLlmConfig, parseSummaryText, SummaryFormatError } = require('./llmConfig');\n-const { CaptionHistoryError, getCaptionHistoryPage } = require('./captionHistory');\n+\n+const { createSummaryFeature } = require('./features/summary');\n+const { createMeetingFeature } = require('./features/meeting');\n+const { createCaptionFeature } = require('./features/caption');\n \n const DEBUG = false;\n const debugLog = DEBUG ? (...args) => console.log(...args) : () => {};\n \n-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\n-\n-const app = express();\n-const server = http.createServer(app);\n-const configuredCorsOrigin = process.env.CORS_ORIGIN || \"*\";\n-const localOriginPattern = /^https?:\\/\\/(localhost|127\\.0\\.0\\.1)(:\\d+)?$/;\n-const resolveCorsOrigin = (origin, callback) => {\n-  if (configuredCorsOrigin === \"*\") return callback(null, true);\n-  if (!origin || origin === 'null' || origin === configuredCorsOrigin || localOriginPattern.test(origin)) {\n-    return callback(null, true);\n-  }\n-  return callback(new Error(`Origin ${origin} is not allowed by CORS`));\n-};\n-const io = new Server(server, {\n-  cors: {\n-    origin: resolveCorsOrigin,\n-  }\n-});\n-\n-const prisma = new PrismaClient();\n-\n-app.use(cors({ origin: resolveCorsOrigin }));\n-app.use(express.json());\n-\n-// Health Check\n-app.get('/health', async (req, res) => {\n-  try {\n-    await prisma.$queryRaw`SELECT 1`;\n-    res.json({ status: 'ok', database: 'connected' });\n-  } catch (error) {\n-    console.error('Health check failed:', error);\n-    res.status(503).json({ status: 'error', database: 'disconnected'",
+      "untrackedFiles": [
+        ".pi/orchestrator/config.json",
+        ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/requirements.json",
+        ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/requirements.md",
+        ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-1-interviewer-ask_questions-invocation-1-output.json",
+        ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-1-interviewer-ask_questions-invocation-1-transcript.json",
+        ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-2-interviewer-assess-invocation-1-output.json",
+        ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-2-interviewer-assess-invocation-1-transcript.json",
+        ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-3-interviewer-ask_questions-invocation-1-output.json",
+        ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-3-interviewer-ask_questions-invocation-1-transcript.json",
+        ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-4-interviewer-assess-invocation-1-output.json",
+        ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-4-interviewer-assess-invocation-1-transcript.json",
+        ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-5-interviewer-finalize-invocation-1-output.json",
+        ".pi/orchestrator/requirements/82274a03-6559-499a-8ca2-d272aed4a017/step-5-interviewer-finalize-invocation-1-transcript.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/requirements.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/requirements.md",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-1-interviewer-ask_questions-invocation-1-output.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-1-interviewer-ask_questions-invocation-1-transcript.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-2-interviewer-assess-invocation-1-output.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-2-interviewer-assess-invocation-1-transcript.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-3-interviewer-ask_questions-invocation-1-output.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-3-interviewer-ask_questions-invocation-1-transcript.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-4-interviewer-assess-invocation-1-output.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-4-interviewer-assess-invocation-1-transcript.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-5-interviewer-finalize-invocation-1-output.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-5-interviewer-finalize-invocation-1-transcript.json",
+        ".pi/orchestrator/runs/766d7331-786e-4e28-b760-4953b2cca40c/run-lease.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/001-exploring-explorer-invocation-1-file-diff.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/001-exploring-explorer-invocation-1-transcript.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/001-exploring-explorer-mutation.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/001-exploring-explorer-output.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/002-planning-planner-revision-0-invocation-1-file-diff.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/002-planning-planner-revision-0-invocation-1-transcript.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/002-planning-planner-revision-0-mutation.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/002-planning-planner-revision-0-output.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/003-baseline-checks.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/004-baseline-debugger-invocation-1-file-diff.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/004-baseline-debugger-invocation-1-transcript.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/004-baseline-debugger-mutation.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/004-baseline-debugger-output.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/005-baseline-planner-invocation-1-file-diff.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/005-baseline-planner-invocation-1-transcript.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/005-baseline-planner-mutation.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/005-baseline-planner-output.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/006-baseline-builder-invocation-1-file-diff.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/006-baseline-builder-invocation-1-transcript.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/006-baseline-builder-mutation.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/006-baseline-builder-output.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/007-baseline-baseline-verify.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/008-baseline-baseline-verify.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/baseline-fix-plan.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/baseline.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-000001.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-000002.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-000003.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-000004.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-000005.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-000006.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-000007.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-000008.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-000009.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/checkpoint-latest.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/events.jsonl",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/manifest.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/plan.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/resume-precondition-error.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/state.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/worktree.json",
+        ".pi/orchestrator/worktrees/eb394525-dc86-46f9-86ae-59d136b310a9/",
+        "backend/features/caption.js",
+        "backend/features/meeting.js",
+        "backend/features/summary.js",
+        "backend/test/caption.test.js",
+        "backend/test/meeting.test.js",
+        "backend/test/serverContracts.test.js",
+        "backend/test/summary.test.js",
+        "docs/specs/backend-refactor-spec.md"
+      ],
+      "statusPorcelain": " M backend/index.js\n M backend/package-lock.json\n M backend/package.json\n?? .pi/\n?? backend/features/\n?? backend/test/caption.test.js\n?? backend/test/meeting.test.js\n?? backend/test/serverContracts.test.js\n?? backend/test/summary.test.js\n?? docs/specs/\n",
+      "diffArtifact": "baseline-diff.patch"
+    },
+    "artifacts": {
+      "baselineJson": ".pi/orchestrator/runs/766d7331-786e-4e28-b760-4953b2cca40c/baseline.json",
+      "headDiffPatch": ".pi/orchestrator/runs/766d7331-786e-4e28-b760-4953b2cca40c/baseline-diff.patch"
+    }
+  },
+  "lessonStatus": "skipped",
+  "mutationConfirmed": false,
+  "state": {
+    "schemaVersion": 2,
+    "extensionVersion": "0.0.0",
+    "runId": "766d7331-786e-4e28-b760-4953b2cca40c",
+    "request": "Goal: Add a light theme for the app while retaining the existing dark theme.\nThe app will default to dark mode and provide a persistent light-mode alternative. Users can switch themes through synchronized quick and Settings controls, with changes applied immediately. Light mode covers all rendered interface states using neutral white and light-slate surfaces, preserves blue-violet accents, keeps media areas dark, meets WCAG AA contrast requirements, and uses a reduced-motion-aware color transition.\nScope: Retain the existing dark theme and add light mode as an alternative.; Apply light styling to join, meeting, settings, loading, and error states.; Provide a quick theme toggle in the top-right header on both join and meeting screens.; Rename the existing settings modal to Settings and add an Appearance section near the top.; Persist the selected theme indefinitely in the renderer profile until changed or app data is cleared.\nConstraints: Dark mode remains the default when no saved preference exists.; Light mode uses neutral white and light-slate surfaces while preserving existing blue-violet accents.; Video tiles and media overlays remain dark in light mode.; Theme selection affects only the rendered interface; native Electron window chrome remains OS-managed.; Theme controls must stay synchronized and satisfy WCAG AA contrast, visible-focus, and control-readability requirements.; Theme transitions must respect reduced-motion preferences.\nAcceptance criteria: On first launch without a saved preference, the rendered interface uses dark mode.; Users can switch between light and dark themes using either the header toggle or the Appearance selector in Settings.; Changing the theme updates the open app immediately, and both controls display the same selected theme.; The selected theme remains active across app restarts until changed or renderer app data is cleared.; Light styling is present across join, meeting, settings, loading, and error states, while video tiles and media overlays remain dark.; The quick control is a sun/moon icon button with an accessible label and tooltip in the top-right header of join and meeting screens.; Light-theme text and controls meet WCAG AA contrast, have visible focus indicators, and remain readable.; Theme switching uses a brief color transition, which is suppressed or reduced when the user prefers reduced motion.; Changing the rendered theme does not alter native Electron window chrome.",
+    "route": "quick_implementation",
+    "cwd": "C:\\Projects\\SummarizerApp",
+    "runDir": "C:\\Projects\\SummarizerApp\\.pi\\orchestrator\\runs\\766d7331-786e-4e28-b760-4953b2cca40c",
+    "stage": "planning",
+    "status": "paused",
+    "attempt": 0,
+    "startedAt": "2026-08-03T21:28:23.376Z",
+    "updatedAt": "2026-08-03T21:34:22.118Z",
+    "agents": {
+      "explorer": {
+        "status": "succeeded",
+        "model": "deepseek/deepseek-v4-flash",
+        "startedAt": "2026-08-03T21:28:23.562Z",
+        "summary": "```json\n{\n  \"architecture\": \"React 19 + Vite 7 renderer (Electron file:// via frontend/dist/index.html) styled exclusively with hardcoded dark Tailwind v4 utility classes; there is no existing theme system, no prefers-color-scheme handling, and no semantic color tokens in components. App.jsx owns all screens: startupError/loading early returns (bg-[#0a0a0a]), JoinScreen (header bg-slate-950/55), and the meeting screen (root bg-[radial-gradient(...),#080a10], header bg-slate-950/70, sidebar bg-sl",
+        "completedAt": "2026-08-03T21:31:30.214Z"
+      },
+      "planner": {
+        "status": "succeeded",
+        "model": "openai-codex/gpt-5.6-terra",
+        "startedAt": "2026-08-03T21:31:30.216Z",
+        "summary": "{\"route\":\"quick_implementation\",\"summary\":\"Add a renderer-local persisted theme preference, synchronized light/dark controls, and scoped semantic light-theme styling while retaining dark media surfaces and Electron-managed chrome.\",\"assumptions\":[\"A raw renderer localStorage preference key is appropriate for indefinite persistence and must remain separate from the existing 24-hour expiry wrapper.\",\"The existing Node test runner can unit-test theme preference resolution and persistence; rendered ",
+        "completedAt": "2026-08-03T21:34:22.412Z"
+      },
+      "reviewer": {
+        "status": "idle",
+        "model": "openai-codex/gpt-5.6-luna"
+      },
+      "tester": {
+        "status": "idle",
+        "model": "deepseek/deepseek-v4-flash"
+      },
+      "builder": {
+        "status": "idle",
+        "model": "openai-codex/gpt-5.6-luna"
+      },
+      "debugger": {
+        "status": "idle",
+        "model": "openai-codex/gpt-5.6-terra"
+      },
+      "documenter": {
+        "status": "idle",
+        "model": "deepseek/deepseek-v4-flash"
+      },
+      "interviewer": {
+        "status": "idle",
+        "model": "openai-codex/gpt-5.6-sol"
+      }
+    },
+    "steps": [
+      {
+        "id": "step-001",
+        "sequence": 1,
+        "stage": "exploring",
+        "label": "Explore repository",
+        "status": "succeeded",
+        "agent": "explorer",
+        "startedAt": "2026-08-03T21:28:23.562Z",
+        "invocations": [
+          {
+            "sequence": 1,
+            "mode": "execute",
+            "status": "succeeded",
+            "startedAt": "2026-08-03T21:28:23.790Z",
+            "messageCount": 63,
+            "truncated": false,
+            "usage": {
+              "input": 74450,
+              "output": 18009,
+              "cacheRead": 967040,
+              "cacheWrite": 0,
+              "cost": 0.018173232,
+              "totalTokens": 1059499,
+              "costBreakdown": {
+                "input": 0.010423,
+                "output": 0.005042520000000001,
+                "cacheRead": 0.0027077119999999997,
+                "cacheWrite": 0
+              },
+              "reasoning": 11148
+            },
+            "provider": "deepseek",
+            "model": "deepseek-v4-flash",
+            "api": "openai-completions",
+            "stopReason": "stop",
+            "completedAt": "2026-08-03T21:31:29.801Z",
+            "transcriptArtifact": "001-exploring-explorer-invocation-1-transcript.json",
+            "fileDiffArtifact": "001-exploring-explorer-invocation-1-file-diff.json",
+            "changedFileCount": 0
+          }
+        ],
+        "mutationArtifact": "001-exploring-explorer-mutation.json",
+        "artifact": "001-exploring-explorer-output.json",
+        "message": "explorer completed",
+        "completedAt": "2026-08-03T21:31:30.214Z"
+      },
+      {
+        "id": "step-002",
+        "sequence": 2,
+        "stage": "planning",
+        "label": "Create selected-route plan",
+        "status": "succeeded",
+        "agent": "planner",
+        "revision": 0,
+        "startedAt": "2026-08-03T21:31:30.216Z",
+        "invocations": [
+          {
+            "sequence": 1,
+            "mode": "execute",
+            "status": "succeeded",
+            "startedAt": "2026-08-03T21:31:30.345Z",
+            "messageCount": 30,
+            "truncated": false,
+            "usage": {
+              "input": 52036,
+              "output": 9109,
+              "cacheRead": 113664,
+              "cacheWrite": 0,
+              "cost": 0.2361128,
+              "totalTokens": 174809,
+              "costBreakdown": {
+                "input": 0.104072,
+                "output": 0.10930800000000002,
+                "cacheRead": 0.022732800000000004,
+                "cacheWrite": 0
+              },
+              "reasoning": 7325
+            },
+            "provider": "openai-codex",
+            "model": "gpt-5.6-terra",
+            "api": "openai-codex-responses",
+            "stopReason": "stop",
+            "completedAt": "2026-08-03T21:34:21.884Z",
+            "transcriptArtifact": "002-planning-planner-revision-0-invocation-1-transcript.json",
+            "fileDiffArtifact": "002-planning-planner-revision-0-invocation-1-file-diff.json",
+            "changedFileCount": 0
+          }
+        ],
+        "mutationArtifact": "002-planning-planner-revision-0-mutation.json",
+        "artifact": "002-planning-planner-revision-0-output.json",
+        "message": "planner completed",
+        "completedAt": "2026-08-03T21:34:22.412Z"
+      }
+    ],
+    "dashboardUrl": "http://127.0.0.1:54036",
+    "message": "planner is running",
+    "currentTool": "find",
+    "currentToolArgs": "{\"path\":\"frontend/src\",\"pattern\":\"**/*.jsx\"}",
+    "agentOutput": [
+      " media",
+      " overlays",
+      ".",
+      "\"]",
+      "}"
+    ],
+    "toolStatus": "ok",
+    "pendingDecision": {
+      "schemaVersion": 1,
+      "id": "decision-1785792862415-1",
+      "kind": "plan_approval",
+      "label": "Plan approval",
+      "requestedAt": "2026-08-03T21:34:22.415Z",
+      "resume": {
+        "point": "plan_decision",
+        "reviewIndex": 0
+      }
+    },
+    "waitingFor": "Plan approval",
+    "humanGate": {
+      "kind": "plan_approval",
+      "label": "Plan approval",
+      "startedAt": "2026-08-03T21:34:22.415Z"
+    },
+    "milestones": [
+      {
+        "id": "decision:decision-1785792862415-1:requested",
+        "sequence": 1,
+        "kind": "human_decision_requested",
+        "title": "Plan awaiting review",
+        "details": "**Decision:** Plan approval\n\n# Implementation Plan\n\n**Route:** quick_implementation (selected by user)\n\n## Summary\n\nAdd a renderer-local persisted theme preference, synchronized light/dark controls, and scoped semantic light-theme styling while retaining dark media surfaces and Electron-managed chrome.\n\n## Acceptance Criteria\n\n- [ ] With no saved theme preference, the theme resolver and initial rendered interface use dark mode.\n- [ ] Either header theme button or the Settings Appearance selector switches between light and dark themes.\n- [ ] A theme change updates the open interface immediately and both available controls reflect the selected theme.\n- [ ] The saved theme remains selected after restarting the app profile until it is changed or renderer app data is cleared.\n- [ ] Light mode provides white and light-slate styling for join, meeting, Settings, loading, error, sidebar, captions, summary, and status states while video tiles and media-control overlays remain dark.\n- [ ] Both join and meeting headers provide a top-right sun/moon icon button with an accessible action label, native tooltip, readable state, and visible keyboard focus.\n- [ ] Light-theme text, form controls, and interactive controls use AA-contrast role colors and visible focus indicators.\n- [ ] Theme color changes use a brief transition that is removed or reduced for prefers-reduced-motion users.\n- [ ] Changing the renderer theme does not alter native Electron window chrome.\n\n## Tasks\n\n### 1. theme-preference-foundation\n\nCreate a small browser-safe theme utility with dark/light validation, a dark fallback, raw non-expiring localStorage persistence, and document theme-attribute application. Add an index preflight that applies only a valid saved light preference before React mounts, leaving dark as the no-preference default.\n\n**Files:** frontend/src/utils/theme.js, frontend/index.html\n\n**Verification:**\n- Run `npm --prefix frontend test -- test/theme.test.js` and verify missing or invalid preferences resolve to dark, while a saved light preference is read back by a fresh resolver instance without expiry metadata.\n- Inspect the preflight and utility key usage to confirm they use the same raw renderer-local preference and that no Electron main-process or preload API is involved.\n\n### 2. theme-controls-and-light-surfaces\n\nWire the persisted App theme state and stable toggle handler into both JoinScreen and both SettingsModal call sites; set the document theme immediately on change. Add sun/moon header icon toggles with dynamic accessible labels, title tooltips, and focus styling; rename the modal heading to Settings and add an Appearance light/dark selector near its top. Introduce scoped token/role classes in index.css for dark defaults and neutral white/light-slate light surfaces, AA-safe primary/muted/accent text, borders, inputs, hover states, and color-only transitions with a reduced-motion override. Apply those roles across App loading/error/meeting/sidebar content and JoinScreen, SettingsModal, CaptionPanel, SummaryPanel, and SttStatusBar; explicitly retain the existing dark treatment for camera previews, VideoView tiles, and MeetingControls media overlay boundaries. Replace the global focus-outline suppression with visible focus-visible treatment without changing Electron window configuration.\n\n**Files:** frontend/src/App.jsx, frontend/src/index.css, frontend/src/components/JoinScreen.jsx, frontend/src/components/SettingsModal.jsx, frontend/src/components/CaptionPanel.jsx, frontend/src/components/SummaryPanel.jsx, frontend/src/components/SttStatusBar.jsx, frontend/src/components/VideoView.jsx, frontend/src/components/MeetingControls.jsx\n\n**Depends on:** 1. theme-preference-foundation\n\n**Verification:**\n- Run `npm --prefix frontend test`, `npm --prefix frontend run lint`, and `npm --prefix frontend run build`.\n- Run `npm run dev:local`; after clearing renderer app data, verify loading, error, join, and meeting interfaces initially render dark. Switch themes from each header and from Settings Appearance, confirming immediate synchronized updates and persistence after restarting without clearing app data.\n- In light mode, manually inspect join, meeting/sidebar tabs and benchmark cards, settings, captions, summary, STT status, loading, and error states; confirm white/light-slate interface surfaces, dark video tiles/preview/meeting controls, readable blue-violet accents, visible keyboard focus, and no native window-chrome change.\n- Emulate `prefers-reduced-motion: reduce` in Electron/Chromium DevTools and confirm color transitions are suppressed or reduced; use a contrast checker on representative normal-size primary, muted, label, input, and theme-control text against their light surfaces.\n\n## Assumptions\n\n- A raw renderer localStorage preference key is appropriate for indefinite persistence and must remain separate from the existing 24-hour expiry wrapper.\n- The existing Node test runner can unit-test theme preference resolution and persistence; rendered UI accessibility and cross-screen appearance require manual Electron verification.\n\n## Risks\n\n- The renderer has no component/DOM test harness, so the automated coverage is limited to preference behavior; visual synchronization, contrast, focus, media exceptions, and motion behavior need the specified Electron checks.\n- Native select popup styling and Electron window chrome are OS-managed; the implementation should style the rendered select control only and must not attempt to change native chrome.\n- A missed hardcoded dark utility can leave a light-mode surface or muted label unreadable; scoped semantic role classes must be applied to every listed rendered component rather than globally remapping Tailwind colors, which would also break white text on accent buttons and dark media overlays.",
+        "occurredAt": "2026-08-03T21:34:22.416Z",
+        "decisionId": "decision-1785792862415-1"
+      }
+    ]
+  },
+  "cursor": {
+    "kind": "human_decision_pending",
+    "continuation": {
+      "request": {
+        "schemaVersion": 1,
+        "id": "decision-1785792862415-1",
+        "kind": "plan_approval",
+        "label": "Plan approval",
+        "requestedAt": "2026-08-03T21:34:22.415Z",
+        "resume": {
+          "point": "plan_decision",
+          "reviewIndex": 0
+        }
+      }
+    }
+  },
+  "bindings": {
+    "exploration": {
+      "architecture": "React 19 + Vite 7 renderer (Electron file:// via frontend/dist/index.html) styled exclusively with hardcoded dark Tailwind v4 utility classes; there is no existing theme system, no prefers-color-scheme handling, and no semantic color tokens in components. App.jsx owns all screens: startupError/loading early returns (bg-[#0a0a0a]), JoinScreen (header bg-slate-950/55), and the meeting screen (root bg-[radial-gradient(...),#080a10], header bg-slate-950/70, sidebar bg-slate-950/80 hosting SummaryPanel/CaptionPanel/bench UI/SttStatusBar, VideoView tiles, floating MeetingControls bar bg-slate-950/75, SettingsModal overlay bg-black/80 with bg-[#111] panel titled 'Device Settings'). Persistence is renderer localStorage via App.jsx 'storage' helper (24h-expiry JSON wrapper; keys stt_config, llm_config, recent_rooms); Electron sets userData from ELECTRON_USER_DATA_DIR (desktop/main.js:14) with the default session, so localStorage persists per profile (scripts/run-electron-instance.js gives each dev instance its own tmp dir). Theme state must live in App.jsx and flow into JoinScreen (header toggle + SettingsModal), the meeting header (toggle), and SettingsModal (Appearance section + title change from 'Device Settings' to 'Settings'). Media areas that must stay dark: VideoView root bg-slate-950 + black overlay nameplates, JoinScreen preview container bg-slate-950 + bg-black/35|40 badges/control bar, and the MeetingControls bar. index.css ends with global 'input:focus, select:focus, button:focus { outline: none }', which conflicts with the visible-focus acceptance criterion; SummaryPanel already opts back in with focus-visible:outline-2 on some buttons. frontend tests are utility-only (captions.test.js -> mergeCaptions; llmModels.test.js -> normalizeLlmConfig); no component/DOM/integration test renders any screen, so no structural-count test assertions exist for the themed UI.",
+      "relevantFiles": [
+        "frontend/src/index.css",
+        "frontend/src/main.jsx",
+        "frontend/src/App.jsx",
+        "frontend/src/components/JoinScreen.jsx",
+        "frontend/src/components/SettingsModal.jsx",
+        "frontend/src/components/MeetingControls.jsx",
+        "frontend/src/components/VideoView.jsx",
+        "frontend/src/components/CaptionPanel.jsx",
+        "frontend/src/components/SummaryPanel.jsx",
+        "frontend/src/components/SttStatusBar.jsx",
+        "frontend/index.html",
+        "desktop/main.js",
+        "scripts/run-electron-instance.js",
+        "frontend/test/captions.test.js",
+        "frontend/test/llmModels.test.js",
+        "frontend/package.json",
+        "frontend/postcss.config.js",
+        "frontend/vite.config.js",
+        "frontend/src/App.css"
+      ],
+      "conventions": [
+        "All styling is inline Tailwind utility classes; dark palette is hardcoded (bg-slate-950/*, bg-white/[0.03..0.07], text-white, text-slate-*, border-white/10), with arbitrary hex values bg-[#0a0a0a] and bracket opacities bg-white/[0.04]",
+        "Renderer persistence uses the App.jsx localStorage 'storage' wrapper (JSON with expiry) under snake_case keys: stt_config, llm_config, recent_rooms",
+        "Icons are individually named lucide-react imports (package lucide-react ^0.562.0 includes Sun/Moon)",
+        "Components are default-exported and wrapped in React.memo (JoinScreen, SettingsModal)",
+        "Visible-focus convention already exists in SummaryPanel via Tailwind focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 on icon buttons",
+        "index.css carries global fixes: 'option { color: black; }' for native select listboxes and ':root' vars --background/--foreground/--border consumed by body",
+        "No formatter is configured; ESLint flat config errors on no-unused-vars with varsIgnorePattern '^[A-Z_]'; follow surrounding file style",
+        "frontend/src/App.css is dead boilerplate (never imported by main.jsx or App.jsx) and should not be touched"
+      ],
+      "similarImplementations": [
+        "frontend/src/App.jsx storage helper (lines ~38-60): the established persistence pattern to mirror for indefinite theme persistence",
+        "frontend/src/components/SummaryPanel.jsx focus-visible:outline-2 focus-visible:outline-blue-400 buttons: the existing visible-focus convention to extend to the theme toggle",
+        "frontend/src/components/JoinScreen.jsx header right-side slot (lines 210-213, 'Audio local' pill) and App.jsx header right-side cluster (lines 734-760, STT pill / E2E pill / sidebar button): where the sun/moon quick toggle must be added",
+        "No existing theme implementation exists anywhere in the repo; light mode is net-new"
+      ],
+      "commands": [
+        "npm --prefix frontend test",
+        "npm --prefix frontend run lint",
+        "npm --prefix frontend run build",
+        "npm run build:renderer",
+        "npm run dev:local",
+        "npx eslint <path> (run with frontend/ as working directory so its flat config resolves)"
+      ],
+      "risks": [
+        "No theme system exists: light styling requires either per-element Tailwind overrides across 8 JSX components or a CSS [data-theme=\"light\"] override layer keyed on exact utility classes (class selectors must escape '/' and '[', e.g. .bg-white\\/[0\\.04]); a Tailwind --color-* variable remap is tempting but breaks gradient-button text (text-white on from-blue-500 to-violet-500 must stay white in both themes) and would invert dark media overlays",
+        "index.css global 'input:focus, select:focus, button:focus { outline: none }' and the modal <select> classes 'focus:outline-none' must be replaced with focus-visible rings to meet the WCAG AA visible-focus criterion",
+        "The storage helper defaults to a 24h expiry; storing the theme through it would not satisfy 'persist indefinitely' — a raw localStorage write or no-expiry variant is required",
+        "Loading and error states are separate early-return JSX blocks in App.jsx (lines 662-676) hardcoded bg-[#0a0a0a]; they must be included in light styling and the html/body background (index.css :root --background: #0f0f0f) must follow the theme to avoid flash on restart",
+        "WCAG AA on small labels: text-slate-400/text-gray-400 on near-white is about 2.9:1 (fails AA normal text); the light palette must darken muted text, and hover states like hover:bg-white/[0.08] hover:text-white need dark equivalents",
+        "Media areas (VideoView root bg-slate-950 with bg-black/45 nameplate, JoinScreen preview bg-slate-950 with bg-black/35|40 controls, MeetingControls bar bg-slate-950/75) must be explicitly re-darkened or excluded from light overrides",
+        "Passing new setTheme callback props into React.memo(JoinScreen)/React.memo(SettingsModal) bypasses memoization unless the callbacks are stable (useCallback)",
+        "No automated DOM/integration tests exist for the renderer, so acceptance criteria must be verified manually via npm run dev:local (two windows: npm run dev:two-electron); theme behavior has no test coverage",
+        "Native <select> dropdown listboxes are OS-rendered (like window chrome); only the existing 'option { color: black }' rule governs their text, so full control over that surface is limited"
+      ],
+      "knownLessons": [
+        "AGENTS.md: preserve 'base: \"./\"' in frontend/vite.config.js; Electron loads frontend/dist/index.html, not the Vite dev server",
+        "AGENTS.md: keep Electron capabilities behind the preload bridge; theme is pure renderer state (localStorage) so no preload/desktop change is needed",
+        "AGENTS.md: no formatter configured, follow surrounding file style; do not commit frontend/dist or benchmark output",
+        "AGENTS.md: update docs (README/TESTING/benchmark) only when setup commands, launch modes, or operational constraints change; the theme feature does not alter commands, so no documentation edit is required",
+        "docs/TESTING.md: renderer is not browser-standalone; verify the themed app through npm run dev:local (single instance) or npm run dev:two-electron (separate user-data profiles)"
+      ],
+      "evidence": [
+        {
+          "path": "frontend/src/index.css",
+          "detail": "Line 1 '@import \"tailwindcss\"' (Tailwind v4 via @tailwindcss/postcss); lines 9-13 :root defines --background #0f0f0f, --foreground #ffffff, --border; body consumes the vars (lines 20-28); line 7 'option { color: black; }'; final rule (lines ~228-231) globally sets 'input:focus, select:focus, button:focus { outline: none; }' which suppresses focus indicators"
+        },
+        {
+          "path": "frontend/src/main.jsx",
+          "detail": "Only entry: imports './index.css' and renders <App /> into #root inside <StrictMode>; no other global CSS is imported"
+        },
+        {
+          "path": "frontend/src/App.jsx",
+          "detail": "Lines 38-60: 'storage' localStorage wrapper with 24h default expiry (set(name, value, hours)); used with snake_case keys stt_config/llm_config/recent_rooms. Theme state and persistence should follow this module-local pattern"
+        },
+        {
+          "path": "frontend/src/App.jsx",
+          "detail": "Lines 662-670 startupError screen and 672-676 loading screen are early returns with hardcoded 'bg-[#0a0a0a] text-white' and 'text-gray-500' text — both must gain light styling"
+        },
+        {
+          "path": "frontend/src/App.jsx",
+          "detail": "Lines 710-760 meeting screen: root 'bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.16),transparent_30%),#080a10] text-white'; header 'min-h-16 bg-slate-950/70 border-b border-white/10'; right cluster at lines 734-760 holds STT pill (bg-purple-500/10 or bg-blue-500/10), E2E pill (bg-emerald-500/10), and sidebar toggle button — the theme toggle belongs in this cluster"
+        },
+        {
+          "path": "frontend/src/App.jsx",
+          "detail": "Lines 859-1001 sidebar: 'bg-slate-950/80 border-l border-white/10' with tab bar bg-slate-950/80 (tabs text-blue-200/bg-blue-500/15 when active, text-slate-500 hover:text-slate-300 when idle), bench cards 'bg-slate-900/70 border-white/10', 'bg-white/[0.04]' panels, 'text-gray-500' labels"
+        },
+        {
+          "path": "frontend/src/App.jsx",
+          "detail": "Lines 1002-1024 render SettingsModal from the meeting screen; JoinScreen is rendered at lines 678-714 when meetingId is null"
+        },
+        {
+          "path": "frontend/src/components/JoinScreen.jsx",
+          "detail": "Header lines 201-213: 'h-14 bg-slate-950/55 border-b border-white/10'; right side holds the emerald 'Audio local' pill (lines 210-213) — the quick theme toggle slot on the join screen"
+        },
+        {
+          "path": "frontend/src/components/JoinScreen.jsx",
+          "detail": "Line 219 media preview container 'bg-slate-950' (must stay dark); badges/control bar use bg-black/35 and bg-black/40 (lines 245-262); text-slate-200/300/400 and text-white inside preview; camera-off placeholder uses radial gradient rgba(30,41,59,0.95),#020617 (line 231)"
+        },
+        {
+          "path": "frontend/src/components/JoinScreen.jsx",
+          "detail": "Interface surfaces to lighten: aside 'bg-slate-950/75' (line 285), info strip 'bg-white/[0.04] text-slate-400' (line 276), inputs 'bg-white/[0.04] text-white placeholder:text-slate-600' (lines 303, 330), recent-rooms 'bg-slate-950/50' (line 373); accent pills bg-blue-400/10, bg-emerald-400/10, bg-violet-300 icons preserved"
+        },
+        {
+          "path": "frontend/src/components/SettingsModal.jsx",
+          "detail": "Line 50 overlay 'fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm'; line 51 modal panel 'bg-[#111] border border-white/10 rounded-2xl'; line 57 title '<h2 className=\"text-xl font-bold\">Device Settings</h2>' — must be renamed to Settings with an Appearance section inserted near the top (before the Camera section starting line 61)"
+        },
+        {
+          "path": "frontend/src/components/SettingsModal.jsx",
+          "detail": "Form controls all use 'bg-white/5 border border-white/10 ... focus:outline-none focus:border-<accent>-500/50' (selects lines 76-79, 90-93, 104-107, 132-135, 249-252, 263-266, 311-314, 320-323, 342-345, 352-355); label convention 'text-[10px] font-black text-gray-500 uppercase tracking-widest'; footer Done button 'bg-[#0E71EB] hover:bg-blue-600 text-white' (lines 386-389)"
+        },
+        {
+          "path": "frontend/src/components/MeetingControls.jsx",
+          "detail": "Line 27 floating control bar 'rounded-[1.75rem] border border-white/10 bg-slate-950/75 ... backdrop-blur-2xl' (media overlay that stays dark); ControlButton (lines 7-20) uses 'border-white/10 bg-white/[0.07] text-slate-100 hover:bg-white/[0.12] hover:text-white' and labels 'text-slate-500' (danger: text-red-300)"
+        },
+        {
+          "path": "frontend/src/components/VideoView.jsx",
+          "detail": "Line 29 tile root 'bg-slate-950 ... border-white/10' (pinned: border-blue-400/25) with gradient overlays from-black/20 via transparent to-black/55 and blue/violet radial tints; nameplate 'bg-black/45' (line 70); avatar 'bg-white/[0.05] text-slate-300' (line 59); muted badge 'bg-red-500/15 text-red-300' (line 85); all must remain dark in light mode"
+        },
+        {
+          "path": "frontend/src/components/CaptionPanel.jsx",
+          "detail": "Interface only: header chip 'border-white/10 bg-white/[0.04]' with 'text-slate-200' title and 'text-slate-600' count (lines 107-112); caption cards 'bg-white/[0.04] hover:bg-white/[0.07]' with 'text-slate-300' body and 'text-blue-300' speaker labels (lines 142-155); 'Load older captions' button 'bg-white/[0.04] text-slate-400' (line 124); empty state 'text-slate-500'"
+        },
+        {
+          "path": "frontend/src/components/SummaryPanel.jsx",
+          "detail": "markdownComponents (lines 22-33) use text-slate-100/300, text-blue-200/300, bg-black/30 code chips; buttons already use 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400' (lines 117, 212, 221, 230); icon buttons 'bg-white/[0.05] text-slate-300 hover:text-white' (lines 221, 230); generate button 'bg-gradient-to-r from-blue-500 to-violet-500 text-white' (line 207) — white-on-gradient must stay white in both themes"
+        },
+        {
+          "path": "frontend/src/components/SttStatusBar.jsx",
+          "detail": "Status bar 'border-t border-white/10 bg-white/[0.03]' (lines 59, 66); model pill 'bg-white/[0.06] border-white/10' with 'text-gray-200' name and 'text-gray-500' backend (lines 95-101); status label 'text-gray-400' (line 106); download progress bar bg-white/10 with blue gradient fill (lines 71-77)"
+        },
+        {
+          "path": "desktop/main.js",
+          "detail": "Line 14: 'app.setPath(\"userData\", process.env.ELECTRON_USER_DATA_DIR)' when set; BrowserWindow (lines 291-305) uses the default session with no custom partition, so renderer localStorage persists under that userData profile — this is the renderer profile the theme preference must live in; no preload/IPC change is needed for theme persistence"
+        },
+        {
+          "path": "scripts/run-electron-instance.js",
+          "detail": "Per-instance ELECTRON_USER_DATA_DIR = os.tmpdir()/summarizeapp-<n> (line 10), so dev:two-electron instances keep independent localStorage/theme profiles"
+        },
+        {
+          "path": "frontend/test/captions.test.js",
+          "detail": "Utility-only tests against mergeCaptions (frontend/src/utils/captions.js); no component rendering, no theme/UI references — nothing to update for the theme change"
+        },
+        {
+          "path": "frontend/test/llmModels.test.js",
+          "detail": "Utility-only tests against normalizeLlmConfig/getActiveApiKey/getSelectedModelId from frontend/src/config/llmModels.js; no structural or rendered-output assertions"
+        },
+        {
+          "path": "frontend/package.json",
+          "detail": "tailwindcss ^4.1.18 with @tailwindcss/postcss; lucide-react ^0.562.0 (named icon imports; Sun/Moon available); scripts: dev, build, lint (eslint .), test (node --test); no test framework beyond node:test — no jsdom/DOM test harness exists"
+        },
+        {
+          "path": "frontend/postcss.config.js",
+          "detail": "Plugins are tailwindcss (@tailwindcss/postcss) and autoprefixer — standard Tailwind v4 pipeline; opacity utilities compile via color-mix, so overriding Tailwind --color-* variables under a theme scope is technically possible but fragile for text-on-gradient and dark media overlays"
+        },
+        {
+          "path": "frontend/vite.config.js",
+          "detail": "base: './' is required for Electron file:// loading (AGENTS.md constraint); theme change must not alter it"
+        },
+        {
+          "path": "frontend/index.html",
+          "detail": "Renders <div id=\"root\"></div>; body/html/#root are styled by index.css (width/height 100%, overflow hidden); no inline background or theme-color meta to update, though a data-theme attribute on <html> set from App state is the natural theme hook"
+        },
+        {
+          "path": "frontend/src/App.css",
+          "detail": "Dead Vite boilerplate (#root max-width 1280px etc.); no file imports it — it must not be used or modified for theming"
+        }
+      ]
+    },
+    "plan": {
+      "route": "quick_implementation",
+      "summary": "Add a renderer-local persisted theme preference, synchronized light/dark controls, and scoped semantic light-theme styling while retaining dark media surfaces and Electron-managed chrome.",
+      "assumptions": [
+        "A raw renderer localStorage preference key is appropriate for indefinite persistence and must remain separate from the existing 24-hour expiry wrapper.",
+        "The existing Node test runner can unit-test theme preference resolution and persistence; rendered UI accessibility and cross-screen appearance require manual Electron verification."
+      ],
+      "acceptanceCriteria": [
+        "With no saved theme preference, the theme resolver and initial rendered interface use dark mode.",
+        "Either header theme button or the Settings Appearance selector switches between light and dark themes.",
+        "A theme change updates the open interface immediately and both available controls reflect the selected theme.",
+        "The saved theme remains selected after restarting the app profile until it is changed or renderer app data is cleared.",
+        "Light mode provides white and light-slate styling for join, meeting, Settings, loading, error, sidebar, captions, summary, and status states while video tiles and media-control overlays remain dark.",
+        "Both join and meeting headers provide a top-right sun/moon icon button with an accessible action label, native tooltip, readable state, and visible keyboard focus.",
+        "Light-theme text, form controls, and interactive controls use AA-contrast role colors and visible focus indicators.",
+        "Theme color changes use a brief transition that is removed or reduced for prefers-reduced-motion users.",
+        "Changing the renderer theme does not alter native Electron window chrome."
+      ],
+      "automatedAcceptanceCriteria": [
+        0,
+        3
+      ],
+      "tasks": [
+        {
+          "id": "theme-preference-foundation",
+          "description": "Create a small browser-safe theme utility with dark/light validation, a dark fallback, raw non-expiring localStorage persistence, and document theme-attribute application. Add an index preflight that applies only a valid saved light preference before React mounts, leaving dark as the no-preference default.",
+          "files": [
+            "frontend/src/utils/theme.js",
+            "frontend/index.html"
+          ],
+          "testSupportFiles": [
+            "frontend/test/theme.test.js"
+          ],
+          "dependencies": [],
+          "verification": [
+            "Run `npm --prefix frontend test -- test/theme.test.js` and verify missing or invalid preferences resolve to dark, while a saved light preference is read back by a fresh resolver instance without expiry metadata.",
+            "Inspect the preflight and utility key usage to confirm they use the same raw renderer-local preference and that no Electron main-process or preload API is involved."
+          ]
+        },
+        {
+          "id": "theme-controls-and-light-surfaces",
+          "description": "Wire the persisted App theme state and stable toggle handler into both JoinScreen and both SettingsModal call sites; set the document theme immediately on change. Add sun/moon header icon toggles with dynamic accessible labels, title tooltips, and focus styling; rename the modal heading to Settings and add an Appearance light/dark selector near its top. Introduce scoped token/role classes in index.css for dark defaults and neutral white/light-slate light surfaces, AA-safe primary/muted/accent text, borders, inputs, hover states, and color-only transitions with a reduced-motion override. Apply those roles across App loading/error/meeting/sidebar content and JoinScreen, SettingsModal, CaptionPanel, SummaryPanel, and SttStatusBar; explicitly retain the existing dark treatment for camera previews, VideoView tiles, and MeetingControls media overlay boundaries. Replace the global focus-outline suppression with visible focus-visible treatment without changing Electron window configuration.",
+          "files": [
+            "frontend/src/App.jsx",
+            "frontend/src/index.css",
+            "frontend/src/components/JoinScreen.jsx",
+            "frontend/src/components/SettingsModal.jsx",
+            "frontend/src/components/CaptionPanel.jsx",
+            "frontend/src/components/SummaryPanel.jsx",
+            "frontend/src/components/SttStatusBar.jsx",
+            "frontend/src/components/VideoView.jsx",
+            "frontend/src/components/MeetingControls.jsx"
+          ],
+          "testSupportFiles": [],
+          "dependencies": [
+            "theme-preference-foundation"
+          ],
+          "verification": [
+            "Run `npm --prefix frontend test`, `npm --prefix frontend run lint`, and `npm --prefix frontend run build`.",
+            "Run `npm run dev:local`; after clearing renderer app data, verify loading, error, join, and meeting interfaces initially render dark. Switch themes from each header and from Settings Appearance, confirming immediate synchronized updates and persistence after restarting without clearing app data.",
+            "In light mode, manually inspect join, meeting/sidebar tabs and benchmark cards, settings, captions, summary, STT status, loading, and error states; confirm white/light-slate interface surfaces, dark video tiles/preview/meeting controls, readable blue-violet accents, visible keyboard focus, and no native window-chrome change.",
+            "Emulate `prefers-reduced-motion: reduce` in Electron/Chromium DevTools and confirm color transitions are suppressed or reduced; use a contrast checker on representative normal-size primary, muted, label, input, and theme-control text against their light surfaces."
+          ]
+        }
+      ],
+      "risks": [
+        "The renderer has no component/DOM test harness, so the automated coverage is limited to preference behavior; visual synchronization, contrast, focus, media exceptions, and motion behavior need the specified Electron checks.",
+        "Native select popup styling and Electron window chrome are OS-managed; the implementation should style the rendered select control only and must not attempt to change native chrome.",
+        "A missed hardcoded dark utility can leave a light-mode surface or muted label unreadable; scoped semantic role classes must be applied to every listed rendered component rather than globally remapping Tailwind colors, which would also break white text on accent buttons and dark media overlays."
+      ]
+    }
+  }
+}

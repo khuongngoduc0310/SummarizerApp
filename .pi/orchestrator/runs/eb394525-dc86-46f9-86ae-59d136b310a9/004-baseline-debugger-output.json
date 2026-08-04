@@ -1,0 +1,34 @@
+{
+  "output": {
+    "category": "tooling_error",
+    "rootCause": "The baseline check invokes an undefined root-level `build` script; the project intentionally exposes `build:renderer` and `build:desktop` instead.",
+    "evidence": [
+      {
+        "path": "package.json",
+        "detail": "Root scripts define build:renderer and build:desktop, but no build script."
+      },
+      {
+        "path": "AGENTS.md",
+        "detail": "Project instructions specify npm run build:desktop for packaged builds and explicitly state there is no root test/lint script."
+      }
+    ],
+    "recommendedFix": "Change the validation command to `npm run build:desktop` (or `npm run build:renderer` when only the renderer is relevant); no repository change is supported.",
+    "affectedFiles": [],
+    "confidence": "high"
+  },
+  "usage": {
+    "input": 6754,
+    "output": 400,
+    "cacheRead": 4608,
+    "cacheWrite": 0,
+    "cost": 0.024037000000000003,
+    "totalTokens": 11762,
+    "costBreakdown": {
+      "input": 0.016885,
+      "output": 0.006,
+      "cacheRead": 0.001152,
+      "cacheWrite": 0
+    },
+    "reasoning": 167
+  }
+}

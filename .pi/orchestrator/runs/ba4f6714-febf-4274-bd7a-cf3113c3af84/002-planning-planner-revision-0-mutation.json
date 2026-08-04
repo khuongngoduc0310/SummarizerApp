@@ -1,0 +1,13 @@
+{
+  "role": "planner",
+  "policy": "none",
+  "allowed": [],
+  "reported": [],
+  "actual": {
+    "added": [],
+    "modified": [],
+    "deleted": [],
+    "changedFiles": []
+  },
+  "violations": []
+}

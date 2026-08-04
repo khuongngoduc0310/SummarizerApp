@@ -1,0 +1,16 @@
+[
+  {
+    "command": "npm run build:desktop",
+    "exitCode": 1,
+    "stdout": "\n> build:desktop\n> npm run build:renderer && npm --prefix desktop run build\n\n\n> build:renderer\n> npm --prefix frontend run build\n\n\n> frontend@0.0.0 build\n> vite build\n\n",
+    "stderr": "'vite' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n",
+    "stdoutTruncated": false,
+    "stderrTruncated": false,
+    "passed": false,
+    "timedOut": false,
+    "cancelled": false,
+    "startedAt": "2026-08-03T23:15:24.731Z",
+    "completedAt": "2026-08-03T23:15:25.675Z",
+    "durationMs": 944
+  }
+]

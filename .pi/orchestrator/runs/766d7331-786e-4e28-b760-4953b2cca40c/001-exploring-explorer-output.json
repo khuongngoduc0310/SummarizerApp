@@ -1,0 +1,189 @@
+{
+  "output": {
+    "architecture": "React 19 + Vite 7 renderer (Electron file:// via frontend/dist/index.html) styled exclusively with hardcoded dark Tailwind v4 utility classes; there is no existing theme system, no prefers-color-scheme handling, and no semantic color tokens in components. App.jsx owns all screens: startupError/loading early returns (bg-[#0a0a0a]), JoinScreen (header bg-slate-950/55), and the meeting screen (root bg-[radial-gradient(...),#080a10], header bg-slate-950/70, sidebar bg-slate-950/80 hosting SummaryPanel/CaptionPanel/bench UI/SttStatusBar, VideoView tiles, floating MeetingControls bar bg-slate-950/75, SettingsModal overlay bg-black/80 with bg-[#111] panel titled 'Device Settings'). Persistence is renderer localStorage via App.jsx 'storage' helper (24h-expiry JSON wrapper; keys stt_config, llm_config, recent_rooms); Electron sets userData from ELECTRON_USER_DATA_DIR (desktop/main.js:14) with the default session, so localStorage persists per profile (scripts/run-electron-instance.js gives each dev instance its own tmp dir). Theme state must live in App.jsx and flow into JoinScreen (header toggle + SettingsModal), the meeting header (toggle), and SettingsModal (Appearance section + title change from 'Device Settings' to 'Settings'). Media areas that must stay dark: VideoView root bg-slate-950 + black overlay nameplates, JoinScreen preview container bg-slate-950 + bg-black/35|40 badges/control bar, and the MeetingControls bar. index.css ends with global 'input:focus, select:focus, button:focus { outline: none }', which conflicts with the visible-focus acceptance criterion; SummaryPanel already opts back in with focus-visible:outline-2 on some buttons. frontend tests are utility-only (captions.test.js -> mergeCaptions; llmModels.test.js -> normalizeLlmConfig); no component/DOM/integration test renders any screen, so no structural-count test assertions exist for the themed UI.",
+    "relevantFiles": [
+      "frontend/src/index.css",
+      "frontend/src/main.jsx",
+      "frontend/src/App.jsx",
+      "frontend/src/components/JoinScreen.jsx",
+      "frontend/src/components/SettingsModal.jsx",
+      "frontend/src/components/MeetingControls.jsx",
+      "frontend/src/components/VideoView.jsx",
+      "frontend/src/components/CaptionPanel.jsx",
+      "frontend/src/components/SummaryPanel.jsx",
+      "frontend/src/components/SttStatusBar.jsx",
+      "frontend/index.html",
+      "desktop/main.js",
+      "scripts/run-electron-instance.js",
+      "frontend/test/captions.test.js",
+      "frontend/test/llmModels.test.js",
+      "frontend/package.json",
+      "frontend/postcss.config.js",
+      "frontend/vite.config.js",
+      "frontend/src/App.css"
+    ],
+    "conventions": [
+      "All styling is inline Tailwind utility classes; dark palette is hardcoded (bg-slate-950/*, bg-white/[0.03..0.07], text-white, text-slate-*, border-white/10), with arbitrary hex values bg-[#0a0a0a] and bracket opacities bg-white/[0.04]",
+      "Renderer persistence uses the App.jsx localStorage 'storage' wrapper (JSON with expiry) under snake_case keys: stt_config, llm_config, recent_rooms",
+      "Icons are individually named lucide-react imports (package lucide-react ^0.562.0 includes Sun/Moon)",
+      "Components are default-exported and wrapped in React.memo (JoinScreen, SettingsModal)",
+      "Visible-focus convention already exists in SummaryPanel via Tailwind focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 on icon buttons",
+      "index.css carries global fixes: 'option { color: black; }' for native select listboxes and ':root' vars --background/--foreground/--border consumed by body",
+      "No formatter is configured; ESLint flat config errors on no-unused-vars with varsIgnorePattern '^[A-Z_]'; follow surrounding file style",
+      "frontend/src/App.css is dead boilerplate (never imported by main.jsx or App.jsx) and should not be touched"
+    ],
+    "similarImplementations": [
+      "frontend/src/App.jsx storage helper (lines ~38-60): the established persistence pattern to mirror for indefinite theme persistence",
+      "frontend/src/components/SummaryPanel.jsx focus-visible:outline-2 focus-visible:outline-blue-400 buttons: the existing visible-focus convention to extend to the theme toggle",
+      "frontend/src/components/JoinScreen.jsx header right-side slot (lines 210-213, 'Audio local' pill) and App.jsx header right-side cluster (lines 734-760, STT pill / E2E pill / sidebar button): where the sun/moon quick toggle must be added",
+      "No existing theme implementation exists anywhere in the repo; light mode is net-new"
+    ],
+    "commands": [
+      "npm --prefix frontend test",
+      "npm --prefix frontend run lint",
+      "npm --prefix frontend run build",
+      "npm run build:renderer",
+      "npm run dev:local",
+      "npx eslint <path> (run with frontend/ as working directory so its flat config resolves)"
+    ],
+    "risks": [
+      "No theme system exists: light styling requires either per-element Tailwind overrides across 8 JSX components or a CSS [data-theme=\"light\"] override layer keyed on exact utility classes (class selectors must escape '/' and '[', e.g. .bg-white\\/[0\\.04]); a Tailwind --color-* variable remap is tempting but breaks gradient-button text (text-white on from-blue-500 to-violet-500 must stay white in both themes) and would invert dark media overlays",
+      "index.css global 'input:focus, select:focus, button:focus { outline: none }' and the modal <select> classes 'focus:outline-none' must be replaced with focus-visible rings to meet the WCAG AA visible-focus criterion",
+      "The storage helper defaults to a 24h expiry; storing the theme through it would not satisfy 'persist indefinitely' — a raw localStorage write or no-expiry variant is required",
+      "Loading and error states are separate early-return JSX blocks in App.jsx (lines 662-676) hardcoded bg-[#0a0a0a]; they must be included in light styling and the html/body background (index.css :root --background: #0f0f0f) must follow the theme to avoid flash on restart",
+      "WCAG AA on small labels: text-slate-400/text-gray-400 on near-white is about 2.9:1 (fails AA normal text); the light palette must darken muted text, and hover states like hover:bg-white/[0.08] hover:text-white need dark equivalents",
+      "Media areas (VideoView root bg-slate-950 with bg-black/45 nameplate, JoinScreen preview bg-slate-950 with bg-black/35|40 controls, MeetingControls bar bg-slate-950/75) must be explicitly re-darkened or excluded from light overrides",
+      "Passing new setTheme callback props into React.memo(JoinScreen)/React.memo(SettingsModal) bypasses memoization unless the callbacks are stable (useCallback)",
+      "No automated DOM/integration tests exist for the renderer, so acceptance criteria must be verified manually via npm run dev:local (two windows: npm run dev:two-electron); theme behavior has no test coverage",
+      "Native <select> dropdown listboxes are OS-rendered (like window chrome); only the existing 'option { color: black }' rule governs their text, so full control over that surface is limited"
+    ],
+    "knownLessons": [
+      "AGENTS.md: preserve 'base: \"./\"' in frontend/vite.config.js; Electron loads frontend/dist/index.html, not the Vite dev server",
+      "AGENTS.md: keep Electron capabilities behind the preload bridge; theme is pure renderer state (localStorage) so no preload/desktop change is needed",
+      "AGENTS.md: no formatter configured, follow surrounding file style; do not commit frontend/dist or benchmark output",
+      "AGENTS.md: update docs (README/TESTING/benchmark) only when setup commands, launch modes, or operational constraints change; the theme feature does not alter commands, so no documentation edit is required",
+      "docs/TESTING.md: renderer is not browser-standalone; verify the themed app through npm run dev:local (single instance) or npm run dev:two-electron (separate user-data profiles)"
+    ],
+    "evidence": [
+      {
+        "path": "frontend/src/index.css",
+        "detail": "Line 1 '@import \"tailwindcss\"' (Tailwind v4 via @tailwindcss/postcss); lines 9-13 :root defines --background #0f0f0f, --foreground #ffffff, --border; body consumes the vars (lines 20-28); line 7 'option { color: black; }'; final rule (lines ~228-231) globally sets 'input:focus, select:focus, button:focus { outline: none; }' which suppresses focus indicators"
+      },
+      {
+        "path": "frontend/src/main.jsx",
+        "detail": "Only entry: imports './index.css' and renders <App /> into #root inside <StrictMode>; no other global CSS is imported"
+      },
+      {
+        "path": "frontend/src/App.jsx",
+        "detail": "Lines 38-60: 'storage' localStorage wrapper with 24h default expiry (set(name, value, hours)); used with snake_case keys stt_config/llm_config/recent_rooms. Theme state and persistence should follow this module-local pattern"
+      },
+      {
+        "path": "frontend/src/App.jsx",
+        "detail": "Lines 662-670 startupError screen and 672-676 loading screen are early returns with hardcoded 'bg-[#0a0a0a] text-white' and 'text-gray-500' text — both must gain light styling"
+      },
+      {
+        "path": "frontend/src/App.jsx",
+        "detail": "Lines 710-760 meeting screen: root 'bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.16),transparent_30%),#080a10] text-white'; header 'min-h-16 bg-slate-950/70 border-b border-white/10'; right cluster at lines 734-760 holds STT pill (bg-purple-500/10 or bg-blue-500/10), E2E pill (bg-emerald-500/10), and sidebar toggle button — the theme toggle belongs in this cluster"
+      },
+      {
+        "path": "frontend/src/App.jsx",
+        "detail": "Lines 859-1001 sidebar: 'bg-slate-950/80 border-l border-white/10' with tab bar bg-slate-950/80 (tabs text-blue-200/bg-blue-500/15 when active, text-slate-500 hover:text-slate-300 when idle), bench cards 'bg-slate-900/70 border-white/10', 'bg-white/[0.04]' panels, 'text-gray-500' labels"
+      },
+      {
+        "path": "frontend/src/App.jsx",
+        "detail": "Lines 1002-1024 render SettingsModal from the meeting screen; JoinScreen is rendered at lines 678-714 when meetingId is null"
+      },
+      {
+        "path": "frontend/src/components/JoinScreen.jsx",
+        "detail": "Header lines 201-213: 'h-14 bg-slate-950/55 border-b border-white/10'; right side holds the emerald 'Audio local' pill (lines 210-213) — the quick theme toggle slot on the join screen"
+      },
+      {
+        "path": "frontend/src/components/JoinScreen.jsx",
+        "detail": "Line 219 media preview container 'bg-slate-950' (must stay dark); badges/control bar use bg-black/35 and bg-black/40 (lines 245-262); text-slate-200/300/400 and text-white inside preview; camera-off placeholder uses radial gradient rgba(30,41,59,0.95),#020617 (line 231)"
+      },
+      {
+        "path": "frontend/src/components/JoinScreen.jsx",
+        "detail": "Interface surfaces to lighten: aside 'bg-slate-950/75' (line 285), info strip 'bg-white/[0.04] text-slate-400' (line 276), inputs 'bg-white/[0.04] text-white placeholder:text-slate-600' (lines 303, 330), recent-rooms 'bg-slate-950/50' (line 373); accent pills bg-blue-400/10, bg-emerald-400/10, bg-violet-300 icons preserved"
+      },
+      {
+        "path": "frontend/src/components/SettingsModal.jsx",
+        "detail": "Line 50 overlay 'fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm'; line 51 modal panel 'bg-[#111] border border-white/10 rounded-2xl'; line 57 title '<h2 className=\"text-xl font-bold\">Device Settings</h2>' — must be renamed to Settings with an Appearance section inserted near the top (before the Camera section starting line 61)"
+      },
+      {
+        "path": "frontend/src/components/SettingsModal.jsx",
+        "detail": "Form controls all use 'bg-white/5 border border-white/10 ... focus:outline-none focus:border-<accent>-500/50' (selects lines 76-79, 90-93, 104-107, 132-135, 249-252, 263-266, 311-314, 320-323, 342-345, 352-355); label convention 'text-[10px] font-black text-gray-500 uppercase tracking-widest'; footer Done button 'bg-[#0E71EB] hover:bg-blue-600 text-white' (lines 386-389)"
+      },
+      {
+        "path": "frontend/src/components/MeetingControls.jsx",
+        "detail": "Line 27 floating control bar 'rounded-[1.75rem] border border-white/10 bg-slate-950/75 ... backdrop-blur-2xl' (media overlay that stays dark); ControlButton (lines 7-20) uses 'border-white/10 bg-white/[0.07] text-slate-100 hover:bg-white/[0.12] hover:text-white' and labels 'text-slate-500' (danger: text-red-300)"
+      },
+      {
+        "path": "frontend/src/components/VideoView.jsx",
+        "detail": "Line 29 tile root 'bg-slate-950 ... border-white/10' (pinned: border-blue-400/25) with gradient overlays from-black/20 via transparent to-black/55 and blue/violet radial tints; nameplate 'bg-black/45' (line 70); avatar 'bg-white/[0.05] text-slate-300' (line 59); muted badge 'bg-red-500/15 text-red-300' (line 85); all must remain dark in light mode"
+      },
+      {
+        "path": "frontend/src/components/CaptionPanel.jsx",
+        "detail": "Interface only: header chip 'border-white/10 bg-white/[0.04]' with 'text-slate-200' title and 'text-slate-600' count (lines 107-112); caption cards 'bg-white/[0.04] hover:bg-white/[0.07]' with 'text-slate-300' body and 'text-blue-300' speaker labels (lines 142-155); 'Load older captions' button 'bg-white/[0.04] text-slate-400' (line 124); empty state 'text-slate-500'"
+      },
+      {
+        "path": "frontend/src/components/SummaryPanel.jsx",
+        "detail": "markdownComponents (lines 22-33) use text-slate-100/300, text-blue-200/300, bg-black/30 code chips; buttons already use 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400' (lines 117, 212, 221, 230); icon buttons 'bg-white/[0.05] text-slate-300 hover:text-white' (lines 221, 230); generate button 'bg-gradient-to-r from-blue-500 to-violet-500 text-white' (line 207) — white-on-gradient must stay white in both themes"
+      },
+      {
+        "path": "frontend/src/components/SttStatusBar.jsx",
+        "detail": "Status bar 'border-t border-white/10 bg-white/[0.03]' (lines 59, 66); model pill 'bg-white/[0.06] border-white/10' with 'text-gray-200' name and 'text-gray-500' backend (lines 95-101); status label 'text-gray-400' (line 106); download progress bar bg-white/10 with blue gradient fill (lines 71-77)"
+      },
+      {
+        "path": "desktop/main.js",
+        "detail": "Line 14: 'app.setPath(\"userData\", process.env.ELECTRON_USER_DATA_DIR)' when set; BrowserWindow (lines 291-305) uses the default session with no custom partition, so renderer localStorage persists under that userData profile — this is the renderer profile the theme preference must live in; no preload/IPC change is needed for theme persistence"
+      },
+      {
+        "path": "scripts/run-electron-instance.js",
+        "detail": "Per-instance ELECTRON_USER_DATA_DIR = os.tmpdir()/summarizeapp-<n> (line 10), so dev:two-electron instances keep independent localStorage/theme profiles"
+      },
+      {
+        "path": "frontend/test/captions.test.js",
+        "detail": "Utility-only tests against mergeCaptions (frontend/src/utils/captions.js); no component rendering, no theme/UI references — nothing to update for the theme change"
+      },
+      {
+        "path": "frontend/test/llmModels.test.js",
+        "detail": "Utility-only tests against normalizeLlmConfig/getActiveApiKey/getSelectedModelId from frontend/src/config/llmModels.js; no structural or rendered-output assertions"
+      },
+      {
+        "path": "frontend/package.json",
+        "detail": "tailwindcss ^4.1.18 with @tailwindcss/postcss; lucide-react ^0.562.0 (named icon imports; Sun/Moon available); scripts: dev, build, lint (eslint .), test (node --test); no test framework beyond node:test — no jsdom/DOM test harness exists"
+      },
+      {
+        "path": "frontend/postcss.config.js",
+        "detail": "Plugins are tailwindcss (@tailwindcss/postcss) and autoprefixer — standard Tailwind v4 pipeline; opacity utilities compile via color-mix, so overriding Tailwind --color-* variables under a theme scope is technically possible but fragile for text-on-gradient and dark media overlays"
+      },
+      {
+        "path": "frontend/vite.config.js",
+        "detail": "base: './' is required for Electron file:// loading (AGENTS.md constraint); theme change must not alter it"
+      },
+      {
+        "path": "frontend/index.html",
+        "detail": "Renders <div id=\"root\"></div>; body/html/#root are styled by index.css (width/height 100%, overflow hidden); no inline background or theme-color meta to update, though a data-theme attribute on <html> set from App state is the natural theme hook"
+      },
+      {
+        "path": "frontend/src/App.css",
+        "detail": "Dead Vite boilerplate (#root max-width 1280px etc.); no file imports it — it must not be used or modified for theming"
+      }
+    ]
+  },
+  "usage": {
+    "input": 74450,
+    "output": 18009,
+    "cacheRead": 967040,
+    "cacheWrite": 0,
+    "cost": 0.018173232,
+    "totalTokens": 1059499,
+    "costBreakdown": {
+      "input": 0.010423,
+      "output": 0.005042520000000001,
+      "cacheRead": 0.0027077119999999997,
+      "cacheWrite": 0
+    },
+    "reasoning": 11148
+  }
+}

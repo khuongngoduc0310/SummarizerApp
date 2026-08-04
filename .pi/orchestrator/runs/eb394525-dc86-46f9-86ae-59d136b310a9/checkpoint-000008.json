@@ -1,0 +1,931 @@
+{
+  "schemaVersion": 6,
+  "checkpointNumber": 8,
+  "runId": "eb394525-dc86-46f9-86ae-59d136b310a9",
+  "createdAt": "2026-08-03T05:12:52.794Z",
+  "workspaceDigest": "3470bf0dd9623371b697191dc9350ae762fb356c714b162df0c0ac53d8781611",
+  "workspaceRoot": "C:\\Projects\\SummarizerApp",
+  "config": {
+    "schemaVersion": 2,
+    "checks": [
+      "npm run build"
+    ],
+    "dashboard": {
+      "enabled": true,
+      "port": 0
+    },
+    "limits": {
+      "planRevisions": 2,
+      "implementationRetries": 3,
+      "reviewRevisions": 2,
+      "agentTimeoutMs": 1200000,
+      "checkTimeoutMs": 600000,
+      "maxOutputBytes": 262144,
+      "worktreeIsolation": true
+    },
+    "agents": {
+      "explorer": {
+        "model": "deepseek/deepseek-v4-flash",
+        "tools": [
+          "read",
+          "grep",
+          "find",
+          "ls"
+        ],
+        "promptFile": "explorer.md",
+        "thinking": "high"
+      },
+      "planner": {
+        "model": "openai-codex/gpt-5.6-terra",
+        "tools": [
+          "read",
+          "grep",
+          "find",
+          "ls"
+        ],
+        "promptFile": "planner.md",
+        "thinking": "xhigh"
+      },
+      "reviewer": {
+        "model": "openai-codex/gpt-5.6-luna",
+        "tools": [
+          "read",
+          "grep",
+          "find",
+          "ls"
+        ],
+        "promptFile": "reviewer.md",
+        "thinking": "max"
+      },
+      "tester": {
+        "model": "deepseek/deepseek-v4-flash",
+        "tools": [
+          "read",
+          "write",
+          "edit",
+          "grep",
+          "find",
+          "ls"
+        ],
+        "promptFile": "tester.md",
+        "thinking": "high"
+      },
+      "builder": {
+        "model": "openai-codex/gpt-5.6-luna",
+        "tools": [
+          "read",
+          "write",
+          "edit",
+          "grep",
+          "find",
+          "ls"
+        ],
+        "promptFile": "builder.md",
+        "thinking": "max"
+      },
+      "debugger": {
+        "model": "openai-codex/gpt-5.6-terra",
+        "tools": [
+          "read",
+          "grep",
+          "find",
+          "ls"
+        ],
+        "promptFile": "debugger.md",
+        "thinking": "xhigh"
+      },
+      "documenter": {
+        "model": "deepseek/deepseek-v4-flash",
+        "tools": [
+          "read",
+          "write",
+          "edit",
+          "grep",
+          "find",
+          "ls"
+        ],
+        "promptFile": "documenter.md",
+        "thinking": "high"
+      },
+      "interviewer": {
+        "model": "openai-codex/gpt-5.6-sol",
+        "tools": [
+          "read",
+          "grep",
+          "find",
+          "ls"
+        ],
+        "promptFile": "interviewer.md",
+        "thinking": "high"
+      }
+    },
+    "humanInTheLoop": {
+      "planApproval": true,
+      "planRevisionApproval": false,
+      "confirmBeforeMutation": true,
+      "importantDecisions": true,
+      "finalDeliveryApproval": true,
+      "diagnosisApproval": "low_confidence"
+    }
+  },
+  "configDigest": "c55dfecb849af036799b7d31e05c801a61d1f882e4d6d06ba6fe8ab2a5349918",
+  "memoryMode": "empty",
+  "memoryRevision": 0,
+  "memoryDigest": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+  "selectedMemoryIds": [],
+  "validatedChangedFiles": [],
+  "validatedFileAttestations": [],
+  "baselineRepaired": false,
+  "baselineContext": {
+    "gitHead": "9a710d481498298511d3cf6c2a3b5f3d65192199",
+    "hasUncommittedChanges": true,
+    "hasStagedChanges": false,
+    "untrackedFiles": [
+      ".pi/orchestrator/config.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/requirements.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/requirements.md",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-1-interviewer-ask_questions-invocation-1-output.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-1-interviewer-ask_questions-invocation-1-transcript.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-2-interviewer-assess-invocation-1-output.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-2-interviewer-assess-invocation-1-transcript.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-3-interviewer-ask_questions-invocation-1-output.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-3-interviewer-ask_questions-invocation-1-transcript.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-4-interviewer-assess-invocation-1-output.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-4-interviewer-assess-invocation-1-transcript.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-5-interviewer-finalize-invocation-1-output.json",
+      ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-5-interviewer-finalize-invocation-1-transcript.json",
+      ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/run-lease.json"
+    ],
+    "statusPorcelain": "?? .pi/\n"
+  },
+  "baselineReviewContext": {
+    "summary": {
+      "gitHead": "9a710d481498298511d3cf6c2a3b5f3d65192199",
+      "hasUncommittedChanges": true,
+      "hasStagedChanges": false,
+      "untrackedFiles": [
+        ".pi/orchestrator/config.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/requirements.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/requirements.md",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-1-interviewer-ask_questions-invocation-1-output.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-1-interviewer-ask_questions-invocation-1-transcript.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-2-interviewer-assess-invocation-1-output.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-2-interviewer-assess-invocation-1-transcript.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-3-interviewer-ask_questions-invocation-1-output.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-3-interviewer-ask_questions-invocation-1-transcript.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-4-interviewer-assess-invocation-1-output.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-4-interviewer-assess-invocation-1-transcript.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-5-interviewer-finalize-invocation-1-output.json",
+        ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-5-interviewer-finalize-invocation-1-transcript.json",
+        ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/run-lease.json"
+      ],
+      "statusPorcelain": "?? .pi/\n"
+    },
+    "artifacts": {
+      "baselineJson": ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/baseline.json"
+    }
+  },
+  "lessonStatus": "skipped",
+  "mutationConfirmed": false,
+  "state": {
+    "schemaVersion": 2,
+    "extensionVersion": "0.0.0",
+    "runId": "eb394525-dc86-46f9-86ae-59d136b310a9",
+    "request": "Goal: Improve project maintainability, primarily in the backend, while preserving existing behavior.\nRefactor a few high-value backend hotspots into feature-oriented modules, prioritizing Socket.io meeting lifecycle and caption persistence/history. Reduce complexity, duplication, unclear boundaries, and naming inconsistencies while retaining CommonJS conventions. Preserve backend API and Socket.io behavior, make no Prisma schema changes, add targeted regression coverage, and improve the maintained native Whisper benchmark runner, AMI preparation script, and related documentation.\nScope: Refactor selected responsibilities from backend/index.js into feature modules organized around meeting, summary, and caption domains.; Prioritize Socket.io meeting lifecycle and caption persistence/history responsibilities in backend/index.js.; Consolidate duplicated logic or configuration encountered within the selected backend hotspots.; Standardize affected backend naming and conventions according to existing CommonJS and nearby code style.; Improve maintainability of desktop/stt/benchmark-whisper.cpp.js and desktop/stt/prepare-ami-benchmark.js.; Keep relevant maintained benchmark documentation, including docs/STT_NATIVE_WER_BENCHMARK.md and docs/STT_WEBGPU_BENCHMARK.md, consistent with the benchmark scripts.\nConstraints: Preserve externally observable behavior exactly.; Keep existing backend API and Socket.io contracts unchanged.; Do not change the Prisma schema or introduce stored-data migrations under backend/prisma/.; Preserve caption persistence and history behavior while extracting responsibilities from backend/index.js.; Continue using CommonJS and follow the surrounding backend style.; Limit the refactor to a few high-value hotspots rather than performing a comprehensive backend or repository-wide cleanup.; Do not reorganize generated artifacts under benchmark-results/.\nAcceptance criteria: Socket.io meeting lifecycle and caption persistence/history responsibilities are separated into clear feature-oriented modules, with backend/index.js retaining orchestration responsibilities.; The selected hotspots exhibit clearer module boundaries, reduced file or function complexity, less duplicated logic or configuration, and naming consistent with nearby backend code.; Existing backend endpoints, response behavior, Socket.io events, payloads, and lifecycle behavior remain unchanged.; No Prisma schema or data migration files are added or modified for the refactor.; Unit tests cover the extracted backend modules, and regression tests verify backend API and Socket.io contracts.; All existing project checks continue to pass alongside the targeted regression tests.; The benchmark runner and AMI preparation script retain their existing behavior while becoming easier to understand and maintain.; Maintained benchmark documentation accurately reflects the benchmark scripts and procedures after the changes.",
+    "route": "implementation",
+    "cwd": "C:\\Projects\\SummarizerApp",
+    "runDir": "C:\\Projects\\SummarizerApp\\.pi\\orchestrator\\runs\\eb394525-dc86-46f9-86ae-59d136b310a9",
+    "stage": "baseline",
+    "status": "paused",
+    "attempt": 0,
+    "startedAt": "2026-08-03T04:59:58.892Z",
+    "updatedAt": "2026-08-03T05:12:18.217Z",
+    "agents": {
+      "explorer": {
+        "status": "succeeded",
+        "model": "deepseek/deepseek-v4-flash",
+        "startedAt": "2026-08-03T04:59:59.091Z",
+        "summary": "I've completed a thorough exploration of the repository. Here is my report:\n\n```json\n{\n  \"architecture\": \"Backend is a single CommonJS Express 5 + Socket.io 4 + Prisma server in backend/index.js (~500 lines) holding all REST routes (GET /health, POST /meetings, POST /meetings/:id/summary, GET /meetings/:id/status), the entire Socket.io connection handler (join-meeting/leave-meeting/disconnect, caption, status-change, signal, get-caption-history), in-memory state (meetingHosts Map, persistedCapti",
+        "completedAt": "2026-08-03T05:03:46.191Z"
+      },
+      "planner": {
+        "status": "succeeded",
+        "model": "openai-codex/gpt-5.6-terra",
+        "startedAt": "2026-08-03T05:12:01.892Z",
+        "summary": "{\"route\":\"implementation\",\"summary\":\"Repair the baseline validation configuration by using the existing root build script; no repository source or configuration change is supported.\",\"assumptions\":[\"The failing `npm run build` command is external validation configuration rather than an intended missing project script.\"],\"acceptanceCriteria\":[\"Baseline build validation uses the existing `npm run build:desktop` script instead of undefined `npm run build`.\",\"No repository files are modified for thi",
+        "completedAt": "2026-08-03T05:12:18.354Z"
+      },
+      "reviewer": {
+        "status": "idle",
+        "model": "openai-codex/gpt-5.6-luna"
+      },
+      "tester": {
+        "status": "idle",
+        "model": "deepseek/deepseek-v4-flash"
+      },
+      "builder": {
+        "status": "idle",
+        "model": "openai-codex/gpt-5.6-luna"
+      },
+      "debugger": {
+        "status": "succeeded",
+        "model": "openai-codex/gpt-5.6-terra",
+        "startedAt": "2026-08-03T05:11:49.237Z",
+        "summary": "{\"category\":\"tooling_error\",\"rootCause\":\"The baseline check invokes an undefined root-level `build` script; the project intentionally exposes `build:renderer` and `build:desktop` instead.\",\"evidence\":[{\"path\":\"package.json\",\"detail\":\"Root scripts define build:renderer and build:desktop, but no build script.\"},{\"path\":\"AGENTS.md\",\"detail\":\"Project instructions specify npm run build:desktop for packaged builds and explicitly state there is no root test/lint script.\"}],\"recommendedFix\":\"Change the ",
+        "completedAt": "2026-08-03T05:12:01.889Z"
+      },
+      "documenter": {
+        "status": "idle",
+        "model": "deepseek/deepseek-v4-flash"
+      },
+      "interviewer": {
+        "status": "idle",
+        "model": "openai-codex/gpt-5.6-sol"
+      }
+    },
+    "steps": [
+      {
+        "id": "step-001",
+        "sequence": 1,
+        "stage": "exploring",
+        "label": "Explore repository",
+        "status": "succeeded",
+        "agent": "explorer",
+        "startedAt": "2026-08-03T04:59:59.091Z",
+        "invocations": [
+          {
+            "sequence": 1,
+            "mode": "execute",
+            "status": "succeeded",
+            "startedAt": "2026-08-03T04:59:59.331Z",
+            "messageCount": 100,
+            "truncated": false,
+            "usage": {
+              "input": 59330,
+              "output": 21127,
+              "cacheRead": 1639040,
+              "cacheWrite": 0,
+              "cost": 0.018811071999999998,
+              "totalTokens": 1719497,
+              "costBreakdown": {
+                "input": 0.0083062,
+                "output": 0.00591556,
+                "cacheRead": 0.004589311999999999,
+                "cacheWrite": 0
+              },
+              "reasoning": 13621
+            },
+            "provider": "deepseek",
+            "model": "deepseek-v4-flash",
+            "api": "openai-completions",
+            "stopReason": "stop",
+            "completedAt": "2026-08-03T05:03:45.923Z",
+            "transcriptArtifact": "001-exploring-explorer-invocation-1-transcript.json",
+            "fileDiffArtifact": "001-exploring-explorer-invocation-1-file-diff.json",
+            "changedFileCount": 0
+          }
+        ],
+        "mutationArtifact": "001-exploring-explorer-mutation.json",
+        "artifact": "001-exploring-explorer-output.json",
+        "message": "explorer completed",
+        "completedAt": "2026-08-03T05:03:46.191Z"
+      },
+      {
+        "id": "step-002",
+        "sequence": 2,
+        "stage": "planning",
+        "label": "Create selected-route plan",
+        "status": "succeeded",
+        "agent": "planner",
+        "revision": 0,
+        "startedAt": "2026-08-03T05:03:46.193Z",
+        "invocations": [
+          {
+            "sequence": 1,
+            "mode": "execute",
+            "status": "succeeded",
+            "startedAt": "2026-08-03T05:03:46.287Z",
+            "messageCount": 36,
+            "truncated": false,
+            "usage": {
+              "input": 70966,
+              "output": 16077,
+              "cacheRead": 98816,
+              "cacheWrite": 0,
+              "cost": 0.44327400000000006,
+              "totalTokens": 185859,
+              "costBreakdown": {
+                "input": 0.17741500000000002,
+                "output": 0.241155,
+                "cacheRead": 0.024703999999999997,
+                "cacheWrite": 0
+              },
+              "reasoning": 13377
+            },
+            "provider": "openai-codex",
+            "model": "gpt-5.6-terra",
+            "api": "openai-codex-responses",
+            "stopReason": "stop",
+            "completedAt": "2026-08-03T05:09:11.118Z",
+            "transcriptArtifact": "002-planning-planner-revision-0-invocation-1-transcript.json",
+            "fileDiffArtifact": "002-planning-planner-revision-0-invocation-1-file-diff.json",
+            "changedFileCount": 0
+          }
+        ],
+        "mutationArtifact": "002-planning-planner-revision-0-mutation.json",
+        "artifact": "002-planning-planner-revision-0-output.json",
+        "message": "planner completed",
+        "completedAt": "2026-08-03T05:09:11.382Z"
+      },
+      {
+        "id": "step-003",
+        "sequence": 3,
+        "stage": "baseline",
+        "label": "Run green baseline",
+        "status": "succeeded",
+        "startedAt": "2026-08-03T05:11:48.853Z",
+        "artifact": "003-baseline-checks.json",
+        "message": "Checks completed with failures",
+        "completedAt": "2026-08-03T05:11:49.234Z"
+      },
+      {
+        "id": "step-004",
+        "sequence": 4,
+        "stage": "baseline",
+        "label": "Diagnose baseline failures",
+        "status": "succeeded",
+        "agent": "debugger",
+        "startedAt": "2026-08-03T05:11:49.237Z",
+        "invocations": [
+          {
+            "sequence": 1,
+            "mode": "execute",
+            "status": "succeeded",
+            "startedAt": "2026-08-03T05:11:49.315Z",
+            "messageCount": 6,
+            "truncated": false,
+            "usage": {
+              "input": 6754,
+              "output": 400,
+              "cacheRead": 4608,
+              "cacheWrite": 0,
+              "cost": 0.024037000000000003,
+              "totalTokens": 11762,
+              "costBreakdown": {
+                "input": 0.016885,
+                "output": 0.006,
+                "cacheRead": 0.001152,
+                "cacheWrite": 0
+              },
+              "reasoning": 167
+            },
+            "provider": "openai-codex",
+            "model": "gpt-5.6-terra",
+            "api": "openai-codex-responses",
+            "stopReason": "stop",
+            "completedAt": "2026-08-03T05:12:01.646Z",
+            "transcriptArtifact": "004-baseline-debugger-invocation-1-transcript.json",
+            "fileDiffArtifact": "004-baseline-debugger-invocation-1-file-diff.json",
+            "changedFileCount": 0
+          }
+        ],
+        "mutationArtifact": "004-baseline-debugger-mutation.json",
+        "artifact": "004-baseline-debugger-output.json",
+        "message": "debugger completed",
+        "completedAt": "2026-08-03T05:12:01.889Z"
+      },
+      {
+        "id": "step-005",
+        "sequence": 5,
+        "stage": "baseline",
+        "label": "Create baseline repair plan",
+        "status": "succeeded",
+        "agent": "planner",
+        "startedAt": "2026-08-03T05:12:01.892Z",
+        "invocations": [
+          {
+            "sequence": 1,
+            "mode": "execute",
+            "status": "succeeded",
+            "startedAt": "2026-08-03T05:12:01.983Z",
+            "messageCount": 2,
+            "truncated": false,
+            "usage": {
+              "input": 5995,
+              "output": 763,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "cost": 0.0264325,
+              "totalTokens": 6758,
+              "costBreakdown": {
+                "input": 0.0149875,
+                "output": 0.011445,
+                "cacheRead": 0,
+                "cacheWrite": 0
+              },
+              "reasoning": 516
+            },
+            "provider": "openai-codex",
+            "model": "gpt-5.6-terra",
+            "api": "openai-codex-responses",
+            "stopReason": "stop",
+            "completedAt": "2026-08-03T05:12:18.107Z",
+            "transcriptArtifact": "005-baseline-planner-invocation-1-transcript.json",
+            "fileDiffArtifact": "005-baseline-planner-invocation-1-file-diff.json",
+            "changedFileCount": 0
+          }
+        ],
+        "mutationArtifact": "005-baseline-planner-mutation.json",
+        "artifact": "005-baseline-planner-output.json",
+        "message": "planner completed",
+        "completedAt": "2026-08-03T05:12:18.354Z"
+      }
+    ],
+    "dashboardUrl": "http://127.0.0.1:56845",
+    "message": "planner is running",
+    "agentOutput": [
+      " command",
+      " interface",
+      ".",
+      "\"]",
+      "}"
+    ],
+    "milestones": [
+      {
+        "id": "decision:decision-1785733751385-1:requested",
+        "sequence": 1,
+        "kind": "human_decision_requested",
+        "title": "Plan awaiting review",
+        "details": "**Decision:** Plan approval\n\n# Implementation Plan\n\n**Route:** implementation (selected by user)\n\n## Summary\n\nExtract summary, meeting lifecycle, and caption responsibilities into CommonJS feature modules; compose them through a testable backend bootstrap while preserving all HTTP and Socket.io contracts. Split reusable native benchmark utilities from its CLI orchestration, update AMI preparation imports, and align maintained benchmark documentation without changing generated artifacts or Prisma.\n\n## Acceptance Criteria\n\n- [ ] backend/features/meeting.js, backend/features/summary.js, and backend/features/caption.js own their respective domain behavior, while backend/index.js is limited to application, infrastructure, feature composition, and process lifecycle orchestration.\n- [ ] GET /health, POST /meetings, POST /meetings/:id/summary, and GET /meetings/:id/status preserve their existing validation, status codes, response payloads, summary provider behavior, and error mapping.\n- [ ] Socket.io meeting lifecycle behavior remains unchanged, including join and leave ordering, participant and host payloads, status and signaling relays, session state, room-end updates, and join-error handling.\n- [ ] Caption persistence and history behavior remains unchanged, including partial-caption rejection, transcript upsert and duration updates, idempotency TTL and failure release, room-empty key purging, live caption payload fields, history authorization, pagination, and acknowledgement payloads.\n- [ ] No file under backend/prisma/ is added or modified.\n- [ ] The selected backend hotspots use explicit CommonJS dependency boundaries, centralized meeting-session fallback logic, and consistent naming without unrelated backend cleanup.\n- [ ] desktop/stt/benchmark-whisper.cpp.js and desktop/stt/prepare-ami-benchmark.js retain their CLI and exported-helper behavior while shared benchmark parsing, WER, validation, and reporting utilities have clear ownership.\n- [ ] desktop/stt/README.md, docs/STT_NATIVE_WER_BENCHMARK.md, and docs/STT_WEBGPU_BENCHMARK.md accurately describe the retained benchmark commands, supported execution modes, defaults, artifacts, and native/WebGPU comparison procedure.\n- [ ] The backend, desktop, frontend test suites and frontend lint check pass with the targeted regression coverage.\n\n## Tasks\n\n### 1. extract-summary-feature\n\nCreate the summary-domain CommonJS feature with injected Prisma and LLM dependencies, preserving UUID/user/config validation, current-session and rolling-summary query construction, provider-specific request shapes, parsing, persistence data, metadata payload, and every 400/404/502 response branch. Add focused mock-Prisma/provider tests for successful and failure contracts.\n\n**Files:** backend/features/summary.js, backend/test/summary.test.js\n\n**Verification:**\n- Run npm --prefix backend test -- test/summary.test.js.\n- Assert tests cover validation failures, absent meetings and segments, malformed provider output, provider failures, persisted summary fields, and the successful _meta response.\n\n### 2. extract-meeting-feature\n\nCreate the meeting-domain CommonJS feature for meeting creation/status routes and Socket.io lifecycle handlers. Centralize session-start fallback resolution and retain serialized joins, participant snapshots, host assignment/reassignment, exact join and leave emission order, status/signal relays, room-empty endedAt updates, and the injected caption-key purge callback. Add handler-level regression tests with mocked Prisma, io, rooms, and sockets.\n\n**Files:** backend/features/meeting.js, backend/test/meeting.test.js\n\n**Verification:**\n- Run npm --prefix backend test -- test/meeting.test.js.\n- Assert route tests retain validation and response payloads, and socket tests retain host-info/user-joined/joined-successfully ordering, user-left-before-endedAt behavior, host reassignment, session fallback, signal, and status-change payloads.\n\n### 3. extract-caption-feature\n\nCreate the caption-domain CommonJS feature that owns caption idempotency state and cleanup, persistence/broadcast handling, and get-caption-history acknowledgements. Reuse the meeting feature's injected session resolver and existing captionHistory pagination module without altering history records or cursor behavior. Add targeted mocked Socket.io/Prisma tests for final and partial captions, duplicate suppression, write failure rollback, room-key purging, and history authorization/error/success responses.\n\n**Files:** backend/features/caption.js, backend/test/caption.test.js\n\n**Depends on:** 2. extract-meeting-feature\n\n**Verification:**\n- Run npm --prefix backend test -- test/caption.test.js.\n- Assert successful caption broadcasts retain data, captionId, speakerName, sessionStartedAt, and createdAt exactly; assert rejected partials, idempotency failure release, and caption-history acknowledgement payloads.\n\n### 4. compose-testable-backend-and-contracts\n\nReplace the monolithic backend/index.js handlers with feature composition and a dependency-injected server bootstrap that retains direct node index.js startup, CORS behavior, health endpoint, retention cleanup, and graceful shutdown. Add socket.io-client only as a backend development dependency and use the bootstrap in end-to-end HTTP and Socket.io contract tests against mock Prisma state; regenerate the lockfile accordingly.\n\n**Files:** backend/index.js, backend/package.json, backend/package-lock.json, backend/test/serverContracts.test.js\n\n**Depends on:** 1. extract-summary-feature, 2. extract-meeting-feature, 3. extract-caption-feature\n\n**Verification:**\n- Run npm --prefix backend test -- test/serverContracts.test.js.\n- Run npm --prefix backend test.\n- Verify real HTTP and Socket.io tests cover health, meeting create/status, join/caption/history/leave contracts and cleanly close server, sockets, and feature timers.\n- Run git diff --exit-code -- backend/prisma and confirm no Prisma schema or migration path changed.\n\n### 5. refactor-native-benchmark-boundaries\n\nMove reusable WAV parsing/streaming validation, WER normalization/scoring, sample-id validation, statistics, and report/file helpers into a shared CommonJS benchmark utility module; move CLI run orchestration into a dedicated runner module; retain benchmark-whisper.cpp.js as the same executable wrapper and compatibility export surface. Update AMI preparation to import shared utilities directly, and adapt desktop tests to exercise the extracted utilities and wrapper compatibility.\n\n**Files:** desktop/stt/benchmark-whisper.cpp.js, desktop/stt/benchmark-runner.js, desktop/stt/benchmark-utils.js, desktop/stt/prepare-ami-benchmark.js, desktop/test/stt-benchmark.test.js\n\n**Verification:**\n- Run npm --prefix desktop test -- test/stt-benchmark.test.js.\n- Run npm --prefix desktop run benchmark:whisper -- --help and npm --prefix desktop run benchmark:prepare-ami -- --help.\n- Assert existing WER, WAV, sample-ID, AMI clipping/reference, and legacy benchmark-whisper helper-export tests still pass without requiring local models, binaries, samples, or benchmark-results changes.\n\n### 6. align-benchmark-documentation\n\nUpdate maintained native benchmark, STT-area, and WebGPU baseline documentation to retain the public package/direct CLI entrypoints, describe the CLI versus FFI mode and current streaming defaults accurately, clarify generated-artifact handling, label historical measurements appropriately, and link the separate native and renderer benchmark procedures with comparable-measurement constraints.\n\n**Files:** desktop/stt/README.md, docs/STT_NATIVE_WER_BENCHMARK.md, docs/STT_WEBGPU_BENCHMARK.md\n\n**Depends on:** 4. compose-testable-backend-and-contracts, 5. refactor-native-benchmark-boundaries\n\n**Verification:**\n- Review every documented benchmark command against the unchanged desktop package scripts and executable wrapper paths.\n- Run npm --prefix backend test, npm --prefix desktop test, npm --prefix frontend test, and npm --prefix frontend run lint.\n\n## Assumptions\n\n- A backend devDependency on socket.io-client is acceptable for real Socket.io contract regression tests; it will not be used at runtime.\n- The backend may expose a dependency-injected bootstrap factory for tests as long as executing node backend/index.js retains the existing listener, cleanup scheduler, signal handling, and Electron launch contract.\n- Benchmark CLI entrypoints, options, report schema, output locations, and historical benchmark artifacts remain unchanged; only internal helper boundaries and documentation are revised.\n\n## Risks\n\n- Socket lifecycle behavior is ordering- and race-sensitive: joins must remain serialized with final room-empty checks, and user-left must remain emitted before the endedAt update.\n- Caption idempotency is stateful across persistence failures and room teardown; feature ownership must preserve the one-hour TTL, five-minute cleanup cadence, retry release, and meeting-prefix purge exactly.\n- The summary route has provider-specific SDK payloads and distinct status/error branches; dependency injection must not alter its externally visible error handling.\n- Benchmark refactoring must keep lazy FFI loading, sidecar protocol handling, atomic report writes, CLI arguments, and existing exports intact so CLI-only runs do not gain FFI prerequisites.\n- No Prisma schema or migration changes are authorized, and ignored benchmark artifacts under benchmark-results/ must remain untouched.",
+        "occurredAt": "2026-08-03T05:09:11.385Z",
+        "decisionId": "decision-1785733751385-1"
+      },
+      {
+        "id": "plan-approved:357fdf17b76bc789c183bfdbc6e01f121f10144c3f295fc5cd3bed14ed5ae88a",
+        "sequence": 2,
+        "kind": "plan_approved",
+        "title": "Plan approved",
+        "details": "# Implementation Plan\n\n**Route:** implementation (selected by user)\n\n## Summary\n\nExtract summary, meeting lifecycle, and caption responsibilities into CommonJS feature modules; compose them through a testable backend bootstrap while preserving all HTTP and Socket.io contracts. Split reusable native benchmark utilities from its CLI orchestration, update AMI preparation imports, and align maintained benchmark documentation without changing generated artifacts or Prisma.\n\n## Acceptance Criteria\n\n- [ ] backend/features/meeting.js, backend/features/summary.js, and backend/features/caption.js own their respective domain behavior, while backend/index.js is limited to application, infrastructure, feature composition, and process lifecycle orchestration.\n- [ ] GET /health, POST /meetings, POST /meetings/:id/summary, and GET /meetings/:id/status preserve their existing validation, status codes, response payloads, summary provider behavior, and error mapping.\n- [ ] Socket.io meeting lifecycle behavior remains unchanged, including join and leave ordering, participant and host payloads, status and signaling relays, session state, room-end updates, and join-error handling.\n- [ ] Caption persistence and history behavior remains unchanged, including partial-caption rejection, transcript upsert and duration updates, idempotency TTL and failure release, room-empty key purging, live caption payload fields, history authorization, pagination, and acknowledgement payloads.\n- [ ] No file under backend/prisma/ is added or modified.\n- [ ] The selected backend hotspots use explicit CommonJS dependency boundaries, centralized meeting-session fallback logic, and consistent naming without unrelated backend cleanup.\n- [ ] desktop/stt/benchmark-whisper.cpp.js and desktop/stt/prepare-ami-benchmark.js retain their CLI and exported-helper behavior while shared benchmark parsing, WER, validation, and reporting utilities have clear ownership.\n- [ ] desktop/stt/README.md, docs/STT_NATIVE_WER_BENCHMARK.md, and docs/STT_WEBGPU_BENCHMARK.md accurately describe the retained benchmark commands, supported execution modes, defaults, artifacts, and native/WebGPU comparison procedure.\n- [ ] The backend, desktop, frontend test suites and frontend lint check pass with the targeted regression coverage.\n\n## Tasks\n\n### 1. extract-summary-feature\n\nCreate the summary-domain CommonJS feature with injected Prisma and LLM dependencies, preserving UUID/user/config validation, current-session and rolling-summary query construction, provider-specific request shapes, parsing, persistence data, metadata payload, and every 400/404/502 response branch. Add focused mock-Prisma/provider tests for successful and failure contracts.\n\n**Files:** backend/features/summary.js, backend/test/summary.test.js\n\n**Verification:**\n- Run npm --prefix backend test -- test/summary.test.js.\n- Assert tests cover validation failures, absent meetings and segments, malformed provider output, provider failures, persisted summary fields, and the successful _meta response.\n\n### 2. extract-meeting-feature\n\nCreate the meeting-domain CommonJS feature for meeting creation/status routes and Socket.io lifecycle handlers. Centralize session-start fallback resolution and retain serialized joins, participant snapshots, host assignment/reassignment, exact join and leave emission order, status/signal relays, room-empty endedAt updates, and the injected caption-key purge callback. Add handler-level regression tests with mocked Prisma, io, rooms, and sockets.\n\n**Files:** backend/features/meeting.js, backend/test/meeting.test.js\n\n**Verification:**\n- Run npm --prefix backend test -- test/meeting.test.js.\n- Assert route tests retain validation and response payloads, and socket tests retain host-info/user-joined/joined-successfully ordering, user-left-before-endedAt behavior, host reassignment, session fallback, signal, and status-change payloads.\n\n### 3. extract-caption-feature\n\nCreate the caption-domain CommonJS feature that owns caption idempotency state and cleanup, persistence/broadcast handling, and get-caption-history acknowledgements. Reuse the meeting feature's injected session resolver and existing captionHistory pagination module without altering history records or cursor behavior. Add targeted mocked Socket.io/Prisma tests for final and partial captions, duplicate suppression, write failure rollback, room-key purging, and history authorization/error/success responses.\n\n**Files:** backend/features/caption.js, backend/test/caption.test.js\n\n**Depends on:** 2. extract-meeting-feature\n\n**Verification:**\n- Run npm --prefix backend test -- test/caption.test.js.\n- Assert successful caption broadcasts retain data, captionId, speakerName, sessionStartedAt, and createdAt exactly; assert rejected partials, idempotency failure release, and caption-history acknowledgement payloads.\n\n### 4. compose-testable-backend-and-contracts\n\nReplace the monolithic backend/index.js handlers with feature composition and a dependency-injected server bootstrap that retains direct node index.js startup, CORS behavior, health endpoint, retention cleanup, and graceful shutdown. Add socket.io-client only as a backend development dependency and use the bootstrap in end-to-end HTTP and Socket.io contract tests against mock Prisma state; regenerate the lockfile accordingly.\n\n**Files:** backend/index.js, backend/package.json, backend/package-lock.json, backend/test/serverContracts.test.js\n\n**Depends on:** 1. extract-summary-feature, 2. extract-meeting-feature, 3. extract-caption-feature\n\n**Verification:**\n- Run npm --prefix backend test -- test/serverContracts.test.js.\n- Run npm --prefix backend test.\n- Verify real HTTP and Socket.io tests cover health, meeting create/status, join/caption/history/leave contracts and cleanly close server, sockets, and feature timers.\n- Run git diff --exit-code -- backend/prisma and confirm no Prisma schema or migration path changed.\n\n### 5. refactor-native-benchmark-boundaries\n\nMove reusable WAV parsing/streaming validation, WER normalization/scoring, sample-id validation, statistics, and report/file helpers into a shared CommonJS benchmark utility module; move CLI run orchestration into a dedicated runner module; retain benchmark-whisper.cpp.js as the same executable wrapper and compatibility export surface. Update AMI preparation to import shared utilities directly, and adapt desktop tests to exercise the extracted utilities and wrapper compatibility.\n\n**Files:** desktop/stt/benchmark-whisper.cpp.js, desktop/stt/benchmark-runner.js, desktop/stt/benchmark-utils.js, desktop/stt/prepare-ami-benchmark.js, desktop/test/stt-benchmark.test.js\n\n**Verification:**\n- Run npm --prefix desktop test -- test/stt-benchmark.test.js.\n- Run npm --prefix desktop run benchmark:whisper -- --help and npm --prefix desktop run benchmark:prepare-ami -- --help.\n- Assert existing WER, WAV, sample-ID, AMI clipping/reference, and legacy benchmark-whisper helper-export tests still pass without requiring local models, binaries, samples, or benchmark-results changes.\n\n### 6. align-benchmark-documentation\n\nUpdate maintained native benchmark, STT-area, and WebGPU baseline documentation to retain the public package/direct CLI entrypoints, describe the CLI versus FFI mode and current streaming defaults accurately, clarify generated-artifact handling, label historical measurements appropriately, and link the separate native and renderer benchmark procedures with comparable-measurement constraints.\n\n**Files:** desktop/stt/README.md, docs/STT_NATIVE_WER_BENCHMARK.md, docs/STT_WEBGPU_BENCHMARK.md\n\n**Depends on:** 4. compose-testable-backend-and-contracts, 5. refactor-native-benchmark-boundaries\n\n**Verification:**\n- Review every documented benchmark command against the unchanged desktop package scripts and executable wrapper paths.\n- Run npm --prefix backend test, npm --prefix desktop test, npm --prefix frontend test, and npm --prefix frontend run lint.\n\n## Assumptions\n\n- A backend devDependency on socket.io-client is acceptable for real Socket.io contract regression tests; it will not be used at runtime.\n- The backend may expose a dependency-injected boots\n\n*(truncated — see run artifacts for the full report)*",
+        "occurredAt": "2026-08-03T05:10:28.782Z"
+      },
+      {
+        "id": "decision:decision-1785733938358-2:requested",
+        "sequence": 3,
+        "kind": "human_decision_requested",
+        "title": "Baseline repair approval awaiting review",
+        "details": "**Decision:** Baseline repair approval\n\n# Implementation Plan\n\n**Route:** implementation (selected by user)\n\n## Summary\n\nRepair the baseline validation configuration by using the existing root build script; no repository source or configuration change is supported.\n\n## Acceptance Criteria\n\n- [ ] Baseline build validation uses the existing `npm run build:desktop` script instead of undefined `npm run build`.\n- [ ] No repository files are modified for this tooling-only baseline repair.\n\n## Tasks\n\n### 1. validate-existing-build-command\n\nConfirm the root package exposes the documented desktop build command and use it as the replacement baseline validation command.\n\n**Files:** package.json, AGENTS.md\n\n**Verification:**\n- Run `npm run build:desktop` from the repository root.\n- Confirm `package.json` has no root `build` script and includes `build:desktop`.\n\n## Assumptions\n\n- The failing `npm run build` command is external validation configuration rather than an intended missing project script.\n\n## Risks\n\n- `npm run build:desktop` may require installed desktop and frontend dependencies; this is an environment prerequisite rather than a repository defect.\n- Adding a generic root `build` alias would exceed the diagnosis-supported repair and could change the intended command interface.",
+        "occurredAt": "2026-08-03T05:12:18.358Z",
+        "decisionId": "decision-1785733938358-2"
+      },
+      {
+        "id": "decision:decision-1785733969833-3:requested",
+        "sequence": 4,
+        "kind": "human_decision_requested",
+        "title": "Mutation phase confirmation awaiting review",
+        "details": "**Decision:** Mutation phase confirmation\n\n## Mutation phase confirmation\n\nThe approved plan is ready to enter the mutation phase. Tester, Builder, Documenter, and project checks may modify authorized files.\n\n### Approved plan\n\n# Implementation Plan\n\n**Route:** implementation (selected by user)\n\n## Summary\n\nExtract summary, meeting lifecycle, and caption responsibilities into CommonJS feature modules; compose them through a testable backend bootstrap while preserving all HTTP and Socket.io contracts. Split reusable native benchmark utilities from its CLI orchestration, update AMI preparation imports, and align maintained benchmark documentation without changing generated artifacts or Prisma.\n\n## Acceptance Criteria\n\n- [ ] backend/features/meeting.js, backend/features/summary.js, and backend/features/caption.js own their respective domain behavior, while backend/index.js is limited to application, infrastructure, feature composition, and process lifecycle orchestration.\n- [ ] GET /health, POST /meetings, POST /meetings/:id/summary, and GET /meetings/:id/status preserve their existing validation, status codes, response payloads, summary provider behavior, and error mapping.\n- [ ] Socket.io meeting lifecycle behavior remains unchanged, including join and leave ordering, participant and host payloads, status and signaling relays, session state, room-end updates, and join-error handling.\n- [ ] Caption persistence and history behavior remains unchanged, including partial-caption rejection, transcript upsert and duration updates, idempotency TTL and failure release, room-empty key purging, live caption payload fields, history authorization, pagination, and acknowledgement payloads.\n- [ ] No file under backend/prisma/ is added or modified.\n- [ ] The selected backend hotspots use explicit CommonJS dependency boundaries, centralized meeting-session fallback logic, and consistent naming without unrelated backend cleanup.\n- [ ] desktop/stt/benchmark-whisper.cpp.js and desktop/stt/prepare-ami-benchmark.js retain their CLI and exported-helper behavior while shared benchmark parsing, WER, validation, and reporting utilities have clear ownership.\n- [ ] desktop/stt/README.md, docs/STT_NATIVE_WER_BENCHMARK.md, and docs/STT_WEBGPU_BENCHMARK.md accurately describe the retained benchmark commands, supported execution modes, defaults, artifacts, and native/WebGPU comparison procedure.\n- [ ] The backend, desktop, frontend test suites and frontend lint check pass with the targeted regression coverage.\n\n## Tasks\n\n### 1. extract-summary-feature\n\nCreate the summary-domain CommonJS feature with injected Prisma and LLM dependencies, preserving UUID/user/config validation, current-session and rolling-summary query construction, provider-specific request shapes, parsing, persistence data, metadata payload, and every 400/404/502 response branch. Add focused mock-Prisma/provider tests for successful and failure contracts.\n\n**Files:** backend/features/summary.js, backend/test/summary.test.js\n\n**Verification:**\n- Run npm --prefix backend test -- test/summary.test.js.\n- Assert tests cover validation failures, absent meetings and segments, malformed provider output, provider failures, persisted summary fields, and the successful _meta response.\n\n### 2. extract-meeting-feature\n\nCreate the meeting-domain CommonJS feature for meeting creation/status routes and Socket.io lifecycle handlers. Centralize session-start fallback resolution and retain serialized joins, participant snapshots, host assignment/reassignment, exact join and leave emission order, status/signal relays, room-empty endedAt updates, and the injected caption-key purge callback. Add handler-level regression tests with mocked Prisma, io, rooms, and sockets.\n\n**Files:** backend/features/meeting.js, backend/test/meeting.test.js\n\n**Verification:**\n- Run npm --prefix backend test -- test/meeting.test.js.\n- Assert route tests retain validation and response payloads, and socket tests retain host-info/user-joined/joined-successfully ordering, user-left-before-endedAt behavior, host reassignment, session fallback, signal, and status-change payloads.\n\n### 3. extract-caption-feature\n\nCreate the caption-domain CommonJS feature that owns caption idempotency state and cleanup, persistence/broadcast handling, and get-caption-history acknowledgements. Reuse the meeting feature's injected session resolver and existing captionHistory pagination module without altering history records or cursor behavior. Add targeted mocked Socket.io/Prisma tests for final and partial captions, duplicate suppression, write failure rollback, room-key purging, and history authorization/error/success responses.\n\n**Files:** backend/features/caption.js, backend/test/caption.test.js\n\n**Depends on:** 2. extract-meeting-feature\n\n**Verification:**\n- Run npm --prefix backend test -- test/caption.test.js.\n- Assert successful caption broadcasts retain data, captionId, speakerName, sessionStartedAt, and createdAt exactly; assert rejected partials, idempotency failure release, and caption-history acknowledgement payloads.\n\n### 4. compose-testable-backend-and-contracts\n\nReplace the monolithic backend/index.js handlers with feature composition and a dependency-injected server bootstrap that retains direct node index.js startup, CORS behavior, health endpoint, retention cleanup, and graceful shutdown. Add socket.io-client only as a backend development dependency and use the bootstrap in end-to-end HTTP and Socket.io contract tests against mock Prisma state; regenerate the lockfile accordingly.\n\n**Files:** backend/index.js, backend/package.json, backend/package-lock.json, backend/test/serverContracts.test.js\n\n**Depends on:** 1. extract-summary-feature, 2. extract-meeting-feature, 3. extract-caption-feature\n\n**Verification:**\n- Run npm --prefix backend test -- test/serverContracts.test.js.\n- Run npm --prefix backend test.\n- Verify real HTTP and Socket.io tests cover health, meeting create/status, join/caption/history/leave contracts and cleanly close server, sockets, and feature timers.\n- Run git diff --exit-code -- backend/prisma and confirm no Prisma schema or migration path changed.\n\n### 5. refactor-native-benchmark-boundaries\n\nMove reusable WAV parsing/streaming validation, WER normalization/scoring, sample-id validation, statistics, and report/file helpers into a shared CommonJS benchmark utility module; move CLI run orchestration into a dedicated runner module; retain benchmark-whisper.cpp.js as the same executable wrapper and compatibility export surface. Update AMI preparation to import shared utilities directly, and adapt desktop tests to exercise the extracted utilities and wrapper compatibility.\n\n**Files:** desktop/stt/benchmark-whisper.cpp.js, desktop/stt/benchmark-runner.js, desktop/stt/benchmark-utils.js, desktop/stt/prepare-ami-benchmark.js, desktop/test/stt-benchmark.test.js\n\n**Verification:**\n- Run npm --prefix desktop test -- test/stt-benchmark.test.js.\n- Run npm --prefix desktop run benchmark:whisper -- --help and npm --prefix desktop run benchmark:prepare-ami -- --help.\n- Assert existing WER, WAV, sample-ID, AMI clipping/reference, and legacy benchmark-whisper helper-export tests still pass without requiring local models, binaries, samples, or benchmark-results changes.\n\n### 6. align-benchmark-documentation\n\nUpdate maintained native benchmark, STT-area, and WebGPU baseline documentation to retain the public package/direct CLI entrypoints, describe the CLI versus FFI mode and current streaming defaults accurately, clarify generated-artifact handling, label historical measurements appropriately, and link the separate native and renderer benchmark procedures with comparable-measurement constraints.\n\n**Files:** desktop/stt/README.md, docs/STT_NATIVE_WER_BENCHMARK.md, docs/STT_WEBGPU_BENCHMARK.md\n\n**Depends on:** 4. compose-testable-backend-and-contracts, 5. refactor-native-benchmark-boundaries\n\n**Verification:**\n- Review every documented benchmark command against the unchanged desktop package scripts and executable wrapper paths.\n- Run npm --prefix backend test, npm --prefix desktop test, npm --prefix frontend test, and npm --prefix frontend run lint.\n\n## Assumptions\n\n- A backend devDependency on socket.io-client is acceptable for real Socket.io contract regression tests; it will not be used at runtime.\n- The backend may expose a dependency-injected bootstrap factory for tests as long as executing node backend/index.js retains the existing listener, cleanup scheduler, signal handling, and Electron launch contract.\n- Benchmark CLI entrypoints, options, report schema, output locations, and historical benchmark artifacts remain unchanged; only internal helper boundaries and documentation are revised.\n\n## Risks\n\n- Socket lifecycle behavior is ordering- and race-sensitive: joins must remain serialized with final room-empty checks, and user-left must remain emitted before the endedAt update.\n- Caption idempotency is stateful across persistence failures and room teardown; feature ownership must preserve the one-hour TTL, five-minute cleanup cadence, retry release, and meeting-prefix purge exactly.\n- The summary route has provider-specific SDK payloads and distinct status/error branches; dependency injection must not alter its externally visible error handling.\n- Benchmark refactoring must keep lazy FFI loading, sidecar protocol handling, atomic report writes, CLI arguments, and existing exports intact so CLI-only runs do not gain FFI prerequisites.\n- No Prisma schema or migration changes are authorized, and ignored benchmark artifacts under benchmark-results/ must remain untouched.",
+        "occurredAt": "2026-08-03T05:12:49.833Z",
+        "decisionId": "decision-1785733969833-3"
+      }
+    ],
+    "latestCheckpoint": {
+      "number": 7,
+      "cursor": "human_decision_pending",
+      "createdAt": "2026-08-03T05:12:49.910Z"
+    },
+    "resumeCount": 1,
+    "resumedAt": "2026-08-03T05:10:51.815Z",
+    "resumedFromCheckpoint": "plan_approved",
+    "waitingFor": "Mutation phase confirmation",
+    "humanGate": {
+      "kind": "mutation_confirmation",
+      "label": "Mutation phase confirmation",
+      "startedAt": "2026-08-03T05:12:49.833Z"
+    },
+    "pendingDecision": {
+      "schemaVersion": 1,
+      "id": "decision-1785733969833-3",
+      "kind": "mutation_confirmation",
+      "label": "Mutation phase confirmation",
+      "requestedAt": "2026-08-03T05:12:49.833Z",
+      "resume": {
+        "point": "mutation_confirmation",
+        "mode": "baseline_repair",
+        "scopeRevisionCount": 0
+      }
+    }
+  },
+  "cursor": {
+    "kind": "human_decision_recorded",
+    "continuation": {
+      "request": {
+        "schemaVersion": 1,
+        "id": "decision-1785733969833-3",
+        "kind": "mutation_confirmation",
+        "label": "Mutation phase confirmation",
+        "requestedAt": "2026-08-03T05:12:49.833Z",
+        "resume": {
+          "point": "mutation_confirmation",
+          "mode": "baseline_repair",
+          "scopeRevisionCount": 0
+        }
+      },
+      "recorded": {
+        "schemaVersion": 1,
+        "requestId": "decision-1785733969833-3",
+        "decidedAt": "2026-08-03T05:12:52.641Z",
+        "source": "tui",
+        "action": "proceed"
+      }
+    }
+  },
+  "bindings": {
+    "exploration": {
+      "architecture": "Backend is a single CommonJS Express 5 + Socket.io 4 + Prisma server in backend/index.js (~500 lines) holding all REST routes (GET /health, POST /meetings, POST /meetings/:id/summary, GET /meetings/:id/status), the entire Socket.io connection handler (join-meeting/leave-meeting/disconnect, caption, status-change, signal, get-caption-history), in-memory state (meetingHosts Map, persistedCaptionKeys idempotency Map with 1h TTL, meetingJoinLocks Map), a retention cleanup scheduler, and graceful shutdown. Three small modules are already extracted following a dependency-injection convention (prisma passed as an argument): captionHistory.js (pagination), llmConfig.js (provider config + error classes with statusCode), tokenEstimator.js. Frontend (App.jsx, hooks/useWebRTC.js, hooks/useAudioPipeline.js, utils/captions.js) defines the Socket.io/REST contracts that must be preserved. Desktop STT tooling: benchmark-whisper.cpp.js is a monolithic 990-line CLI runner; prepare-ami-benchmark.js (~240 lines) imports WAV/ID utilities from it. Tests: node:test + assert/strict with mock-prisma objects (backend/test/*, desktop/test/stt-benchmark.test.js). backend/node_modules and root node_modules are not installed; desktop/node_modules is. desktop/main.js spawns `node index.js` from the backend cwd, so the module-load boot contract must be preserved.",
+      "relevantFiles": [
+        "backend/index.js",
+        "backend/captionHistory.js",
+        "backend/llmConfig.js",
+        "backend/tokenEstimator.js",
+        "backend/test/captionHistory.test.js",
+        "backend/test/llmConfig.test.js",
+        "backend/package.json",
+        "backend/prisma/schema.prisma",
+        "backend/.env.example",
+        "frontend/src/App.jsx",
+        "frontend/src/hooks/useWebRTC.js",
+        "frontend/src/hooks/useAudioPipeline.js",
+        "frontend/src/utils/captions.js",
+        "frontend/test/captions.test.js",
+        "desktop/main.js",
+        "desktop/package.json",
+        "desktop/stt/benchmark-whisper.cpp.js",
+        "desktop/stt/prepare-ami-benchmark.js",
+        "desktop/stt/args-utils.js",
+        "desktop/stt/whisper-streaming-sidecar.js",
+        "desktop/stt/README.md",
+        "desktop/test/stt-benchmark.test.js",
+        "docs/STT_NATIVE_WER_BENCHMARK.md",
+        "docs/STT_WEBGPU_BENCHMARK.md",
+        "docs/TESTING.md"
+      ],
+      "conventions": [
+        "CommonJS require/module.exports with single quotes, semicolons, 2-space indent, trailing commas",
+        "Feature modules export plain functions with prisma passed as the first argument (captionHistory.js: getCaptionHistoryPage(prisma, {...}))",
+        "Error classes carry this.name and this.statusCode (LlmConfigError=400, SummaryFormatError=502 in llmConfig.js; CaptionHistoryError in captionHistory.js)",
+        "CLI scripts guard execution with `if (require.main === module)` before main()",
+        "Tests use node:test + node:assert/strict with mock prisma objects and deepEqual payload assertions (backend/test/captionHistory.test.js)",
+        "Constants in UPPER_SNAKE_CASE; DEBUG const gates a debugLog helper in index.js",
+        "Meeting IDs validated with UUID_RE regex before DB queries",
+        "Backend has no linter/formatter; follow surrounding file style"
+      ],
+      "similarImplementations": [
+        "backend/captionHistory.js",
+        "backend/llmConfig.js",
+        "backend/tokenEstimator.js",
+        "backend/test/captionHistory.test.js"
+      ],
+      "commands": [
+        "npm --prefix backend ci",
+        "npm --prefix backend test",
+        "npm --prefix backend test -- test/<name>.test.js",
+        "npm --prefix backend run dev",
+        "npm --prefix backend run start",
+        "npm --prefix desktop test",
+        "npm --prefix desktop test -- test/stt-benchmark.test.js",
+        "npm --prefix desktop run benchmark:whisper -- ...",
+        "npm --prefix desktop run benchmark:prepare-ami -- ...",
+        "npm --prefix frontend test",
+        "npm --prefix frontend run lint"
+      ],
+      "risks": [
+        "No socket.io-client or supertest exists anywhere in the repo (searched node_modules; only desktop has installed deps), so true end-to-end Socket.io regression tests require adding a devDependency (frontend pins socket.io-client ^4.8.3, server is socket.io ^4.8.3 — compatible) or must be written as mock-io/mock-socket handler-level tests following the existing captionHistory.test.js style",
+        "Refactoring index.js into an exported factory/start function must preserve the `node index.js` boot: desktop/main.js:338-339 spawns it with cwd=backend, and package.json `start`/`dev` run `node index.js`/`nodemon index.js`",
+        "Summary endpoint has four distinct error responses (400 validation, 404, 400 no-segments, 502 SummaryFormatError message, generic 502) plus the { ...parsedSummary, _meta: {type, segmentCount, droppedCount, provider, model} } payload — extraction must preserve every branch",
+        "Caption idempotency semantics must be preserved exactly: persistedCaptionKeys claim before write, release on error, TTL 3_600_000ms with 300_000ms prune timer, and meeting-prefix key purge when a room empties inside withMeetingJoinLock",
+        "The join handler order matters for contract tests: host-info and user-joined emit before joined-successfully; handleUserLeaveRoom emits user-left BEFORE the serialized endedAt update",
+        "benchmark-whisper.cpp.js module.exports (calculateWer, cleanHypothesis, normalizeForWer, parsePcmWav, summarize, validateSampleId, validateStreamingWav) are imported by both desktop/test/stt-benchmark.test.js and prepare-ami-benchmark.js — any module split must update those import sites or re-export to keep desktop tests green",
+        "docs/STT_NATIVE_WER_BENCHMARK.md and docs/TESTING.md reference exact CLI invocations (npm --prefix desktop run benchmark:whisper/benchmark:prepare-ami, node desktop/stt/benchmark-whisper.cpp.js); behavior-preserving refactors need no doc changes, but any option/file moves require doc updates per AGENTS.md upkeep rules",
+        "backend/node_modules and root node_modules are not installed in this environment; backend tests cannot run until `npm --prefix backend ci` is executed"
+      ],
+      "knownLessons": [
+        "AGENTS.md: this is not an npm workspace; install root, backend, frontend, and desktop lockfiles separately; use Node 22.12+",
+        "AGENTS.md: no Prisma schema or migration changes for this refactor; run Prisma commands from backend/",
+        "AGENTS.md: benchmark-results/ is git-ignored and must not be reorganized; STT binaries/models/samples and benchmark output are never committed",
+        "AGENTS.md: no formatter configured — follow the surrounding file style; backend has no lint script",
+        "Frontend mergeCaptions dedupes by captionId then utteranceId, so the broadcast caption payload must keep {...data, captionId, speakerName, sessionStartedAt, createdAt} exactly",
+        "desktop/stt/README.md documents vadThreshold 0.003 as the current default across whisper-streaming-sidecar.js, sidecar-manager.js, and benchmark-whisper.cpp.js — keep defaults consistent if touched"
+      ],
+      "evidence": [
+        {
+          "path": "backend/index.js",
+          "detail": "POST /meetings/:id/summary handler (~lines 96-236) is the largest hotspot: meeting fetch, session/rolling whereClause, truncateSegments, openai/anthropic/deepseek dispatch, parseSummaryText, prisma.summary.create, and 400/404/502 error mapping"
+        },
+        {
+          "path": "backend/index.js",
+          "detail": "join-meeting handler (~lines 257-327): user create, isFirstParticipant session commit, socket.join, meetingHosts assignment, emits host-info, user-joined, joined-successfully with existingParticipants, join-error"
+        },
+        {
+          "path": "backend/index.js",
+          "detail": "handleUserLeaveRoom (~lines 381-425): emits user-left, random host reassignment via meetingHosts, then withMeetingJoinLock rechecks empty room, purges meetingId:-prefixed caption keys, sets endedAt"
+        },
+        {
+          "path": "backend/index.js",
+          "detail": "caption handler (~lines 329-378): rejects isFinal===false with caption-rejected, idempotency via persistedCaptionKeys TTL 3_600_000ms, transcript upsert on meetingId_ownerUserId, segment create with socket.sessionStartedAt, durationSec increment, broadcast with captionId/speakerName/sessionStartedAt/createdAt, key release on error"
+        },
+        {
+          "path": "backend/index.js",
+          "detail": "In-memory state declared before io.on('connection'): meetingHosts Map, persistedCaptionKeys Map, meetingJoinLocks Map, CAPTION_KEY_CLEANUP_INTERVAL=300_000 prune timer; `meeting.sessionStartedAt || meeting.startedAt || meeting.createdAt` fallback duplicated in join and get-caption-history handlers"
+        },
+        {
+          "path": "backend/index.js",
+          "detail": "Retention scheduler: setInterval every 3600*1000ms deletes meetings with endedAt <= cutoff; shutdown() clears captionKeyCleanupTimer and server.close(() => process.exit(0)) on SIGINT/SIGTERM"
+        },
+        {
+          "path": "backend/captionHistory.js",
+          "detail": "Exports CaptionHistoryError, DEFAULT_CAPTION_PAGE_SIZE=200, MAX_CAPTION_PAGE_SIZE=200, decode/encodeCaptionCursor (base64url), normalizeCaptionSegment, getCaptionHistoryPage(prisma, {meetingId, sessionStartedAt, cursor, limit}) with take: pageSize+1 and createdAt/id OR cursor bounds"
+        },
+        {
+          "path": "backend/llmConfig.js",
+          "detail": "LLM_PROVIDERS (openai/anthropic/deepseek) with defaultModel/models lists; SUMMARY_SCHEMA; LlmConfigError statusCode 400; SummaryFormatError statusCode 502; resolveLlmConfig trims apiKey and validates model membership; parseSummaryText strips code fences and validates structure"
+        },
+        {
+          "path": "backend/package.json",
+          "detail": "Scripts: dev=nodemon index.js, start=node index.js, test=node --test, prisma:migrate/generate; deps express ^5.2.1, socket.io ^4.8.3, @prisma/client 5.22.0, openai, @anthropic-ai/sdk; no test framework devDeps"
+        },
+        {
+          "path": "backend/test/captionHistory.test.js",
+          "detail": "Unit tests build a mock prisma { transcriptSegment: { findMany: async (args) => {...} } }, assert where/take args and payloads with deepEqual — the pattern to follow for new module tests"
+        },
+        {
+          "path": "backend/prisma/schema.prisma",
+          "detail": "TranscriptSegment has @@index([transcriptId, sessionStartedAt, createdAt, id]) used by caption history pagination; no schema changes permitted for this refactor"
+        },
+        {
+          "path": "desktop/main.js",
+          "detail": "Lines 336-339: backendProcess = spawn(process.env.NODE_BINARY || 'node', ['index.js'], { cwd: path.resolve(__dirname, '..', 'backend') }) — backend must keep booting via plain `node index.js` from the backend dir"
+        },
+        {
+          "path": "frontend/src/hooks/useWebRTC.js",
+          "detail": "Lines 329-334 register socket.on('signal'|'user-joined'|'joined-successfully'|'host-info'|'user-left'|'status-change'); joined-successfully handler consumes existingParticipants[].status/.userId, host-info consumes hostId"
+        },
+        {
+          "path": "frontend/src/App.jsx",
+          "detail": "Line 43: socket.timeout(10000).emit('get-caption-history', payload, ack) expecting {ok, meetingId, sessionStartedAt, captions, nextCursor, hasMore}; line 214: 'caption' listener filters by meetingId and sessionStartedAt; line 211: io(runtimeConfig.socketUrl || runtimeConfig.apiBaseUrl)"
+        },
+        {
+          "path": "frontend/src/utils/captions.js",
+          "detail": "mergeCaptions dedupe keys: caption:${captionId} then utterance:${meetingId}:${speakerId}:${utteranceId}; tested in frontend/test/captions.test.js"
+        },
+        {
+          "path": "desktop/stt/benchmark-whisper.cpp.js",
+          "detail": "990-line monolithic runner; exports at line 990: calculateWer, cleanHypothesis, normalizeForWer, parsePcmWav, summarize, validateSampleId, validateStreamingWav — consumed by desktop/test/stt-benchmark.test.js (lines 10-22) and prepare-ami-benchmark.js (lines 3-4)"
+        },
+        {
+          "path": "desktop/stt/benchmark-whisper.cpp.js",
+          "detail": "main() (~lines 700-990) does arg parsing, dataset validation with sha256 checks, per-sample offline/streaming runs, per-sample atomic report writes, aggregate computation; runStreamingSidecar (~lines 445-600) manages the sidecar protocol (audio frames, flush, finals, telemetry)"
+        },
+        {
+          "path": "desktop/stt/prepare-ami-benchmark.js",
+          "detail": "Imports parsePcmWav/validateSampleId/validateStreamingWav from ./benchmark-whisper.cpp; defines writeMonoPcm16Wav; exports adjustRangeToWordBoundaries, extractReferenceWords, loadMeetingMap, writeMonoPcm16Wav; main() writes clipped WAVs, lexical references, and manifest.json with hashes"
+        },
+        {
+          "path": "desktop/package.json",
+          "detail": "Scripts: test=node --test, benchmark:prepare-ami=node stt/prepare-ami-benchmark.js, benchmark:whisper=node stt/benchmark-whisper.cpp.js, validate:vulkan; deps fast-xml-parser ^5.10.1, koffi ^3.1.3"
+        },
+        {
+          "path": "desktop/test/stt-benchmark.test.js",
+          "detail": "Tests normalizeForWer/calculateWer/cleanHypothesis/summarize/parsePcmWav/validateStreamingWav/validateSampleId, SessionState (streaming sidecar), and prepare-ami-benchmark extractReferenceWords/adjustRangeToWordBoundaries/writeMonoPcm16Wav"
+        },
+        {
+          "path": "desktop/stt/whisper-streaming-sidecar.js",
+          "detail": "Line 580: vadThreshold default 0.003 (also sidecar-manager.js:142 and benchmark-whisper.cpp.js:418); exports SessionState, normalizeForCompare, normalizeText, preprocessAudio, validateConfig at line 902"
+        },
+        {
+          "path": "docs/STT_NATIVE_WER_BENCHMARK.md",
+          "detail": "Documents prepare/run via npm --prefix desktop run benchmark:prepare-ami / benchmark:whisper (lines 33, 55) and direct node desktop/stt/benchmark-whisper.cpp.js invocations (lines 206-306); must remain accurate after runner refactor"
+        },
+        {
+          "path": "docs/TESTING.md",
+          "detail": "Native STT benchmark smoke test section runs npm --prefix desktop run benchmark:whisper with --mode both --pace fast and checks flush totals; lists backend/frontend/desktop test commands"
+        },
+        {
+          "path": "docs/STT_WEBGPU_BENCHMARK.md",
+          "detail": "Renderer-only WebGPU baseline; references window.exportMeetSummarizerSttBenchmarks() and Electron launch; only needs consistency with native docs cross-references, not runner internals"
+        },
+        {
+          "path": ".gitignore",
+          "detail": "benchmark-results/, desktop/stt/bin/, desktop/stt/models/, desktop/stt/samples/ are ignored; benchmark artifacts must not be reorganized or committed"
+        },
+        {
+          "path": "backend/.env.example",
+          "detail": "Backend env: PORT=4000, DATABASE_URL postgres:5433, CORS_ORIGIN=\"null\", RETENTION_DAYS=30 — CORS_ORIGIN and RETENTION_DAYS are consumed at module load in index.js"
+        }
+      ]
+    },
+    "plan": {
+      "route": "implementation",
+      "summary": "Extract summary, meeting lifecycle, and caption responsibilities into CommonJS feature modules; compose them through a testable backend bootstrap while preserving all HTTP and Socket.io contracts. Split reusable native benchmark utilities from its CLI orchestration, update AMI preparation imports, and align maintained benchmark documentation without changing generated artifacts or Prisma.",
+      "assumptions": [
+        "A backend devDependency on socket.io-client is acceptable for real Socket.io contract regression tests; it will not be used at runtime.",
+        "The backend may expose a dependency-injected bootstrap factory for tests as long as executing node backend/index.js retains the existing listener, cleanup scheduler, signal handling, and Electron launch contract.",
+        "Benchmark CLI entrypoints, options, report schema, output locations, and historical benchmark artifacts remain unchanged; only internal helper boundaries and documentation are revised."
+      ],
+      "acceptanceCriteria": [
+        "backend/features/meeting.js, backend/features/summary.js, and backend/features/caption.js own their respective domain behavior, while backend/index.js is limited to application, infrastructure, feature composition, and process lifecycle orchestration.",
+        "GET /health, POST /meetings, POST /meetings/:id/summary, and GET /meetings/:id/status preserve their existing validation, status codes, response payloads, summary provider behavior, and error mapping.",
+        "Socket.io meeting lifecycle behavior remains unchanged, including join and leave ordering, participant and host payloads, status and signaling relays, session state, room-end updates, and join-error handling.",
+        "Caption persistence and history behavior remains unchanged, including partial-caption rejection, transcript upsert and duration updates, idempotency TTL and failure release, room-empty key purging, live caption payload fields, history authorization, pagination, and acknowledgement payloads.",
+        "No file under backend/prisma/ is added or modified.",
+        "The selected backend hotspots use explicit CommonJS dependency boundaries, centralized meeting-session fallback logic, and consistent naming without unrelated backend cleanup.",
+        "desktop/stt/benchmark-whisper.cpp.js and desktop/stt/prepare-ami-benchmark.js retain their CLI and exported-helper behavior while shared benchmark parsing, WER, validation, and reporting utilities have clear ownership.",
+        "desktop/stt/README.md, docs/STT_NATIVE_WER_BENCHMARK.md, and docs/STT_WEBGPU_BENCHMARK.md accurately describe the retained benchmark commands, supported execution modes, defaults, artifacts, and native/WebGPU comparison procedure.",
+        "The backend, desktop, frontend test suites and frontend lint check pass with the targeted regression coverage."
+      ],
+      "automatedAcceptanceCriteria": [
+        1,
+        2,
+        3,
+        6,
+        8
+      ],
+      "tasks": [
+        {
+          "id": "extract-summary-feature",
+          "description": "Create the summary-domain CommonJS feature with injected Prisma and LLM dependencies, preserving UUID/user/config validation, current-session and rolling-summary query construction, provider-specific request shapes, parsing, persistence data, metadata payload, and every 400/404/502 response branch. Add focused mock-Prisma/provider tests for successful and failure contracts.",
+          "files": [
+            "backend/features/summary.js",
+            "backend/test/summary.test.js"
+          ],
+          "testSupportFiles": [],
+          "dependencies": [],
+          "verification": [
+            "Run npm --prefix backend test -- test/summary.test.js.",
+            "Assert tests cover validation failures, absent meetings and segments, malformed provider output, provider failures, persisted summary fields, and the successful _meta response."
+          ]
+        },
+        {
+          "id": "extract-meeting-feature",
+          "description": "Create the meeting-domain CommonJS feature for meeting creation/status routes and Socket.io lifecycle handlers. Centralize session-start fallback resolution and retain serialized joins, participant snapshots, host assignment/reassignment, exact join and leave emission order, status/signal relays, room-empty endedAt updates, and the injected caption-key purge callback. Add handler-level regression tests with mocked Prisma, io, rooms, and sockets.",
+          "files": [
+            "backend/features/meeting.js",
+            "backend/test/meeting.test.js"
+          ],
+          "testSupportFiles": [],
+          "dependencies": [],
+          "verification": [
+            "Run npm --prefix backend test -- test/meeting.test.js.",
+            "Assert route tests retain validation and response payloads, and socket tests retain host-info/user-joined/joined-successfully ordering, user-left-before-endedAt behavior, host reassignment, session fallback, signal, and status-change payloads."
+          ]
+        },
+        {
+          "id": "extract-caption-feature",
+          "description": "Create the caption-domain CommonJS feature that owns caption idempotency state and cleanup, persistence/broadcast handling, and get-caption-history acknowledgements. Reuse the meeting feature's injected session resolver and existing captionHistory pagination module without altering history records or cursor behavior. Add targeted mocked Socket.io/Prisma tests for final and partial captions, duplicate suppression, write failure rollback, room-key purging, and history authorization/error/success responses.",
+          "files": [
+            "backend/features/caption.js",
+            "backend/test/caption.test.js"
+          ],
+          "testSupportFiles": [],
+          "dependencies": [
+            "extract-meeting-feature"
+          ],
+          "verification": [
+            "Run npm --prefix backend test -- test/caption.test.js.",
+            "Assert successful caption broadcasts retain data, captionId, speakerName, sessionStartedAt, and createdAt exactly; assert rejected partials, idempotency failure release, and caption-history acknowledgement payloads."
+          ]
+        },
+        {
+          "id": "compose-testable-backend-and-contracts",
+          "description": "Replace the monolithic backend/index.js handlers with feature composition and a dependency-injected server bootstrap that retains direct node index.js startup, CORS behavior, health endpoint, retention cleanup, and graceful shutdown. Add socket.io-client only as a backend development dependency and use the bootstrap in end-to-end HTTP and Socket.io contract tests against mock Prisma state; regenerate the lockfile accordingly.",
+          "files": [
+            "backend/index.js",
+            "backend/package.json",
+            "backend/package-lock.json",
+            "backend/test/serverContracts.test.js"
+          ],
+          "testSupportFiles": [],
+          "dependencies": [
+            "extract-summary-feature",
+            "extract-meeting-feature",
+            "extract-caption-feature"
+          ],
+          "verification": [
+            "Run npm --prefix backend test -- test/serverContracts.test.js.",
+            "Run npm --prefix backend test.",
+            "Verify real HTTP and Socket.io tests cover health, meeting create/status, join/caption/history/leave contracts and cleanly close server, sockets, and feature timers.",
+            "Run git diff --exit-code -- backend/prisma and confirm no Prisma schema or migration path changed."
+          ]
+        },
+        {
+          "id": "refactor-native-benchmark-boundaries",
+          "description": "Move reusable WAV parsing/streaming validation, WER normalization/scoring, sample-id validation, statistics, and report/file helpers into a shared CommonJS benchmark utility module; move CLI run orchestration into a dedicated runner module; retain benchmark-whisper.cpp.js as the same executable wrapper and compatibility export surface. Update AMI preparation to import shared utilities directly, and adapt desktop tests to exercise the extracted utilities and wrapper compatibility.",
+          "files": [
+            "desktop/stt/benchmark-whisper.cpp.js",
+            "desktop/stt/benchmark-runner.js",
+            "desktop/stt/benchmark-utils.js",
+            "desktop/stt/prepare-ami-benchmark.js",
+            "desktop/test/stt-benchmark.test.js"
+          ],
+          "testSupportFiles": [],
+          "dependencies": [],
+          "verification": [
+            "Run npm --prefix desktop test -- test/stt-benchmark.test.js.",
+            "Run npm --prefix desktop run benchmark:whisper -- --help and npm --prefix desktop run benchmark:prepare-ami -- --help.",
+            "Assert existing WER, WAV, sample-ID, AMI clipping/reference, and legacy benchmark-whisper helper-export tests still pass without requiring local models, binaries, samples, or benchmark-results changes."
+          ]
+        },
+        {
+          "id": "align-benchmark-documentation",
+          "description": "Update maintained native benchmark, STT-area, and WebGPU baseline documentation to retain the public package/direct CLI entrypoints, describe the CLI versus FFI mode and current streaming defaults accurately, clarify generated-artifact handling, label historical measurements appropriately, and link the separate native and renderer benchmark procedures with comparable-measurement constraints.",
+          "files": [
+            "desktop/stt/README.md",
+            "docs/STT_NATIVE_WER_BENCHMARK.md",
+            "docs/STT_WEBGPU_BENCHMARK.md"
+          ],
+          "testSupportFiles": [],
+          "dependencies": [
+            "compose-testable-backend-and-contracts",
+            "refactor-native-benchmark-boundaries"
+          ],
+          "verification": [
+            "Review every documented benchmark command against the unchanged desktop package scripts and executable wrapper paths.",
+            "Run npm --prefix backend test, npm --prefix desktop test, npm --prefix frontend test, and npm --prefix frontend run lint."
+          ]
+        }
+      ],
+      "risks": [
+        "Socket lifecycle behavior is ordering- and race-sensitive: joins must remain serialized with final room-empty checks, and user-left must remain emitted before the endedAt update.",
+        "Caption idempotency is stateful across persistence failures and room teardown; feature ownership must preserve the one-hour TTL, five-minute cleanup cadence, retry release, and meeting-prefix purge exactly.",
+        "The summary route has provider-specific SDK payloads and distinct status/error branches; dependency injection must not alter its externally visible error handling.",
+        "Benchmark refactoring must keep lazy FFI loading, sidecar protocol handling, atomic report writes, CLI arguments, and existing exports intact so CLI-only runs do not gain FFI prerequisites.",
+        "No Prisma schema or migration changes are authorized, and ignored benchmark artifacts under benchmark-results/ must remain untouched."
+      ]
+    },
+    "proposedPlan": {
+      "route": "implementation",
+      "summary": "Repair the baseline validation configuration by using the existing root build script; no repository source or configuration change is supported.",
+      "assumptions": [
+        "The failing `npm run build` command is external validation configuration rather than an intended missing project script."
+      ],
+      "acceptanceCriteria": [
+        "Baseline build validation uses the existing `npm run build:desktop` script instead of undefined `npm run build`.",
+        "No repository files are modified for this tooling-only baseline repair."
+      ],
+      "automatedAcceptanceCriteria": [
+        0
+      ],
+      "tasks": [
+        {
+          "id": "validate-existing-build-command",
+          "description": "Confirm the root package exposes the documented desktop build command and use it as the replacement baseline validation command.",
+          "files": [
+            "package.json",
+            "AGENTS.md"
+          ],
+          "testSupportFiles": [],
+          "dependencies": [],
+          "verification": [
+            "Run `npm run build:desktop` from the repository root.",
+            "Confirm `package.json` has no root `build` script and includes `build:desktop`."
+          ]
+        }
+      ],
+      "risks": [
+        "`npm run build:desktop` may require installed desktop and frontend dependencies; this is an environment prerequisite rather than a repository defect.",
+        "Adding a generic root `build` alias would exceed the diagnosis-supported repair and could change the intended command interface."
+      ]
+    },
+    "baselineChecks": [
+      {
+        "command": "npm run build",
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "npm error Missing script: \"build\"\nnpm error\nnpm error To see a list of scripts, run:\nnpm error   npm run\nnpm error A complete log of this run can be found in: C:\\Users\\Khuong\\AppData\\Local\\npm-cache\\_logs\\2026-08-03T05_11_49_099Z-debug-0.log\n",
+        "stdoutTruncated": false,
+        "stderrTruncated": false,
+        "passed": false,
+        "timedOut": false,
+        "cancelled": false,
+        "startedAt": "2026-08-03T05:11:48.927Z",
+        "completedAt": "2026-08-03T05:11:49.154Z",
+        "durationMs": 227
+      }
+    ],
+    "diagnosis": {
+      "category": "tooling_error",
+      "rootCause": "The baseline check invokes an undefined root-level `build` script; the project intentionally exposes `build:renderer` and `build:desktop` instead.",
+      "evidence": [
+        {
+          "path": "package.json",
+          "detail": "Root scripts define build:renderer and build:desktop, but no build script."
+        },
+        {
+          "path": "AGENTS.md",
+          "detail": "Project instructions specify npm run build:desktop for packaged builds and explicitly state there is no root test/lint script."
+        }
+      ],
+      "recommendedFix": "Change the validation command to `npm run build:desktop` (or `npm run build:renderer` when only the renderer is relevant); no repository change is supported.",
+      "affectedFiles": [],
+      "confidence": "high"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "role": "builder",
+  "policy": "plan_files",
+  "allowed": [
+    "AGENTS.md",
+    "package.json"
+  ],
+  "reported": [],
+  "actual": {
+    "added": [],
+    "modified": [],
+    "deleted": [],
+    "changedFiles": []
+  },
+  "violations": []
+}

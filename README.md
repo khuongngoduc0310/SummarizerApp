@@ -12,6 +12,7 @@ MeetSummarizer is a desktop meeting workspace for teams that want live captions,
 
 - Captures live meeting captions with local Whisper.cpp speech-to-text.
 - Keeps meetings connected over WebRTC, with Socket.io for signaling and caption relay.
+- Blurs the local camera background before it is shared with meeting participants.
 - Generates concise summaries, action items, and open questions from the meeting transcript.
 - Lets you select and download a local speech-to-text model from the app settings.
 

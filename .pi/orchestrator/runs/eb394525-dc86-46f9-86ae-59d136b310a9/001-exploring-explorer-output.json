@@ -1,0 +1,200 @@
+{
+  "output": {
+    "architecture": "Backend is a single CommonJS Express 5 + Socket.io 4 + Prisma server in backend/index.js (~500 lines) holding all REST routes (GET /health, POST /meetings, POST /meetings/:id/summary, GET /meetings/:id/status), the entire Socket.io connection handler (join-meeting/leave-meeting/disconnect, caption, status-change, signal, get-caption-history), in-memory state (meetingHosts Map, persistedCaptionKeys idempotency Map with 1h TTL, meetingJoinLocks Map), a retention cleanup scheduler, and graceful shutdown. Three small modules are already extracted following a dependency-injection convention (prisma passed as an argument): captionHistory.js (pagination), llmConfig.js (provider config + error classes with statusCode), tokenEstimator.js. Frontend (App.jsx, hooks/useWebRTC.js, hooks/useAudioPipeline.js, utils/captions.js) defines the Socket.io/REST contracts that must be preserved. Desktop STT tooling: benchmark-whisper.cpp.js is a monolithic 990-line CLI runner; prepare-ami-benchmark.js (~240 lines) imports WAV/ID utilities from it. Tests: node:test + assert/strict with mock-prisma objects (backend/test/*, desktop/test/stt-benchmark.test.js). backend/node_modules and root node_modules are not installed; desktop/node_modules is. desktop/main.js spawns `node index.js` from the backend cwd, so the module-load boot contract must be preserved.",
+    "relevantFiles": [
+      "backend/index.js",
+      "backend/captionHistory.js",
+      "backend/llmConfig.js",
+      "backend/tokenEstimator.js",
+      "backend/test/captionHistory.test.js",
+      "backend/test/llmConfig.test.js",
+      "backend/package.json",
+      "backend/prisma/schema.prisma",
+      "backend/.env.example",
+      "frontend/src/App.jsx",
+      "frontend/src/hooks/useWebRTC.js",
+      "frontend/src/hooks/useAudioPipeline.js",
+      "frontend/src/utils/captions.js",
+      "frontend/test/captions.test.js",
+      "desktop/main.js",
+      "desktop/package.json",
+      "desktop/stt/benchmark-whisper.cpp.js",
+      "desktop/stt/prepare-ami-benchmark.js",
+      "desktop/stt/args-utils.js",
+      "desktop/stt/whisper-streaming-sidecar.js",
+      "desktop/stt/README.md",
+      "desktop/test/stt-benchmark.test.js",
+      "docs/STT_NATIVE_WER_BENCHMARK.md",
+      "docs/STT_WEBGPU_BENCHMARK.md",
+      "docs/TESTING.md"
+    ],
+    "conventions": [
+      "CommonJS require/module.exports with single quotes, semicolons, 2-space indent, trailing commas",
+      "Feature modules export plain functions with prisma passed as the first argument (captionHistory.js: getCaptionHistoryPage(prisma, {...}))",
+      "Error classes carry this.name and this.statusCode (LlmConfigError=400, SummaryFormatError=502 in llmConfig.js; CaptionHistoryError in captionHistory.js)",
+      "CLI scripts guard execution with `if (require.main === module)` before main()",
+      "Tests use node:test + node:assert/strict with mock prisma objects and deepEqual payload assertions (backend/test/captionHistory.test.js)",
+      "Constants in UPPER_SNAKE_CASE; DEBUG const gates a debugLog helper in index.js",
+      "Meeting IDs validated with UUID_RE regex before DB queries",
+      "Backend has no linter/formatter; follow surrounding file style"
+    ],
+    "similarImplementations": [
+      "backend/captionHistory.js",
+      "backend/llmConfig.js",
+      "backend/tokenEstimator.js",
+      "backend/test/captionHistory.test.js"
+    ],
+    "commands": [
+      "npm --prefix backend ci",
+      "npm --prefix backend test",
+      "npm --prefix backend test -- test/<name>.test.js",
+      "npm --prefix backend run dev",
+      "npm --prefix backend run start",
+      "npm --prefix desktop test",
+      "npm --prefix desktop test -- test/stt-benchmark.test.js",
+      "npm --prefix desktop run benchmark:whisper -- ...",
+      "npm --prefix desktop run benchmark:prepare-ami -- ...",
+      "npm --prefix frontend test",
+      "npm --prefix frontend run lint"
+    ],
+    "risks": [
+      "No socket.io-client or supertest exists anywhere in the repo (searched node_modules; only desktop has installed deps), so true end-to-end Socket.io regression tests require adding a devDependency (frontend pins socket.io-client ^4.8.3, server is socket.io ^4.8.3 — compatible) or must be written as mock-io/mock-socket handler-level tests following the existing captionHistory.test.js style",
+      "Refactoring index.js into an exported factory/start function must preserve the `node index.js` boot: desktop/main.js:338-339 spawns it with cwd=backend, and package.json `start`/`dev` run `node index.js`/`nodemon index.js`",
+      "Summary endpoint has four distinct error responses (400 validation, 404, 400 no-segments, 502 SummaryFormatError message, generic 502) plus the { ...parsedSummary, _meta: {type, segmentCount, droppedCount, provider, model} } payload — extraction must preserve every branch",
+      "Caption idempotency semantics must be preserved exactly: persistedCaptionKeys claim before write, release on error, TTL 3_600_000ms with 300_000ms prune timer, and meeting-prefix key purge when a room empties inside withMeetingJoinLock",
+      "The join handler order matters for contract tests: host-info and user-joined emit before joined-successfully; handleUserLeaveRoom emits user-left BEFORE the serialized endedAt update",
+      "benchmark-whisper.cpp.js module.exports (calculateWer, cleanHypothesis, normalizeForWer, parsePcmWav, summarize, validateSampleId, validateStreamingWav) are imported by both desktop/test/stt-benchmark.test.js and prepare-ami-benchmark.js — any module split must update those import sites or re-export to keep desktop tests green",
+      "docs/STT_NATIVE_WER_BENCHMARK.md and docs/TESTING.md reference exact CLI invocations (npm --prefix desktop run benchmark:whisper/benchmark:prepare-ami, node desktop/stt/benchmark-whisper.cpp.js); behavior-preserving refactors need no doc changes, but any option/file moves require doc updates per AGENTS.md upkeep rules",
+      "backend/node_modules and root node_modules are not installed in this environment; backend tests cannot run until `npm --prefix backend ci` is executed"
+    ],
+    "knownLessons": [
+      "AGENTS.md: this is not an npm workspace; install root, backend, frontend, and desktop lockfiles separately; use Node 22.12+",
+      "AGENTS.md: no Prisma schema or migration changes for this refactor; run Prisma commands from backend/",
+      "AGENTS.md: benchmark-results/ is git-ignored and must not be reorganized; STT binaries/models/samples and benchmark output are never committed",
+      "AGENTS.md: no formatter configured — follow the surrounding file style; backend has no lint script",
+      "Frontend mergeCaptions dedupes by captionId then utteranceId, so the broadcast caption payload must keep {...data, captionId, speakerName, sessionStartedAt, createdAt} exactly",
+      "desktop/stt/README.md documents vadThreshold 0.003 as the current default across whisper-streaming-sidecar.js, sidecar-manager.js, and benchmark-whisper.cpp.js — keep defaults consistent if touched"
+    ],
+    "evidence": [
+      {
+        "path": "backend/index.js",
+        "detail": "POST /meetings/:id/summary handler (~lines 96-236) is the largest hotspot: meeting fetch, session/rolling whereClause, truncateSegments, openai/anthropic/deepseek dispatch, parseSummaryText, prisma.summary.create, and 400/404/502 error mapping"
+      },
+      {
+        "path": "backend/index.js",
+        "detail": "join-meeting handler (~lines 257-327): user create, isFirstParticipant session commit, socket.join, meetingHosts assignment, emits host-info, user-joined, joined-successfully with existingParticipants, join-error"
+      },
+      {
+        "path": "backend/index.js",
+        "detail": "handleUserLeaveRoom (~lines 381-425): emits user-left, random host reassignment via meetingHosts, then withMeetingJoinLock rechecks empty room, purges meetingId:-prefixed caption keys, sets endedAt"
+      },
+      {
+        "path": "backend/index.js",
+        "detail": "caption handler (~lines 329-378): rejects isFinal===false with caption-rejected, idempotency via persistedCaptionKeys TTL 3_600_000ms, transcript upsert on meetingId_ownerUserId, segment create with socket.sessionStartedAt, durationSec increment, broadcast with captionId/speakerName/sessionStartedAt/createdAt, key release on error"
+      },
+      {
+        "path": "backend/index.js",
+        "detail": "In-memory state declared before io.on('connection'): meetingHosts Map, persistedCaptionKeys Map, meetingJoinLocks Map, CAPTION_KEY_CLEANUP_INTERVAL=300_000 prune timer; `meeting.sessionStartedAt || meeting.startedAt || meeting.createdAt` fallback duplicated in join and get-caption-history handlers"
+      },
+      {
+        "path": "backend/index.js",
+        "detail": "Retention scheduler: setInterval every 3600*1000ms deletes meetings with endedAt <= cutoff; shutdown() clears captionKeyCleanupTimer and server.close(() => process.exit(0)) on SIGINT/SIGTERM"
+      },
+      {
+        "path": "backend/captionHistory.js",
+        "detail": "Exports CaptionHistoryError, DEFAULT_CAPTION_PAGE_SIZE=200, MAX_CAPTION_PAGE_SIZE=200, decode/encodeCaptionCursor (base64url), normalizeCaptionSegment, getCaptionHistoryPage(prisma, {meetingId, sessionStartedAt, cursor, limit}) with take: pageSize+1 and createdAt/id OR cursor bounds"
+      },
+      {
+        "path": "backend/llmConfig.js",
+        "detail": "LLM_PROVIDERS (openai/anthropic/deepseek) with defaultModel/models lists; SUMMARY_SCHEMA; LlmConfigError statusCode 400; SummaryFormatError statusCode 502; resolveLlmConfig trims apiKey and validates model membership; parseSummaryText strips code fences and validates structure"
+      },
+      {
+        "path": "backend/package.json",
+        "detail": "Scripts: dev=nodemon index.js, start=node index.js, test=node --test, prisma:migrate/generate; deps express ^5.2.1, socket.io ^4.8.3, @prisma/client 5.22.0, openai, @anthropic-ai/sdk; no test framework devDeps"
+      },
+      {
+        "path": "backend/test/captionHistory.test.js",
+        "detail": "Unit tests build a mock prisma { transcriptSegment: { findMany: async (args) => {...} } }, assert where/take args and payloads with deepEqual — the pattern to follow for new module tests"
+      },
+      {
+        "path": "backend/prisma/schema.prisma",
+        "detail": "TranscriptSegment has @@index([transcriptId, sessionStartedAt, createdAt, id]) used by caption history pagination; no schema changes permitted for this refactor"
+      },
+      {
+        "path": "desktop/main.js",
+        "detail": "Lines 336-339: backendProcess = spawn(process.env.NODE_BINARY || 'node', ['index.js'], { cwd: path.resolve(__dirname, '..', 'backend') }) — backend must keep booting via plain `node index.js` from the backend dir"
+      },
+      {
+        "path": "frontend/src/hooks/useWebRTC.js",
+        "detail": "Lines 329-334 register socket.on('signal'|'user-joined'|'joined-successfully'|'host-info'|'user-left'|'status-change'); joined-successfully handler consumes existingParticipants[].status/.userId, host-info consumes hostId"
+      },
+      {
+        "path": "frontend/src/App.jsx",
+        "detail": "Line 43: socket.timeout(10000).emit('get-caption-history', payload, ack) expecting {ok, meetingId, sessionStartedAt, captions, nextCursor, hasMore}; line 214: 'caption' listener filters by meetingId and sessionStartedAt; line 211: io(runtimeConfig.socketUrl || runtimeConfig.apiBaseUrl)"
+      },
+      {
+        "path": "frontend/src/utils/captions.js",
+        "detail": "mergeCaptions dedupe keys: caption:${captionId} then utterance:${meetingId}:${speakerId}:${utteranceId}; tested in frontend/test/captions.test.js"
+      },
+      {
+        "path": "desktop/stt/benchmark-whisper.cpp.js",
+        "detail": "990-line monolithic runner; exports at line 990: calculateWer, cleanHypothesis, normalizeForWer, parsePcmWav, summarize, validateSampleId, validateStreamingWav — consumed by desktop/test/stt-benchmark.test.js (lines 10-22) and prepare-ami-benchmark.js (lines 3-4)"
+      },
+      {
+        "path": "desktop/stt/benchmark-whisper.cpp.js",
+        "detail": "main() (~lines 700-990) does arg parsing, dataset validation with sha256 checks, per-sample offline/streaming runs, per-sample atomic report writes, aggregate computation; runStreamingSidecar (~lines 445-600) manages the sidecar protocol (audio frames, flush, finals, telemetry)"
+      },
+      {
+        "path": "desktop/stt/prepare-ami-benchmark.js",
+        "detail": "Imports parsePcmWav/validateSampleId/validateStreamingWav from ./benchmark-whisper.cpp; defines writeMonoPcm16Wav; exports adjustRangeToWordBoundaries, extractReferenceWords, loadMeetingMap, writeMonoPcm16Wav; main() writes clipped WAVs, lexical references, and manifest.json with hashes"
+      },
+      {
+        "path": "desktop/package.json",
+        "detail": "Scripts: test=node --test, benchmark:prepare-ami=node stt/prepare-ami-benchmark.js, benchmark:whisper=node stt/benchmark-whisper.cpp.js, validate:vulkan; deps fast-xml-parser ^5.10.1, koffi ^3.1.3"
+      },
+      {
+        "path": "desktop/test/stt-benchmark.test.js",
+        "detail": "Tests normalizeForWer/calculateWer/cleanHypothesis/summarize/parsePcmWav/validateStreamingWav/validateSampleId, SessionState (streaming sidecar), and prepare-ami-benchmark extractReferenceWords/adjustRangeToWordBoundaries/writeMonoPcm16Wav"
+      },
+      {
+        "path": "desktop/stt/whisper-streaming-sidecar.js",
+        "detail": "Line 580: vadThreshold default 0.003 (also sidecar-manager.js:142 and benchmark-whisper.cpp.js:418); exports SessionState, normalizeForCompare, normalizeText, preprocessAudio, validateConfig at line 902"
+      },
+      {
+        "path": "docs/STT_NATIVE_WER_BENCHMARK.md",
+        "detail": "Documents prepare/run via npm --prefix desktop run benchmark:prepare-ami / benchmark:whisper (lines 33, 55) and direct node desktop/stt/benchmark-whisper.cpp.js invocations (lines 206-306); must remain accurate after runner refactor"
+      },
+      {
+        "path": "docs/TESTING.md",
+        "detail": "Native STT benchmark smoke test section runs npm --prefix desktop run benchmark:whisper with --mode both --pace fast and checks flush totals; lists backend/frontend/desktop test commands"
+      },
+      {
+        "path": "docs/STT_WEBGPU_BENCHMARK.md",
+        "detail": "Renderer-only WebGPU baseline; references window.exportMeetSummarizerSttBenchmarks() and Electron launch; only needs consistency with native docs cross-references, not runner internals"
+      },
+      {
+        "path": ".gitignore",
+        "detail": "benchmark-results/, desktop/stt/bin/, desktop/stt/models/, desktop/stt/samples/ are ignored; benchmark artifacts must not be reorganized or committed"
+      },
+      {
+        "path": "backend/.env.example",
+        "detail": "Backend env: PORT=4000, DATABASE_URL postgres:5433, CORS_ORIGIN=\"null\", RETENTION_DAYS=30 — CORS_ORIGIN and RETENTION_DAYS are consumed at module load in index.js"
+      }
+    ]
+  },
+  "usage": {
+    "input": 59330,
+    "output": 21127,
+    "cacheRead": 1639040,
+    "cacheWrite": 0,
+    "cost": 0.018811071999999998,
+    "totalTokens": 1719497,
+    "costBreakdown": {
+      "input": 0.0083062,
+      "output": 0.00591556,
+      "cacheRead": 0.004589311999999999,
+      "cacheWrite": 0
+    },
+    "reasoning": 13621
+  }
+}

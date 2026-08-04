@@ -1,0 +1,208 @@
+{
+  "schemaVersion": 2,
+  "extensionVersion": "0.0.0",
+  "runId": "766d7331-786e-4e28-b760-4953b2cca40c",
+  "request": "Goal: Add a light theme for the app while retaining the existing dark theme.\nThe app will default to dark mode and provide a persistent light-mode alternative. Users can switch themes through synchronized quick and Settings controls, with changes applied immediately. Light mode covers all rendered interface states using neutral white and light-slate surfaces, preserves blue-violet accents, keeps media areas dark, meets WCAG AA contrast requirements, and uses a reduced-motion-aware color transition.\nScope: Retain the existing dark theme and add light mode as an alternative.; Apply light styling to join, meeting, settings, loading, and error states.; Provide a quick theme toggle in the top-right header on both join and meeting screens.; Rename the existing settings modal to Settings and add an Appearance section near the top.; Persist the selected theme indefinitely in the renderer profile until changed or app data is cleared.\nConstraints: Dark mode remains the default when no saved preference exists.; Light mode uses neutral white and light-slate surfaces while preserving existing blue-violet accents.; Video tiles and media overlays remain dark in light mode.; Theme selection affects only the rendered interface; native Electron window chrome remains OS-managed.; Theme controls must stay synchronized and satisfy WCAG AA contrast, visible-focus, and control-readability requirements.; Theme transitions must respect reduced-motion preferences.\nAcceptance criteria: On first launch without a saved preference, the rendered interface uses dark mode.; Users can switch between light and dark themes using either the header toggle or the Appearance selector in Settings.; Changing the theme updates the open app immediately, and both controls display the same selected theme.; The selected theme remains active across app restarts until changed or renderer app data is cleared.; Light styling is present across join, meeting, settings, loading, and error states, while video tiles and media overlays remain dark.; The quick control is a sun/moon icon button with an accessible label and tooltip in the top-right header of join and meeting screens.; Light-theme text and controls meet WCAG AA contrast, have visible focus indicators, and remain readable.; Theme switching uses a brief color transition, which is suppressed or reduced when the user prefers reduced motion.; Changing the rendered theme does not alter native Electron window chrome.",
+  "route": "quick_implementation",
+  "cwd": "C:\\Projects\\SummarizerApp",
+  "runDir": "C:\\Projects\\SummarizerApp\\.pi\\orchestrator\\runs\\766d7331-786e-4e28-b760-4953b2cca40c",
+  "stage": "failed",
+  "status": "failed",
+  "attempt": 1,
+  "startedAt": "2026-08-03T21:28:23.376Z",
+  "updatedAt": "2026-08-03T22:38:43.352Z",
+  "agents": {
+    "explorer": {
+      "status": "succeeded",
+      "model": "deepseek/deepseek-v4-flash",
+      "startedAt": "2026-08-03T21:28:23.562Z",
+      "summary": "```json\n{\n  \"architecture\": \"React 19 + Vite 7 renderer (Electron file:// via frontend/dist/index.html) styled exclusively with hardcoded dark Tailwind v4 utility classes; there is no existing theme system, no prefers-color-scheme handling, and no semantic color tokens in components. App.jsx owns all screens: startupError/loading early returns (bg-[#0a0a0a]), JoinScreen (header bg-slate-950/55), and the meeting screen (root bg-[radial-gradient(...),#080a10], header bg-slate-950/70, sidebar bg-sl",
+      "completedAt": "2026-08-03T21:31:30.214Z"
+    },
+    "planner": {
+      "status": "succeeded",
+      "model": "openai-codex/gpt-5.6-terra",
+      "startedAt": "2026-08-03T21:31:30.216Z",
+      "summary": "{\"route\":\"quick_implementation\",\"summary\":\"Add a renderer-local persisted theme preference, synchronized light/dark controls, and scoped semantic light-theme styling while retaining dark media surfaces and Electron-managed chrome.\",\"assumptions\":[\"A raw renderer localStorage preference key is appropriate for indefinite persistence and must remain separate from the existing 24-hour expiry wrapper.\",\"The existing Node test runner can unit-test theme preference resolution and persistence; rendered ",
+      "completedAt": "2026-08-03T21:34:22.412Z"
+    },
+    "reviewer": {
+      "status": "idle",
+      "model": "openai-codex/gpt-5.6-luna"
+    },
+    "tester": {
+      "status": "idle",
+      "model": "deepseek/deepseek-v4-flash"
+    },
+    "builder": {
+      "status": "idle",
+      "model": "openai-codex/gpt-5.6-luna"
+    },
+    "debugger": {
+      "status": "idle",
+      "model": "openai-codex/gpt-5.6-terra"
+    },
+    "documenter": {
+      "status": "idle",
+      "model": "deepseek/deepseek-v4-flash"
+    },
+    "interviewer": {
+      "status": "idle",
+      "model": "openai-codex/gpt-5.6-sol"
+    }
+  },
+  "steps": [
+    {
+      "id": "step-001",
+      "sequence": 1,
+      "stage": "exploring",
+      "label": "Explore repository",
+      "status": "succeeded",
+      "agent": "explorer",
+      "startedAt": "2026-08-03T21:28:23.562Z",
+      "invocations": [
+        {
+          "sequence": 1,
+          "mode": "execute",
+          "status": "succeeded",
+          "startedAt": "2026-08-03T21:28:23.790Z",
+          "messageCount": 63,
+          "truncated": false,
+          "usage": {
+            "input": 74450,
+            "output": 18009,
+            "cacheRead": 967040,
+            "cacheWrite": 0,
+            "cost": 0.018173232,
+            "totalTokens": 1059499,
+            "costBreakdown": {
+              "input": 0.010423,
+              "output": 0.005042520000000001,
+              "cacheRead": 0.0027077119999999997,
+              "cacheWrite": 0
+            },
+            "reasoning": 11148
+          },
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "api": "openai-completions",
+          "stopReason": "stop",
+          "completedAt": "2026-08-03T21:31:29.801Z",
+          "transcriptArtifact": "001-exploring-explorer-invocation-1-transcript.json",
+          "fileDiffArtifact": "001-exploring-explorer-invocation-1-file-diff.json",
+          "changedFileCount": 0
+        }
+      ],
+      "mutationArtifact": "001-exploring-explorer-mutation.json",
+      "artifact": "001-exploring-explorer-output.json",
+      "message": "explorer completed",
+      "completedAt": "2026-08-03T21:31:30.214Z"
+    },
+    {
+      "id": "step-002",
+      "sequence": 2,
+      "stage": "planning",
+      "label": "Create selected-route plan",
+      "status": "succeeded",
+      "agent": "planner",
+      "revision": 0,
+      "startedAt": "2026-08-03T21:31:30.216Z",
+      "invocations": [
+        {
+          "sequence": 1,
+          "mode": "execute",
+          "status": "succeeded",
+          "startedAt": "2026-08-03T21:31:30.345Z",
+          "messageCount": 30,
+          "truncated": false,
+          "usage": {
+            "input": 52036,
+            "output": 9109,
+            "cacheRead": 113664,
+            "cacheWrite": 0,
+            "cost": 0.2361128,
+            "totalTokens": 174809,
+            "costBreakdown": {
+              "input": 0.104072,
+              "output": 0.10930800000000002,
+              "cacheRead": 0.022732800000000004,
+              "cacheWrite": 0
+            },
+            "reasoning": 7325
+          },
+          "provider": "openai-codex",
+          "model": "gpt-5.6-terra",
+          "api": "openai-codex-responses",
+          "stopReason": "stop",
+          "completedAt": "2026-08-03T21:34:21.884Z",
+          "transcriptArtifact": "002-planning-planner-revision-0-invocation-1-transcript.json",
+          "fileDiffArtifact": "002-planning-planner-revision-0-invocation-1-file-diff.json",
+          "changedFileCount": 0
+        }
+      ],
+      "mutationArtifact": "002-planning-planner-revision-0-mutation.json",
+      "artifact": "002-planning-planner-revision-0-output.json",
+      "message": "planner completed",
+      "completedAt": "2026-08-03T21:34:22.412Z"
+    },
+    {
+      "id": "step-003",
+      "sequence": 3,
+      "stage": "baseline",
+      "label": "Run green baseline",
+      "status": "succeeded",
+      "startedAt": "2026-08-03T21:36:09.114Z",
+      "artifact": "003-baseline-checks.json",
+      "message": "All checks passed",
+      "completedAt": "2026-08-03T21:36:48.220Z"
+    }
+  ],
+  "dashboardUrl": "http://127.0.0.1:53372",
+  "message": "testSupportFiles may contain only classified test-support files: frontend/test/theme.test.js",
+  "milestones": [
+    {
+      "id": "decision:decision-1785792862415-1:requested",
+      "sequence": 1,
+      "kind": "human_decision_requested",
+      "title": "Plan awaiting review",
+      "details": "**Decision:** Plan approval\n\n# Implementation Plan\n\n**Route:** quick_implementation (selected by user)\n\n## Summary\n\nAdd a renderer-local persisted theme preference, synchronized light/dark controls, and scoped semantic light-theme styling while retaining dark media surfaces and Electron-managed chrome.\n\n## Acceptance Criteria\n\n- [ ] With no saved theme preference, the theme resolver and initial rendered interface use dark mode.\n- [ ] Either header theme button or the Settings Appearance selector switches between light and dark themes.\n- [ ] A theme change updates the open interface immediately and both available controls reflect the selected theme.\n- [ ] The saved theme remains selected after restarting the app profile until it is changed or renderer app data is cleared.\n- [ ] Light mode provides white and light-slate styling for join, meeting, Settings, loading, error, sidebar, captions, summary, and status states while video tiles and media-control overlays remain dark.\n- [ ] Both join and meeting headers provide a top-right sun/moon icon button with an accessible action label, native tooltip, readable state, and visible keyboard focus.\n- [ ] Light-theme text, form controls, and interactive controls use AA-contrast role colors and visible focus indicators.\n- [ ] Theme color changes use a brief transition that is removed or reduced for prefers-reduced-motion users.\n- [ ] Changing the renderer theme does not alter native Electron window chrome.\n\n## Tasks\n\n### 1. theme-preference-foundation\n\nCreate a small browser-safe theme utility with dark/light validation, a dark fallback, raw non-expiring localStorage persistence, and document theme-attribute application. Add an index preflight that applies only a valid saved light preference before React mounts, leaving dark as the no-preference default.\n\n**Files:** frontend/src/utils/theme.js, frontend/index.html\n\n**Verification:**\n- Run `npm --prefix frontend test -- test/theme.test.js` and verify missing or invalid preferences resolve to dark, while a saved light preference is read back by a fresh resolver instance without expiry metadata.\n- Inspect the preflight and utility key usage to confirm they use the same raw renderer-local preference and that no Electron main-process or preload API is involved.\n\n### 2. theme-controls-and-light-surfaces\n\nWire the persisted App theme state and stable toggle handler into both JoinScreen and both SettingsModal call sites; set the document theme immediately on change. Add sun/moon header icon toggles with dynamic accessible labels, title tooltips, and focus styling; rename the modal heading to Settings and add an Appearance light/dark selector near its top. Introduce scoped token/role classes in index.css for dark defaults and neutral white/light-slate light surfaces, AA-safe primary/muted/accent text, borders, inputs, hover states, and color-only transitions with a reduced-motion override. Apply those roles across App loading/error/meeting/sidebar content and JoinScreen, SettingsModal, CaptionPanel, SummaryPanel, and SttStatusBar; explicitly retain the existing dark treatment for camera previews, VideoView tiles, and MeetingControls media overlay boundaries. Replace the global focus-outline suppression with visible focus-visible treatment without changing Electron window configuration.\n\n**Files:** frontend/src/App.jsx, frontend/src/index.css, frontend/src/components/JoinScreen.jsx, frontend/src/components/SettingsModal.jsx, frontend/src/components/CaptionPanel.jsx, frontend/src/components/SummaryPanel.jsx, frontend/src/components/SttStatusBar.jsx, frontend/src/components/VideoView.jsx, frontend/src/components/MeetingControls.jsx\n\n**Depends on:** 1. theme-preference-foundation\n\n**Verification:**\n- Run `npm --prefix frontend test`, `npm --prefix frontend run lint`, and `npm --prefix frontend run build`.\n- Run `npm run dev:local`; after clearing renderer app data, verify loading, error, join, and meeting interfaces initially render dark. Switch themes from each header and from Settings Appearance, confirming immediate synchronized updates and persistence after restarting without clearing app data.\n- In light mode, manually inspect join, meeting/sidebar tabs and benchmark cards, settings, captions, summary, STT status, loading, and error states; confirm white/light-slate interface surfaces, dark video tiles/preview/meeting controls, readable blue-violet accents, visible keyboard focus, and no native window-chrome change.\n- Emulate `prefers-reduced-motion: reduce` in Electron/Chromium DevTools and confirm color transitions are suppressed or reduced; use a contrast checker on representative normal-size primary, muted, label, input, and theme-control text against their light surfaces.\n\n## Assumptions\n\n- A raw renderer localStorage preference key is appropriate for indefinite persistence and must remain separate from the existing 24-hour expiry wrapper.\n- The existing Node test runner can unit-test theme preference resolution and persistence; rendered UI accessibility and cross-screen appearance require manual Electron verification.\n\n## Risks\n\n- The renderer has no component/DOM test harness, so the automated coverage is limited to preference behavior; visual synchronization, contrast, focus, media exceptions, and motion behavior need the specified Electron checks.\n- Native select popup styling and Electron window chrome are OS-managed; the implementation should style the rendered select control only and must not attempt to change native chrome.\n- A missed hardcoded dark utility can leave a light-mode surface or muted label unreadable; scoped semantic role classes must be applied to every listed rendered component rather than globally remapping Tailwind colors, which would also break white text on accent buttons and dark media overlays.",
+      "occurredAt": "2026-08-03T21:34:22.416Z",
+      "decisionId": "decision-1785792862415-1"
+    },
+    {
+      "id": "plan-approved:fa169bb53b5a09ae1d0ddf8bf0a656c2664549e6f492a73321033d1733f8a9fe",
+      "sequence": 2,
+      "kind": "plan_approved",
+      "title": "Plan approved",
+      "details": "# Implementation Plan\n\n**Route:** quick_implementation (selected by user)\n\n## Summary\n\nAdd a renderer-local persisted theme preference, synchronized light/dark controls, and scoped semantic light-theme styling while retaining dark media surfaces and Electron-managed chrome.\n\n## Acceptance Criteria\n\n- [ ] With no saved theme preference, the theme resolver and initial rendered interface use dark mode.\n- [ ] Either header theme button or the Settings Appearance selector switches between light and dark themes.\n- [ ] A theme change updates the open interface immediately and both available controls reflect the selected theme.\n- [ ] The saved theme remains selected after restarting the app profile until it is changed or renderer app data is cleared.\n- [ ] Light mode provides white and light-slate styling for join, meeting, Settings, loading, error, sidebar, captions, summary, and status states while video tiles and media-control overlays remain dark.\n- [ ] Both join and meeting headers provide a top-right sun/moon icon button with an accessible action label, native tooltip, readable state, and visible keyboard focus.\n- [ ] Light-theme text, form controls, and interactive controls use AA-contrast role colors and visible focus indicators.\n- [ ] Theme color changes use a brief transition that is removed or reduced for prefers-reduced-motion users.\n- [ ] Changing the renderer theme does not alter native Electron window chrome.\n\n## Tasks\n\n### 1. theme-preference-foundation\n\nCreate a small browser-safe theme utility with dark/light validation, a dark fallback, raw non-expiring localStorage persistence, and document theme-attribute application. Add an index preflight that applies only a valid saved light preference before React mounts, leaving dark as the no-preference default.\n\n**Files:** frontend/src/utils/theme.js, frontend/index.html\n\n**Verification:**\n- Run `npm --prefix frontend test -- test/theme.test.js` and verify missing or invalid preferences resolve to dark, while a saved light preference is read back by a fresh resolver instance without expiry metadata.\n- Inspect the preflight and utility key usage to confirm they use the same raw renderer-local preference and that no Electron main-process or preload API is involved.\n\n### 2. theme-controls-and-light-surfaces\n\nWire the persisted App theme state and stable toggle handler into both JoinScreen and both SettingsModal call sites; set the document theme immediately on change. Add sun/moon header icon toggles with dynamic accessible labels, title tooltips, and focus styling; rename the modal heading to Settings and add an Appearance light/dark selector near its top. Introduce scoped token/role classes in index.css for dark defaults and neutral white/light-slate light surfaces, AA-safe primary/muted/accent text, borders, inputs, hover states, and color-only transitions with a reduced-motion override. Apply those roles across App loading/error/meeting/sidebar content and JoinScreen, SettingsModal, CaptionPanel, SummaryPanel, and SttStatusBar; explicitly retain the existing dark treatment for camera previews, VideoView tiles, and MeetingControls media overlay boundaries. Replace the global focus-outline suppression with visible focus-visible treatment without changing Electron window configuration.\n\n**Files:** frontend/src/App.jsx, frontend/src/index.css, frontend/src/components/JoinScreen.jsx, frontend/src/components/SettingsModal.jsx, frontend/src/components/CaptionPanel.jsx, frontend/src/components/SummaryPanel.jsx, frontend/src/components/SttStatusBar.jsx, frontend/src/components/VideoView.jsx, frontend/src/components/MeetingControls.jsx\n\n**Depends on:** 1. theme-preference-foundation\n\n**Verification:**\n- Run `npm --prefix frontend test`, `npm --prefix frontend run lint`, and `npm --prefix frontend run build`.\n- Run `npm run dev:local`; after clearing renderer app data, verify loading, error, join, and meeting interfaces initially render dark. Switch themes from each header and from Settings Appearance, confirming immediate synchronized updates and persistence after restarting without clearing app data.\n- In light mode, manually inspect join, meeting/sidebar tabs and benchmark cards, settings, captions, summary, STT status, loading, and error states; confirm white/light-slate interface surfaces, dark video tiles/preview/meeting controls, readable blue-violet accents, visible keyboard focus, and no native window-chrome change.\n- Emulate `prefers-reduced-motion: reduce` in Electron/Chromium DevTools and confirm color transitions are suppressed or reduced; use a contrast checker on representative normal-size primary, muted, label, input, and theme-control text against their light surfaces.\n\n## Assumptions\n\n- A raw renderer localStorage preference key is appropriate for indefinite persistence and must remain separate from the existing 24-hour expiry wrapper.\n- The existing Node test runner can unit-test theme preference resolution and persistence; rendered UI accessibility and cross-screen appearance require manual Electron verification.\n\n## Risks\n\n- The renderer has no component/DOM test harness, so the automated coverage is limited to preference behavior; visual synchronization, contrast, focus, media exceptions, and motion behavior need the specified Electron checks.\n- Native select popup styling and Electron window chrome are OS-managed; the implementation should style the rendered select control only and must not attempt to change native chrome.\n- A missed hardcoded dark utility can leave a light-mode surface or muted label unreadable; scoped semantic role classes must be applied to every listed rendered component rather than globally remapping Tailwind colors, which would also break white text on accent buttons and dark media overlays.",
+      "occurredAt": "2026-08-03T21:36:08.856Z"
+    },
+    {
+      "id": "decision:decision-1785793008223-2:requested",
+      "sequence": 3,
+      "kind": "human_decision_requested",
+      "title": "Mutation phase confirmation awaiting review",
+      "details": "**Decision:** Mutation phase confirmation\n\n## Mutation phase confirmation\n\nThe approved plan is ready to enter the mutation phase. Tester, Builder, Documenter, and project checks may modify authorized files.\n\n### Approved plan\n\n# Implementation Plan\n\n**Route:** quick_implementation (selected by user)\n\n## Summary\n\nAdd a renderer-local persisted theme preference, synchronized light/dark controls, and scoped semantic light-theme styling while retaining dark media surfaces and Electron-managed chrome.\n\n## Acceptance Criteria\n\n- [ ] With no saved theme preference, the theme resolver and initial rendered interface use dark mode.\n- [ ] Either header theme button or the Settings Appearance selector switches between light and dark themes.\n- [ ] A theme change updates the open interface immediately and both available controls reflect the selected theme.\n- [ ] The saved theme remains selected after restarting the app profile until it is changed or renderer app data is cleared.\n- [ ] Light mode provides white and light-slate styling for join, meeting, Settings, loading, error, sidebar, captions, summary, and status states while video tiles and media-control overlays remain dark.\n- [ ] Both join and meeting headers provide a top-right sun/moon icon button with an accessible action label, native tooltip, readable state, and visible keyboard focus.\n- [ ] Light-theme text, form controls, and interactive controls use AA-contrast role colors and visible focus indicators.\n- [ ] Theme color changes use a brief transition that is removed or reduced for prefers-reduced-motion users.\n- [ ] Changing the renderer theme does not alter native Electron window chrome.\n\n## Tasks\n\n### 1. theme-preference-foundation\n\nCreate a small browser-safe theme utility with dark/light validation, a dark fallback, raw non-expiring localStorage persistence, and document theme-attribute application. Add an index preflight that applies only a valid saved light preference before React mounts, leaving dark as the no-preference default.\n\n**Files:** frontend/src/utils/theme.js, frontend/index.html\n\n**Verification:**\n- Run `npm --prefix frontend test -- test/theme.test.js` and verify missing or invalid preferences resolve to dark, while a saved light preference is read back by a fresh resolver instance without expiry metadata.\n- Inspect the preflight and utility key usage to confirm they use the same raw renderer-local preference and that no Electron main-process or preload API is involved.\n\n### 2. theme-controls-and-light-surfaces\n\nWire the persisted App theme state and stable toggle handler into both JoinScreen and both SettingsModal call sites; set the document theme immediately on change. Add sun/moon header icon toggles with dynamic accessible labels, title tooltips, and focus styling; rename the modal heading to Settings and add an Appearance light/dark selector near its top. Introduce scoped token/role classes in index.css for dark defaults and neutral white/light-slate light surfaces, AA-safe primary/muted/accent text, borders, inputs, hover states, and color-only transitions with a reduced-motion override. Apply those roles across App loading/error/meeting/sidebar content and JoinScreen, SettingsModal, CaptionPanel, SummaryPanel, and SttStatusBar; explicitly retain the existing dark treatment for camera previews, VideoView tiles, and MeetingControls media overlay boundaries. Replace the global focus-outline suppression with visible focus-visible treatment without changing Electron window configuration.\n\n**Files:** frontend/src/App.jsx, frontend/src/index.css, frontend/src/components/JoinScreen.jsx, frontend/src/components/SettingsModal.jsx, frontend/src/components/CaptionPanel.jsx, frontend/src/components/SummaryPanel.jsx, frontend/src/components/SttStatusBar.jsx, frontend/src/components/VideoView.jsx, frontend/src/components/MeetingControls.jsx\n\n**Depends on:** 1. theme-preference-foundation\n\n**Verification:**\n- Run `npm --prefix frontend test`, `npm --prefix frontend run lint`, and `npm --prefix frontend run build`.\n- Run `npm run dev:local`; after clearing renderer app data, verify loading, error, join, and meeting interfaces initially render dark. Switch themes from each header and from Settings Appearance, confirming immediate synchronized updates and persistence after restarting without clearing app data.\n- In light mode, manually inspect join, meeting/sidebar tabs and benchmark cards, settings, captions, summary, STT status, loading, and error states; confirm white/light-slate interface surfaces, dark video tiles/preview/meeting controls, readable blue-violet accents, visible keyboard focus, and no native window-chrome change.\n- Emulate `prefers-reduced-motion: reduce` in Electron/Chromium DevTools and confirm color transitions are suppressed or reduced; use a contrast checker on representative normal-size primary, muted, label, input, and theme-control text against their light surfaces.\n\n## Assumptions\n\n- A raw renderer localStorage preference key is appropriate for indefinite persistence and must remain separate from the existing 24-hour expiry wrapper.\n- The existing Node test runner can unit-test theme preference resolution and persistence; rendered UI accessibility and cross-screen appearance require manual Electron verification.\n\n## Risks\n\n- The renderer has no component/DOM test harness, so the automated coverage is limited to preference behavior; visual synchronization, contrast, focus, media exceptions, and motion behavior need the specified Electron checks.\n- Native select popup styling and Electron window chrome are OS-managed; the implementation should style the rendered select control only and must not attempt to change native chrome.\n- A missed hardcoded dark utility can leave a light-mode surface or muted label unreadable; scoped semantic role classes must be applied to every listed rendered component rather than globally remapping Tailwind colors, which would also break white text on accent buttons and dark media overlays.",
+      "occurredAt": "2026-08-03T21:36:48.223Z",
+      "decisionId": "decision-1785793008223-2"
+    }
+  ],
+  "latestCheckpoint": {
+    "number": 7,
+    "cursor": "mutation_ready",
+    "createdAt": "2026-08-03T21:37:00.666Z"
+  },
+  "stoppedStage": "baseline",
+  "failedStage": "baseline",
+  "completedAt": "2026-08-03T22:38:43.352Z",
+  "termination": {
+    "kind": "workflow_failed",
+    "code": "workflow_failed",
+    "status": "failed",
+    "message": "testSupportFiles may contain only classified test-support files: frontend/test/theme.test.js",
+    "stoppedStage": "baseline"
+  },
+  "resumeCount": 1,
+  "resumedAt": "2026-08-03T22:38:43.337Z",
+  "resumedFromCheckpoint": "mutation_ready"
+}

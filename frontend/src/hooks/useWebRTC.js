@@ -1,17 +1,122 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+    BACKGROUND_BLUR_STATUS,
+    BackgroundBlurProcessor
+} from '../utils/backgroundBlur';
+import { replacePeerVideoTrack } from '../utils/videoTrackSender';
 
-export const useWebRTC = (socket, meetingId, displayName, isMuted, isVideoOff, selectedVideoDeviceId, selectedAudioDeviceId) => {
+export const useWebRTC = (socket, meetingId, displayName, isMuted, isVideoOff, selectedVideoDeviceId, selectedAudioDeviceId, backgroundBlurEnabled) => {
     const [localStream, setLocalStream] = useState(null);
     const [remoteStreams, setRemoteStreams] = useState({});
     const [remoteStatus, setRemoteStatus] = useState({});
     const [isHost, setIsHost] = useState(false);
     const [hostId, setHostId] = useState(null);
+    const [backgroundBlurStatus, setBackgroundBlurStatus] = useState(BACKGROUND_BLUR_STATUS.OFF);
     
     const peerConnections = useRef({}); // socketId -> RTCPeerConnection
     const localStreamRef = useRef(null);
+    const outgoingStreamRef = useRef(null);
+    const backgroundBlurProcessorRef = useRef(null);
+    const backgroundBlurRequestRef = useRef(0);
+    const backgroundBlurUnavailableRef = useRef(false);
+    const lastRawVideoTrackRef = useRef(null);
+    const syncOutgoingStreamRef = useRef(null);
+    const videoSendersRef = useRef({});
     // Include displayName in statusRef for synchronization
     const statusRef = useRef({ isMuted: isMuted, isVideoOff: isVideoOff, displayName: displayName });
     const pendingCandidates = useRef({}); // socketId -> RTCIceCandidate[]
+
+    const replaceOutgoingVideoTrack = useCallback(async (videoTrack, stream) => {
+        await Promise.all(Object.entries(peerConnections.current).map(async ([socketId, pc]) => {
+            const sender = await replacePeerVideoTrack(pc, videoSendersRef.current[socketId], videoTrack, stream);
+            if (sender) videoSendersRef.current[socketId] = sender;
+        }));
+    }, []);
+
+    const syncOutgoingStream = useCallback(async () => {
+        const rawStream = localStreamRef.current;
+        const requestId = ++backgroundBlurRequestRef.current;
+        const previousProcessor = backgroundBlurProcessorRef.current;
+        if (!backgroundBlurEnabled) backgroundBlurUnavailableRef.current = false;
+
+        if (!rawStream) {
+            outgoingStreamRef.current = null;
+            setLocalStream(null);
+            setBackgroundBlurStatus(BACKGROUND_BLUR_STATUS.OFF);
+            previousProcessor?.dispose();
+            backgroundBlurProcessorRef.current = null;
+            return;
+        }
+
+        const rawVideoTrack = rawStream.getVideoTracks().find((track) => track.readyState === 'live') || null;
+        const rawVideoChanged = lastRawVideoTrackRef.current !== rawVideoTrack;
+        if (rawVideoChanged) {
+            lastRawVideoTrackRef.current = rawVideoTrack;
+            backgroundBlurUnavailableRef.current = false;
+        }
+        let videoTrack = rawVideoTrack;
+
+        if (backgroundBlurEnabled && rawVideoTrack && !backgroundBlurUnavailableRef.current && previousProcessor && !rawVideoChanged) {
+            videoTrack = previousProcessor.outputStream?.getVideoTracks()[0] || rawVideoTrack;
+        } else if (backgroundBlurEnabled && rawVideoTrack && !backgroundBlurUnavailableRef.current) {
+            const processor = new BackgroundBlurProcessor({
+                onStatus: (status) => {
+                    if (backgroundBlurProcessorRef.current !== processor && backgroundBlurRequestRef.current !== requestId) return;
+                    setBackgroundBlurStatus(status);
+                },
+                onFailure: () => {
+                    if (backgroundBlurProcessorRef.current !== processor && backgroundBlurRequestRef.current !== requestId) return;
+                    backgroundBlurUnavailableRef.current = true;
+                    window.setTimeout(() => syncOutgoingStreamRef.current?.(), 0);
+                }
+            });
+
+            try {
+                const processedStream = await processor.start(new MediaStream([rawVideoTrack]));
+                if (backgroundBlurRequestRef.current !== requestId) {
+                    processor.dispose();
+                    return;
+                }
+                videoTrack = processedStream.getVideoTracks()[0] || rawVideoTrack;
+                backgroundBlurProcessorRef.current = processor;
+            } catch (error) {
+                processor.dispose();
+                backgroundBlurUnavailableRef.current = true;
+                console.warn('Background blur is unavailable:', error);
+                if (backgroundBlurRequestRef.current === requestId) {
+                    setBackgroundBlurStatus(BACKGROUND_BLUR_STATUS.UNAVAILABLE);
+                }
+            }
+        } else if (backgroundBlurEnabled && backgroundBlurUnavailableRef.current) {
+            setBackgroundBlurStatus(BACKGROUND_BLUR_STATUS.UNAVAILABLE);
+        } else {
+            setBackgroundBlurStatus(BACKGROUND_BLUR_STATUS.OFF);
+        }
+
+        if (backgroundBlurRequestRef.current !== requestId) return;
+
+        const outgoingStream = new MediaStream([
+            ...rawStream.getAudioTracks(),
+            ...(videoTrack ? [videoTrack] : [])
+        ]);
+        await replaceOutgoingVideoTrack(videoTrack, outgoingStream);
+        if (backgroundBlurRequestRef.current !== requestId) return;
+        outgoingStreamRef.current = outgoingStream;
+        setLocalStream(outgoingStream);
+        if (videoTrack === rawVideoTrack) {
+            previousProcessor?.dispose();
+            if (backgroundBlurProcessorRef.current === previousProcessor) backgroundBlurProcessorRef.current = null;
+        } else if (previousProcessor && previousProcessor !== backgroundBlurProcessorRef.current) {
+            previousProcessor.dispose();
+        }
+    }, [backgroundBlurEnabled, replaceOutgoingVideoTrack]);
+
+    useEffect(() => {
+        syncOutgoingStreamRef.current = syncOutgoingStream;
+        return () => {
+            syncOutgoingStreamRef.current = null;
+        };
+    }, [syncOutgoingStream]);
 
     // Media stream effect handles physical hardware toggles and device switches.
     useEffect(() => {
@@ -20,8 +125,8 @@ export const useWebRTC = (socket, meetingId, displayName, isMuted, isVideoOff, s
                 if (localStreamRef.current) {
                     localStreamRef.current.getTracks().forEach(t => t.stop());
                     localStreamRef.current = null;
-                    setLocalStream(null);
                 }
+                syncOutgoingStream();
                 return;
             }
 
@@ -58,13 +163,6 @@ export const useWebRTC = (socket, meetingId, displayName, isMuted, isVideoOff, s
                         }
                         localStreamRef.current.addTrack(newTrack);
                         
-                        // Replace in PCs
-                        Object.values(peerConnections.current).forEach(pc => {
-                            const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-                            if (sender) sender.replaceTrack(newTrack);
-                            else pc.addTrack(newTrack, localStreamRef.current);
-                        });
-                        setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
                     } catch (e) {
                          console.error("Failed to switch video:", e);
                     }
@@ -82,13 +180,11 @@ export const useWebRTC = (socket, meetingId, displayName, isMuted, isVideoOff, s
                             currentAudioTrack.stop();
                         }
                         localStreamRef.current.addTrack(newTrack);
-                        
-                        Object.values(peerConnections.current).forEach(pc => {
-                            const sender = pc.getSenders().find(s => s.track?.kind === 'audio');
-                            if (sender) sender.replaceTrack(newTrack);
+                        Object.values(peerConnections.current).forEach((pc) => {
+                            const sender = pc.getSenders().find((candidate) => candidate.track?.kind === 'audio');
+                            if (sender) sender.replaceTrack(newTrack).catch((error) => console.warn('Failed to replace audio track:', error));
                             else pc.addTrack(newTrack, localStreamRef.current);
                         });
-                        setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
                      } catch (e) {
                          console.error("Failed to switch audio:", e);
                      }
@@ -101,7 +197,10 @@ export const useWebRTC = (socket, meetingId, displayName, isMuted, isVideoOff, s
                 
                 const videoTrack = localStreamRef.current.getVideoTracks()[0];
                 if (isVideoOff) {
-                     if (videoTrack && videoTrack.readyState === 'live') videoTrack.stop();
+                     if (videoTrack && videoTrack.readyState === 'live') {
+                         videoTrack.stop();
+                         localStreamRef.current.removeTrack(videoTrack);
+                     }
                 } else {
                      if (!videoTrack || videoTrack.readyState !== 'live') {
                          // Needs to restart video
@@ -110,13 +209,7 @@ export const useWebRTC = (socket, meetingId, displayName, isMuted, isVideoOff, s
                             const newTrack = newStream.getVideoTracks()[0];
                             if (videoTrack) localStreamRef.current.removeTrack(videoTrack);
                             localStreamRef.current.addTrack(newTrack);
-                            Object.values(peerConnections.current).forEach(pc => {
-                                const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-                                if (sender) sender.replaceTrack(newTrack);
-                                else pc.addTrack(newTrack, localStreamRef.current);
-                            });
-                             setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
-                          } catch (e) { console.error(e) }
+                           } catch (e) { console.error(e) }
                      } else {
                          videoTrack.enabled = true;
                      }
@@ -127,6 +220,7 @@ export const useWebRTC = (socket, meetingId, displayName, isMuted, isVideoOff, s
                     socket.emit('status-change', { meetingId, status: { isMuted, isVideoOff, displayName } });
                 }
 
+                await syncOutgoingStream();
                 return;
             }
 
@@ -138,14 +232,15 @@ export const useWebRTC = (socket, meetingId, displayName, isMuted, isVideoOff, s
                 });
                 
                 localStreamRef.current = stream;
-                setLocalStream(stream);
 
-                 if (isVideoOff) stream.getVideoTracks().forEach(t => t.stop());
+                 if (isVideoOff) {
+                     stream.getVideoTracks().forEach((track) => {
+                         track.stop();
+                         stream.removeTrack(track);
+                     });
+                 }
                  if (isMuted) stream.getAudioTracks().forEach(t => t.enabled = false);
-
-                 Object.values(peerConnections.current).forEach(pc => {
-                     stream.getTracks().forEach(track => pc.addTrack(track, stream));
-                 });
+                 await syncOutgoingStream();
 
             } catch (err) {
                 console.error("Error accessing media devices:", err);
@@ -154,7 +249,7 @@ export const useWebRTC = (socket, meetingId, displayName, isMuted, isVideoOff, s
 
         updateStream();
 
-    }, [meetingId, isMuted, isVideoOff, selectedVideoDeviceId, selectedAudioDeviceId, displayName, socket]); // Consolidated dependency array
+    }, [meetingId, isMuted, isVideoOff, selectedVideoDeviceId, selectedAudioDeviceId, displayName, socket, syncOutgoingStream]); // Consolidated dependency array
 
     // 2. Signaling Setup
     useEffect(() => {
@@ -200,9 +295,10 @@ export const useWebRTC = (socket, meetingId, displayName, isMuted, isVideoOff, s
                 }
             };
 
-            if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach(track => {
-                    pc.addTrack(track, localStreamRef.current);
+            if (outgoingStreamRef.current) {
+                outgoingStreamRef.current.getTracks().forEach(track => {
+                    const sender = pc.addTrack(track, outgoingStreamRef.current);
+                    if (track.kind === 'video') videoSendersRef.current[socketId] = sender;
                 });
             }
 
@@ -216,6 +312,7 @@ export const useWebRTC = (socket, meetingId, displayName, isMuted, isVideoOff, s
             if (peerConnections.current[socketId]) {
                 peerConnections.current[socketId].close();
                 delete peerConnections.current[socketId];
+                delete videoSendersRef.current[socketId];
             }
             
             if (pendingCandidates.current[socketId]) {
@@ -352,9 +449,14 @@ export const useWebRTC = (socket, meetingId, displayName, isMuted, isVideoOff, s
             localStreamRef.current.getTracks().forEach(track => track.stop());
             localStreamRef.current = null;
         }
+        backgroundBlurRequestRef.current += 1;
+        backgroundBlurProcessorRef.current?.dispose();
+        backgroundBlurProcessorRef.current = null;
+        outgoingStreamRef.current = null;
         
         Object.values(peerConnections.current).forEach(pc => pc.close());
         peerConnections.current = {};
+        videoSendersRef.current = {};
         pendingCandidates.current = {};
         
         setLocalStream(null);
@@ -362,6 +464,7 @@ export const useWebRTC = (socket, meetingId, displayName, isMuted, isVideoOff, s
         setRemoteStatus({});
         setIsHost(false);
         setHostId(null);
+        setBackgroundBlurStatus(BACKGROUND_BLUR_STATUS.OFF);
         statusRef.current = { isMuted: true, isVideoOff: true, displayName: '' };
     }, [socket]);
 
@@ -371,6 +474,7 @@ export const useWebRTC = (socket, meetingId, displayName, isMuted, isVideoOff, s
         remoteStatus,
         isHost,
         hostId,
+        backgroundBlurStatus,
         leave
     };
 };

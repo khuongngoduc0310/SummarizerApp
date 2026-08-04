@@ -1,0 +1,22 @@
+{
+  "gitHead": "9a710d481498298511d3cf6c2a3b5f3d65192199",
+  "hasUncommittedChanges": true,
+  "hasStagedChanges": false,
+  "untrackedFiles": [
+    ".pi/orchestrator/config.json",
+    ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/requirements.json",
+    ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/requirements.md",
+    ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-1-interviewer-ask_questions-invocation-1-output.json",
+    ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-1-interviewer-ask_questions-invocation-1-transcript.json",
+    ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-2-interviewer-assess-invocation-1-output.json",
+    ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-2-interviewer-assess-invocation-1-transcript.json",
+    ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-3-interviewer-ask_questions-invocation-1-output.json",
+    ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-3-interviewer-ask_questions-invocation-1-transcript.json",
+    ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-4-interviewer-assess-invocation-1-output.json",
+    ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-4-interviewer-assess-invocation-1-transcript.json",
+    ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-5-interviewer-finalize-invocation-1-output.json",
+    ".pi/orchestrator/requirements/d75feedf-c68b-4d7c-baca-d8cedfcea78b/step-5-interviewer-finalize-invocation-1-transcript.json",
+    ".pi/orchestrator/runs/eb394525-dc86-46f9-86ae-59d136b310a9/run-lease.json"
+  ],
+  "statusPorcelain": "?? .pi/\n"
+}

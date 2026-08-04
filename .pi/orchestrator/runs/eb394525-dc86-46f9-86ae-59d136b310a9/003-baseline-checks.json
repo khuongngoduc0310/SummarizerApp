@@ -1,0 +1,16 @@
+[
+  {
+    "command": "npm run build",
+    "exitCode": 1,
+    "stdout": "",
+    "stderr": "npm error Missing script: \"build\"\nnpm error\nnpm error To see a list of scripts, run:\nnpm error   npm run\nnpm error A complete log of this run can be found in: C:\\Users\\Khuong\\AppData\\Local\\npm-cache\\_logs\\2026-08-03T05_11_49_099Z-debug-0.log\n",
+    "stdoutTruncated": false,
+    "stderrTruncated": false,
+    "passed": false,
+    "timedOut": false,
+    "cancelled": false,
+    "startedAt": "2026-08-03T05:11:48.927Z",
+    "completedAt": "2026-08-03T05:11:49.154Z",
+    "durationMs": 227
+  }
+]

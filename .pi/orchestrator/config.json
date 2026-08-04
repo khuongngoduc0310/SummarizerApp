@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 2,
+  "checks": [
+    "npm run build:desktop"
+  ],
+  "dashboard": {
+    "enabled": true,
+    "port": 0
+  },
+  "limits": {
+    "planRevisions": 2,
+    "implementationRetries": 3,
+    "reviewRevisions": 2,
+    "agentTimeoutMs": 1200000,
+    "checkTimeoutMs": 600000,
+    "maxOutputBytes": 262144,
+    "worktreeIsolation": true
+  },
+  "agents": {
+    "explorer": {
+      "model": "deepseek/deepseek-v4-flash",
+      "tools": [
+        "read",
+        "grep",
+        "find",
+        "ls"
+      ],
+      "promptFile": "explorer.md",
+      "thinking": "high"
+    },
+    "planner": {
+      "model": "openai-codex/gpt-5.6-terra",
+      "tools": [
+        "read",
+        "grep",
+        "find",
+        "ls"
+      ],
+      "promptFile": "planner.md",
+      "thinking": "xhigh"
+    },
+    "reviewer": {
+      "model": "openai-codex/gpt-5.6-luna",
+      "tools": [
+        "read",
+        "grep",
+        "find",
+        "ls"
+      ],
+      "promptFile": "reviewer.md",
+      "thinking": "max"
+    },
+    "tester": {
+      "model": "deepseek/deepseek-v4-flash",
+      "tools": [
+        "read",
+        "write",
+        "edit",
+        "grep",
+        "find",
+        "ls"
+      ],
+      "promptFile": "tester.md",
+      "thinking": "high"
+    },
+    "builder": {
+      "model": "openai-codex/gpt-5.6-luna",
+      "tools": [
+        "read",
+        "write",
+        "edit",
+        "grep",
+        "find",
+        "ls"
+      ],
+      "promptFile": "builder.md",
+      "thinking": "max"
+    },
+    "debugger": {
+      "model": "openai-codex/gpt-5.6-terra",
+      "tools": [
+        "read",
+        "grep",
+        "find",
+        "ls"
+      ],
+      "promptFile": "debugger.md",
+      "thinking": "xhigh"
+    },
+    "documenter": {
+      "model": "deepseek/deepseek-v4-flash",
+      "tools": [
+        "read",
+        "write",
+        "edit",
+        "grep",
+        "find",
+        "ls"
+      ],
+      "promptFile": "documenter.md",
+      "thinking": "high"
+    },
+    "interviewer": {
+      "model": "openai-codex/gpt-5.6-sol",
+      "tools": [
+        "read",
+        "grep",
+        "find",
+        "ls"
+      ],
+      "promptFile": "interviewer.md",
+      "thinking": "high"
+    }
+  },
+  "humanInTheLoop": {
+    "planApproval": true,
+    "planRevisionApproval": false,
+    "confirmBeforeMutation": true,
+    "importantDecisions": true,
+    "finalDeliveryApproval": true,
+    "diagnosisApproval": "low_confidence"
+  }
+}

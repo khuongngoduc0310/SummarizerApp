@@ -1,0 +1,38 @@
+{
+  "actual": {
+    "added": [
+      "frontend/src/components/ThemeToggle.jsx",
+      "frontend/src/utils/themePreference.js",
+      "frontend/test/themePreference.test.js"
+    ],
+    "modified": [
+      "frontend/src/App.jsx",
+      "frontend/src/components/CaptionPanel.jsx",
+      "frontend/src/components/JoinScreen.jsx",
+      "frontend/src/components/MeetingControls.jsx",
+      "frontend/src/components/SettingsModal.jsx",
+      "frontend/src/components/SttStatusBar.jsx",
+      "frontend/src/components/SummaryPanel.jsx",
+      "frontend/src/components/VideoView.jsx",
+      "frontend/src/index.css"
+    ],
+    "deleted": [],
+    "changedFiles": [
+      "frontend/src/App.jsx",
+      "frontend/src/components/CaptionPanel.jsx",
+      "frontend/src/components/JoinScreen.jsx",
+      "frontend/src/components/MeetingControls.jsx",
+      "frontend/src/components/SettingsModal.jsx",
+      "frontend/src/components/SttStatusBar.jsx",
+      "frontend/src/components/SummaryPanel.jsx",
+      "frontend/src/components/ThemeToggle.jsx",
+      "frontend/src/components/VideoView.jsx",
+      "frontend/src/index.css",
+      "frontend/src/utils/themePreference.js",
+      "frontend/test/themePreference.test.js"
+    ]
+  },
+  "originalError": "builder timed out after 1200000ms",
+  "outputValidated": false,
+  "scopeValidated": true
+}

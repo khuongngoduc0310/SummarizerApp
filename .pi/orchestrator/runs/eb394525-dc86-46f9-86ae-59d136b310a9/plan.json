@@ -1,0 +1,138 @@
+{
+  "route": "implementation",
+  "summary": "Extract summary, meeting lifecycle, and caption responsibilities into CommonJS feature modules; compose them through a testable backend bootstrap while preserving all HTTP and Socket.io contracts. Split reusable native benchmark utilities from its CLI orchestration, update AMI preparation imports, and align maintained benchmark documentation without changing generated artifacts or Prisma.",
+  "assumptions": [
+    "A backend devDependency on socket.io-client is acceptable for real Socket.io contract regression tests; it will not be used at runtime.",
+    "The backend may expose a dependency-injected bootstrap factory for tests as long as executing node backend/index.js retains the existing listener, cleanup scheduler, signal handling, and Electron launch contract.",
+    "Benchmark CLI entrypoints, options, report schema, output locations, and historical benchmark artifacts remain unchanged; only internal helper boundaries and documentation are revised."
+  ],
+  "acceptanceCriteria": [
+    "backend/features/meeting.js, backend/features/summary.js, and backend/features/caption.js own their respective domain behavior, while backend/index.js is limited to application, infrastructure, feature composition, and process lifecycle orchestration.",
+    "GET /health, POST /meetings, POST /meetings/:id/summary, and GET /meetings/:id/status preserve their existing validation, status codes, response payloads, summary provider behavior, and error mapping.",
+    "Socket.io meeting lifecycle behavior remains unchanged, including join and leave ordering, participant and host payloads, status and signaling relays, session state, room-end updates, and join-error handling.",
+    "Caption persistence and history behavior remains unchanged, including partial-caption rejection, transcript upsert and duration updates, idempotency TTL and failure release, room-empty key purging, live caption payload fields, history authorization, pagination, and acknowledgement payloads.",
+    "No file under backend/prisma/ is added or modified.",
+    "The selected backend hotspots use explicit CommonJS dependency boundaries, centralized meeting-session fallback logic, and consistent naming without unrelated backend cleanup.",
+    "desktop/stt/benchmark-whisper.cpp.js and desktop/stt/prepare-ami-benchmark.js retain their CLI and exported-helper behavior while shared benchmark parsing, WER, validation, and reporting utilities have clear ownership.",
+    "desktop/stt/README.md, docs/STT_NATIVE_WER_BENCHMARK.md, and docs/STT_WEBGPU_BENCHMARK.md accurately describe the retained benchmark commands, supported execution modes, defaults, artifacts, and native/WebGPU comparison procedure.",
+    "The backend, desktop, frontend test suites and frontend lint check pass with the targeted regression coverage."
+  ],
+  "automatedAcceptanceCriteria": [
+    1,
+    2,
+    3,
+    6,
+    8
+  ],
+  "tasks": [
+    {
+      "id": "extract-summary-feature",
+      "description": "Create the summary-domain CommonJS feature with injected Prisma and LLM dependencies, preserving UUID/user/config validation, current-session and rolling-summary query construction, provider-specific request shapes, parsing, persistence data, metadata payload, and every 400/404/502 response branch. Add focused mock-Prisma/provider tests for successful and failure contracts.",
+      "files": [
+        "backend/features/summary.js",
+        "backend/test/summary.test.js"
+      ],
+      "testSupportFiles": [],
+      "dependencies": [],
+      "verification": [
+        "Run npm --prefix backend test -- test/summary.test.js.",
+        "Assert tests cover validation failures, absent meetings and segments, malformed provider output, provider failures, persisted summary fields, and the successful _meta response."
+      ]
+    },
+    {
+      "id": "extract-meeting-feature",
+      "description": "Create the meeting-domain CommonJS feature for meeting creation/status routes and Socket.io lifecycle handlers. Centralize session-start fallback resolution and retain serialized joins, participant snapshots, host assignment/reassignment, exact join and leave emission order, status/signal relays, room-empty endedAt updates, and the injected caption-key purge callback. Add handler-level regression tests with mocked Prisma, io, rooms, and sockets.",
+      "files": [
+        "backend/features/meeting.js",
+        "backend/test/meeting.test.js"
+      ],
+      "testSupportFiles": [],
+      "dependencies": [],
+      "verification": [
+        "Run npm --prefix backend test -- test/meeting.test.js.",
+        "Assert route tests retain validation and response payloads, and socket tests retain host-info/user-joined/joined-successfully ordering, user-left-before-endedAt behavior, host reassignment, session fallback, signal, and status-change payloads."
+      ]
+    },
+    {
+      "id": "extract-caption-feature",
+      "description": "Create the caption-domain CommonJS feature that owns caption idempotency state and cleanup, persistence/broadcast handling, and get-caption-history acknowledgements. Reuse the meeting feature's injected session resolver and existing captionHistory pagination module without altering history records or cursor behavior. Add targeted mocked Socket.io/Prisma tests for final and partial captions, duplicate suppression, write failure rollback, room-key purging, and history authorization/error/success responses.",
+      "files": [
+        "backend/features/caption.js",
+        "backend/test/caption.test.js"
+      ],
+      "testSupportFiles": [],
+      "dependencies": [
+        "extract-meeting-feature"
+      ],
+      "verification": [
+        "Run npm --prefix backend test -- test/caption.test.js.",
+        "Assert successful caption broadcasts retain data, captionId, speakerName, sessionStartedAt, and createdAt exactly; assert rejected partials, idempotency failure release, and caption-history acknowledgement payloads."
+      ]
+    },
+    {
+      "id": "compose-testable-backend-and-contracts",
+      "description": "Replace the monolithic backend/index.js handlers with feature composition and a dependency-injected server bootstrap that retains direct node index.js startup, CORS behavior, health endpoint, retention cleanup, and graceful shutdown. Add socket.io-client only as a backend development dependency and use the bootstrap in end-to-end HTTP and Socket.io contract tests against mock Prisma state; regenerate the lockfile accordingly.",
+      "files": [
+        "backend/index.js",
+        "backend/package.json",
+        "backend/package-lock.json",
+        "backend/test/serverContracts.test.js"
+      ],
+      "testSupportFiles": [],
+      "dependencies": [
+        "extract-summary-feature",
+        "extract-meeting-feature",
+        "extract-caption-feature"
+      ],
+      "verification": [
+        "Run npm --prefix backend test -- test/serverContracts.test.js.",
+        "Run npm --prefix backend test.",
+        "Verify real HTTP and Socket.io tests cover health, meeting create/status, join/caption/history/leave contracts and cleanly close server, sockets, and feature timers.",
+        "Run git diff --exit-code -- backend/prisma and confirm no Prisma schema or migration path changed."
+      ]
+    },
+    {
+      "id": "refactor-native-benchmark-boundaries",
+      "description": "Move reusable WAV parsing/streaming validation, WER normalization/scoring, sample-id validation, statistics, and report/file helpers into a shared CommonJS benchmark utility module; move CLI run orchestration into a dedicated runner module; retain benchmark-whisper.cpp.js as the same executable wrapper and compatibility export surface. Update AMI preparation to import shared utilities directly, and adapt desktop tests to exercise the extracted utilities and wrapper compatibility.",
+      "files": [
+        "desktop/stt/benchmark-whisper.cpp.js",
+        "desktop/stt/benchmark-runner.js",
+        "desktop/stt/benchmark-utils.js",
+        "desktop/stt/prepare-ami-benchmark.js",
+        "desktop/test/stt-benchmark.test.js"
+      ],
+      "testSupportFiles": [],
+      "dependencies": [],
+      "verification": [
+        "Run npm --prefix desktop test -- test/stt-benchmark.test.js.",
+        "Run npm --prefix desktop run benchmark:whisper -- --help and npm --prefix desktop run benchmark:prepare-ami -- --help.",
+        "Assert existing WER, WAV, sample-ID, AMI clipping/reference, and legacy benchmark-whisper helper-export tests still pass without requiring local models, binaries, samples, or benchmark-results changes."
+      ]
+    },
+    {
+      "id": "align-benchmark-documentation",
+      "description": "Update maintained native benchmark, STT-area, and WebGPU baseline documentation to retain the public package/direct CLI entrypoints, describe the CLI versus FFI mode and current streaming defaults accurately, clarify generated-artifact handling, label historical measurements appropriately, and link the separate native and renderer benchmark procedures with comparable-measurement constraints.",
+      "files": [
+        "desktop/stt/README.md",
+        "docs/STT_NATIVE_WER_BENCHMARK.md",
+        "docs/STT_WEBGPU_BENCHMARK.md"
+      ],
+      "testSupportFiles": [],
+      "dependencies": [
+        "compose-testable-backend-and-contracts",
+        "refactor-native-benchmark-boundaries"
+      ],
+      "verification": [
+        "Review every documented benchmark command against the unchanged desktop package scripts and executable wrapper paths.",
+        "Run npm --prefix backend test, npm --prefix desktop test, npm --prefix frontend test, and npm --prefix frontend run lint."
+      ]
+    }
+  ],
+  "risks": [
+    "Socket lifecycle behavior is ordering- and race-sensitive: joins must remain serialized with final room-empty checks, and user-left must remain emitted before the endedAt update.",
+    "Caption idempotency is stateful across persistence failures and room teardown; feature ownership must preserve the one-hour TTL, five-minute cleanup cadence, retry release, and meeting-prefix purge exactly.",
+    "The summary route has provider-specific SDK payloads and distinct status/error branches; dependency injection must not alter its externally visible error handling.",
+    "Benchmark refactoring must keep lazy FFI loading, sidecar protocol handling, atomic report writes, CLI arguments, and existing exports intact so CLI-only runs do not gain FFI prerequisites.",
+    "No Prisma schema or migration changes are authorized, and ignored benchmark artifacts under benchmark-results/ must remain untouched."
+  ]
+}

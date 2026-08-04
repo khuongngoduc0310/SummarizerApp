@@ -1,0 +1,27 @@
+{
+  "output": {
+    "summary": "Addressed review contrast issues",
+    "changedFiles": [
+      "frontend/src/App.jsx",
+      "frontend/src/components/SummaryPanel.jsx"
+    ],
+    "commands": [],
+    "assumptions": [],
+    "unresolvedIssues": []
+  },
+  "usage": {
+    "input": 29266,
+    "output": 1517,
+    "cacheRead": 151040,
+    "cacheWrite": 0,
+    "cost": 0.010694400000000001,
+    "totalTokens": 181823,
+    "costBreakdown": {
+      "input": 0.005853200000000001,
+      "output": 0.0018203999999999998,
+      "cacheRead": 0.0030207999999999997,
+      "cacheWrite": 0
+    },
+    "reasoning": 838
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "status": "available",
+  "beforeTree": "642a8dce76a8d0ef8e5f4cd93f9a50a64f60a95d",
+  "afterTree": "c981dbefbea7f3f82132ad88ac258c7926f2a61a",
+  "changedFiles": [
+    "frontend/src/App.jsx",
+    "frontend/src/components/CaptionPanel.jsx",
+    "frontend/src/components/JoinScreen.jsx",
+    "frontend/src/components/MeetingControls.jsx",
+    "frontend/src/components/SettingsModal.jsx",
+    "frontend/src/components/SttStatusBar.jsx",
+    "frontend/src/components/SummaryPanel.jsx",
+    "frontend/src/components/ThemeToggle.jsx",
+    "frontend/src/components/VideoView.jsx",
+    "frontend/src/index.css",
+    "frontend/src/utils/themePreference.js",
+    "frontend/test/themePreference.test.js"
+  ],
+  "files": [
+    {
+      "status": "M",
+      "oldPath": "frontend/src/App.jsx",
+      "newPath": "frontend/src/App.jsx",
+      "oldMode": "100644",
+      "newMode": "100644",
+      "oldBlob": "a293eae75436fe7dff032a66f9811639b736d763",
+      "newBlob": "ef7d44ac645bd1e8be8c33a55010b7a69e0188ac",
+      "binary": false
+    },
+    {
+      "status": "M",
+      "oldPath": "frontend/src/components/CaptionPanel.jsx",
+      "newPath": "frontend/src/components/CaptionPanel.jsx",
+      "oldMode": "100644",
+      "newMode": "100644",
+      "oldBlob": "4aa8c5b52ffea76b76ccbe8f3e111fac1d7f0978",
+      "newBlob": "5f23e16cd0428320dd1e38fc1b551521b210d2a9",
+      "binary": false
+    },
+    {
+      "status": "M",
+      "oldPath": "frontend/src/components/JoinScreen.jsx",
+      "newPath": "frontend/src/components/JoinScreen.jsx",
+      "oldMode": "100644",
+      "newMode": "100644",
+      "oldBlob": "7a81b503a7988c5448be0b5e6f2ad2103507079a",
+      "newBlob": "62273a68e366e91557712cf51cde86c65fd397e7",
+      "binary": false
+    },
+    {
+      "status": "M",
+      "oldPath": "frontend/src/components/MeetingControls.jsx",
+      "newPath": "frontend/src/components/MeetingControls.jsx",
+      "oldMode": "100644",
+      "newMode": "100644",
+      "oldBlob": "41d2897f24fee26b122101dffc230cea46f16c89",
+      "newBlob": "d6b38c5b42aa3ee3510efc11550c4939944bcb68",
+      "binary": false
+    },
+    {
+      "status": "M",
+      "oldPath": "frontend/src/components/SettingsModal.jsx",
+      "newPath": "frontend/src/components/SettingsModal.jsx",
+      "oldMode": "100644",
+      "newMode": "100644",
+      "oldBlob": "740acb4b58bec252f7532d5ed9c7e0ffebf8eed8",
+      "newBlob": "94ece82fc8df1ad9edb1c393de4b1bdd5430a136",
+      "binary": false
+    },
+    {
+      "status": "M",
+      "oldPath": "frontend/src/components/SttStatusBar.jsx",
+      "newPath": "frontend/src/components/SttStatusBar.jsx",
+      "oldMode": "100644",
+      "newMode": "100644",
+      "oldBlob": "7c50ec8da0040b776327ba89171df5ca820bfdb4",
+      "newBlob": "b606034df54028ce841bab9a4bd096a71eaa7934",
+      "binary": false
+    },
+    {
+      "status": "M",
+      "oldPath": "frontend/src/components/SummaryPanel.jsx",
+      "newPath": "frontend/src/components/SummaryPanel.jsx",
+      "oldMode": "100644",
+      "newMode": "100644",
+      "oldBlob": "c5fdf03c619353c107adb0a8747a230fcb97b003",
+      "newBlob": "55f687b875154936b5cf1d10d515bf290d742587",
+      "binary": false
+    },
+    {
+      "status": "A",
+      "newPath": "frontend/src/components/ThemeToggle.jsx",
+      "oldMode": "000000",
+      "newMode": "100644",
+      "oldBlob": "0000000000000000000000000000000000000000",
+      "newBlob": "7b3c3b1b5e1f72248db9b71121af0586c6da47ab",
+      "binary": false
+    },
+    {
+      "status": "M",
+      "oldPath": "frontend/src/components/VideoView.jsx",
+      "newPath": "frontend/src/components/VideoView.jsx",
+      "oldMode": "100644",
+      "newMode": "100644",
+      "oldBlob": "e91b02ff17425150516f91160e499ed9b2fb04f3",
+      "newBlob": "16ebfbf9bda1e6d01ea8092f20bbe4bb48d4a550",
+      "binary": false
+    },
+    {
+      "status": "M",
+      "oldPath": "frontend/src/index.css",
+      "newPath": "frontend/src/index.css",
+      "oldMode": "100644",
+      "newMode": "100644",
+      "oldBlob": "e263a4bc23f84cf885e58f12ec548fe8312972ea",
+      "newBlob": "47953b6dc1d5edb7ca2d163f50aa7f4cbc0e1b7b",
+      "binary": false
+    },
+    {
+      "status": "A",
+      "newPath": "frontend/src/utils/themePreference.js",
+      "oldMode": "000000",
+      "newMode": "100644",
+      "oldBlob": "0000000000000000000000000000000000000000",
+      "newBlob": "356404eba429834ece66b0adb5aecd5669c6233d",
+      "binary": false
+    },
+    {
+      "status": "A",
+      "newPath": "frontend/test/themePreference.test.js",
+      "oldMode": "000000",
+      "newMode": "100644",
+      "oldBlob": "0000000000000000000000000000000000000000",
+      "newBlob": "0dd3c27ca9eed55e4025fab4f59fac5e744b4fa7",
+      "binary": false
+    }
+  ],
+  "patchBytes": 130278,
+  "patchArtifact": "004-implementing-builder-attempt-1-invocation-1-files.patch",
+  "patchDigest": "371c40296bef98eda73ab91745560808933b80dfaeed270760b4a54422566a17"
+}

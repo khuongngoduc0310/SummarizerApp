@@ -1,19 +1,64 @@
 @import "tailwindcss";
 
+@custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
+
 /* Base Styles */
 * {
   box-sizing: border-box;
 }
 
 option {
-  color: black;
+  color: var(--foreground);
+  background-color: var(--surface-elevated);
 }
 
 :root {
   --background: #0f0f0f;
   --foreground: #ffffff;
   --border: rgba(255, 255, 255, 0.05);
+  --surface: #171717;
+  --surface-elevated: #262626;
+  --muted-foreground: #94a3b8;
+  --theme-transition-duration: 180ms;
+  color-scheme: dark;
 }
+
+:root[data-theme='light'] {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --border: #cbd5e1;
+  --surface: #ffffff;
+  --surface-elevated: #f1f5f9;
+  --muted-foreground: #475569;
+  --theme-transition-duration: 180ms;
+  color-scheme: light;
+}
+
+.theme-shell {
+  color: var(--foreground);
+}
+
+[data-theme='light'] .join-shell,
+[data-theme='light'] .meeting-shell {
+  background-image: linear-gradient(rgba(248, 250, 252, 0.94), rgba(248, 250, 252, 0.94));
+}
+
+.theme-transition,
+.theme-transition * {
+  transition-property: color, background-color, border-color, box-shadow, fill, stroke !important;
+  transition-duration: var(--theme-transition-duration) !important;
+  transition-timing-function: ease-out !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-transition,
+  .theme-transition * {
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
+  }
+}
+
+/* Base Styles */
 
 html,
 body,
@@ -21,6 +66,10 @@ body,
   width: 100%;
   height: 100%;
   overflow: hidden;
+}
+
+html {
+  background: var(--background);
 }
 
 body {
@@ -316,4 +365,75 @@ input:focus,
 select:focus,
 button:focus {
   outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
+}
+
+[data-theme='light'] :focus-visible {
+  outline-color: #1d4ed8;
+}
+
+[data-theme='light'] ::-webkit-scrollbar-track {
+  background: #e2e8f0;
+}
+
+[data-theme='light'] ::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+}
+
+[data-theme='light'] ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+option {
+  background: var(--surface-elevated);
+  color: var(--foreground);
+}
+
+/* Settings contains several legacy dark utility classes. These scoped fallbacks
+   keep every control readable while its explicit light variants are applied. */
+[data-theme='light'] .theme-modal [class*='bg-white/'] {
+  background-color: #f1f5f9;
+}
+
+[data-theme='light'] .theme-modal [class*='border-white/'] {
+  border-color: #cbd5e1;
+}
+
+[data-theme='light'] .theme-modal [class*='text-gray-500'],
+[data-theme='light'] .theme-modal [class*='text-gray-600'] {
+  color: #475569;
+}
+
+[data-theme='light'] .theme-modal [class*='text-gray-400'] {
+  color: #334155;
+}
+
+[data-theme='light'] .theme-modal [class*='text-gray-300'] {
+  color: #1e293b;
+}
+
+[data-theme='light'] .theme-modal [class*='text-white']:not([class*='light:text-']) {
+  color: #0f172a;
+}
+
+[data-theme='light'] .theme-modal [class*='bg-[#111]'] {
+  background-color: #ffffff;
+}
+
+[data-theme='light'] .theme-modal [class*='bg-[#111]/'] {
+  background-color: rgba(255, 255, 255, 0.95);
+}
+
+[data-theme='light'] .theme-modal [class*='border-white/'] {
+  border-color: #cbd5e1;
+}
+
+/* Media is intentionally dark in both themes. */
+[data-theme='light'] .media-surface,
+[data-theme='light'] .media-controls {
+  color-scheme: dark;
 }

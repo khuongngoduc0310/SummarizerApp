@@ -1,0 +1,6 @@
+{
+  "checkpointNumber": 9,
+  "cursor": "builder_completed",
+  "error": "Orchestrator configuration changed since the checkpoint",
+  "blockedAt": "2026-08-03T05:35:40.937Z"
+}

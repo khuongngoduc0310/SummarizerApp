@@ -4,6 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node ../scripts/prepare-background-blur-assets.js",
+    "prebuild": "node ../scripts/prepare-background-blur-assets.js",
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
@@ -12,6 +14,7 @@
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
+    "@mediapipe/selfie_segmentation": "^0.1.1675465747",
     "lucide-react": "^0.562.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

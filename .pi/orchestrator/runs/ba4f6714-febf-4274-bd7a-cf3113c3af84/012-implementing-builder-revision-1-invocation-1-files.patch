@@ -1,0 +1,31 @@
+diff --git a/frontend/src/App.jsx b/frontend/src/App.jsx
+index 71dc79ffc66f3097f62ad8b8f68dc5882960e7ee..16f1ad5682c237bd2882e6147942d2c472d244ba 100644
+--- a/frontend/src/App.jsx
++++ b/frontend/src/App.jsx
+@@ -821,9 +821,9 @@ function App() {
+                 <div className="flex-1 flex p-3 sm:p-4 md:p-5 gap-3 md:gap-5 overflow-hidden min-h-0 pb-24 sm:pb-28">
+                   {!main && participants.length === 0 ? (
+                     <div className="flex-1 flex items-center justify-center">
+-                      <div className="flex flex-col items-center space-y-4 opacity-20">
++                      <div className="flex flex-col items-center space-y-4 text-slate-300 light:text-slate-600">
+                         <Users size={64} />
+-                        <span className="text-sm font-bold uppercase tracking-widest text-white light:text-slate-700">Waiting for others...</span>
++                        <span className="text-sm font-bold uppercase tracking-widest text-slate-200 light:text-slate-700">Waiting for others...</span>
+                       </div>
+                     </div>
+                   ) : (
+diff --git a/frontend/src/components/SummaryPanel.jsx b/frontend/src/components/SummaryPanel.jsx
+index 0a2472a9c7a4a3e286f6f295814a86a235e44cd8..92fe17bec6b011dc0bb5b7ae12245560a4c18374 100644
+--- a/frontend/src/components/SummaryPanel.jsx
++++ b/frontend/src/components/SummaryPanel.jsx
+@@ -23,8 +23,8 @@ const markdownComponents = {
+     h2: ({ children }) => <h2 className="mb-2.5 mt-5 text-base font-black tracking-tight text-slate-100 light:text-slate-900 first:mt-0">{children}</h2>,
+     h3: ({ children }) => <h3 className="mb-2 mt-4 text-sm font-bold text-blue-200 light:text-blue-800 first:mt-0">{children}</h3>,
+     p: ({ children }) => <p className="my-3 text-sm leading-6 text-slate-300 light:text-slate-700 first:mt-0 last:mb-0">{children}</p>,
+-    ul: ({ children }) => <ul className="my-3 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-300 light:text-slate-700 marker:text-blue-400">{children}</ul>,
+-    ol: ({ children }) => <ol className="my-3 list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-300 light:text-slate-700 marker:font-bold marker:text-blue-300">{children}</ol>,
++    ul: ({ children }) => <ul className="my-3 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-300 light:text-slate-700 marker:text-blue-400 light:marker:text-blue-700">{children}</ul>,
++    ol: ({ children }) => <ol className="my-3 list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-300 light:text-slate-700 marker:font-bold marker:text-blue-300 light:marker:text-blue-800">{children}</ol>,
+     li: ({ children }) => <li className="pl-1">{children}</li>,
+     strong: ({ children }) => <strong className="font-bold text-slate-100 light:text-slate-900">{children}</strong>,
+     blockquote: ({ children }) => <blockquote className="my-4 border-l-2 border-blue-400/50 bg-blue-400/[0.06] py-1 pl-3 italic text-slate-300 light:border-blue-500 light:bg-blue-50 light:text-slate-700">{children}</blockquote>,

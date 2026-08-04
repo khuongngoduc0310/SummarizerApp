@@ -103,13 +103,13 @@ const CaptionPanel = ({
 
     return (
         <div className="flex h-full min-h-0 flex-col overflow-hidden">
-            <div className="mb-3 shrink-0 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-3">
+            <div className="mb-3 shrink-0 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-3 light:border-slate-200 light:bg-white">
                 <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 text-sm font-bold text-slate-200">
-                        <MessageSquare size={15} className="text-blue-300" />
+                    <div className="flex items-center gap-2 text-sm font-bold text-slate-200 light:text-slate-900">
+                        <MessageSquare size={15} className="text-blue-300 light:text-blue-700" />
                         <span>Transcript</span>
                     </div>
-                    <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600 light:text-slate-500">
                         {captions.length} loaded
                     </span>
                 </div>
@@ -121,7 +121,7 @@ const CaptionPanel = ({
                         type="button"
                         onClick={handleLoadOlder}
                         disabled={loadingHistory}
-                        className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 transition hover:bg-white/[0.08] hover:text-slate-200 disabled:cursor-wait disabled:opacity-50"
+                        className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 transition hover:bg-white/[0.08] hover:text-slate-200 disabled:cursor-wait disabled:opacity-50 light:border-slate-300 light:bg-slate-50 light:text-slate-700 light:hover:bg-slate-100 light:hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
                     >
                         {loadingHistory ? <LoaderCircle size={14} className="animate-spin" /> : <History size={14} />}
                         {loadingHistory ? 'Loading history...' : 'Load older captions'}
@@ -129,28 +129,28 @@ const CaptionPanel = ({
                 )}
 
                 {historyError && (
-                    <div className="mb-3 rounded-xl border border-red-400/15 bg-red-400/[0.07] px-3 py-2 text-xs leading-5 text-red-200/80">
+                    <div className="mb-3 rounded-xl border border-red-400/15 bg-red-400/[0.07] px-3 py-2 text-xs leading-5 text-red-200/80 light:border-red-200 light:bg-red-50 light:text-red-800">
                         {historyError}
                     </div>
                 )}
 
                 {captions.length === 0 ? (
-                    <div className="flex h-full min-h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 p-6 text-center text-slate-500">
+                    <div className="flex h-full min-h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 p-6 text-center text-slate-500 light:border-slate-300 light:text-slate-600">
                         {loadingHistory ? <LoaderCircle size={24} className="animate-spin" /> : <MessageSquare size={24} />}
-                        <p className="mt-3 text-sm font-bold text-slate-300">{loadingHistory ? 'Loading transcript' : 'Waiting for speech'}</p>
+                        <p className="mt-3 text-sm font-bold text-slate-300 light:text-slate-800">{loadingHistory ? 'Loading transcript' : 'Waiting for speech'}</p>
                         <p className="mt-1 text-xs leading-5">{loadingHistory ? 'Retrieving this session’s captions.' : 'Live captions will appear here.'}</p>
                     </div>
                 ) : (
                     <div className="space-y-2.5 pb-1">
                         {captions.map((caption, index) => (
-                            <article key={getCaptionId(caption) || `caption-${index}`} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition hover:bg-white/[0.07]">
+                            <article key={getCaptionId(caption) || `caption-${index}`} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition hover:bg-white/[0.07] light:border-slate-200 light:bg-white light:hover:bg-slate-50">
                                 <div className="mb-1.5 flex items-center justify-between gap-3">
-                                    <span className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-blue-300">
+                                    <span className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-blue-300 light:text-blue-700">
                                         {getSpeakerName(caption)}
                                     </span>
-                                    <time className="shrink-0 text-[10px] font-semibold text-slate-600">{formatTime(caption)}</time>
+                                    <time className="shrink-0 text-[10px] font-semibold text-slate-600 light:text-slate-500">{formatTime(caption)}</time>
                                 </div>
-                                <p className="break-words text-xs font-medium leading-5 text-slate-300">{caption.text}</p>
+                                <p className="break-words text-xs font-medium leading-5 text-slate-300 light:text-slate-700">{caption.text}</p>
                             </article>
                         ))}
                     </div>
@@ -161,7 +161,7 @@ const CaptionPanel = ({
                 <button
                     type="button"
                     onClick={() => scrollToBottom()}
-                    className="mt-2 flex shrink-0 items-center justify-center gap-2 rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-blue-200 transition hover:bg-blue-400/20"
+                    className="mt-2 flex shrink-0 items-center justify-center gap-2 rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-blue-200 transition hover:bg-blue-400/20 light:border-blue-200 light:bg-blue-50 light:text-blue-800 light:hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
                 >
                     <ArrowDown size={14} /> New captions
                 </button>

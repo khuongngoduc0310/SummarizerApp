@@ -19,19 +19,19 @@ const buildSummaryText = (summary) => {
 };
 
 const markdownComponents = {
-    h1: ({ children }) => <h1 className="mb-3 mt-6 text-xl font-black tracking-tight text-white first:mt-0">{children}</h1>,
-    h2: ({ children }) => <h2 className="mb-2.5 mt-5 text-base font-black tracking-tight text-slate-100 first:mt-0">{children}</h2>,
-    h3: ({ children }) => <h3 className="mb-2 mt-4 text-sm font-bold text-blue-200 first:mt-0">{children}</h3>,
-    p: ({ children }) => <p className="my-3 text-sm leading-6 text-slate-300 first:mt-0 last:mb-0">{children}</p>,
-    ul: ({ children }) => <ul className="my-3 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-300 marker:text-blue-400">{children}</ul>,
-    ol: ({ children }) => <ol className="my-3 list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-300 marker:font-bold marker:text-blue-300">{children}</ol>,
+    h1: ({ children }) => <h1 className="mb-3 mt-6 text-xl font-black tracking-tight text-white light:text-slate-950 first:mt-0">{children}</h1>,
+    h2: ({ children }) => <h2 className="mb-2.5 mt-5 text-base font-black tracking-tight text-slate-100 light:text-slate-900 first:mt-0">{children}</h2>,
+    h3: ({ children }) => <h3 className="mb-2 mt-4 text-sm font-bold text-blue-200 light:text-blue-800 first:mt-0">{children}</h3>,
+    p: ({ children }) => <p className="my-3 text-sm leading-6 text-slate-300 light:text-slate-700 first:mt-0 last:mb-0">{children}</p>,
+    ul: ({ children }) => <ul className="my-3 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-300 light:text-slate-700 marker:text-blue-400 light:marker:text-blue-700">{children}</ul>,
+    ol: ({ children }) => <ol className="my-3 list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-300 light:text-slate-700 marker:font-bold marker:text-blue-300 light:marker:text-blue-800">{children}</ol>,
     li: ({ children }) => <li className="pl-1">{children}</li>,
-    strong: ({ children }) => <strong className="font-bold text-slate-100">{children}</strong>,
-    blockquote: ({ children }) => <blockquote className="my-4 border-l-2 border-blue-400/50 bg-blue-400/[0.06] py-1 pl-3 italic text-slate-300">{children}</blockquote>,
-    a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-blue-300 underline decoration-blue-400/40 underline-offset-2 hover:text-blue-200">{children}</a>,
-    code: ({ children }) => <code className="break-words rounded bg-black/30 px-1.5 py-0.5 font-mono text-[0.85em] text-blue-100">{children}</code>,
-    pre: ({ children }) => <pre className="my-4 overflow-x-auto rounded-xl border border-white/10 bg-black/30 p-3 text-xs leading-5">{children}</pre>,
-    hr: () => <hr className="my-5 border-white/10" />
+    strong: ({ children }) => <strong className="font-bold text-slate-100 light:text-slate-900">{children}</strong>,
+    blockquote: ({ children }) => <blockquote className="my-4 border-l-2 border-blue-400/50 bg-blue-400/[0.06] py-1 pl-3 italic text-slate-300 light:border-blue-500 light:bg-blue-50 light:text-slate-700">{children}</blockquote>,
+    a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-blue-300 underline decoration-blue-400/40 underline-offset-2 hover:text-blue-200 light:text-blue-700 light:hover:text-blue-900">{children}</a>,
+    code: ({ children }) => <code className="break-words rounded bg-black/30 px-1.5 py-0.5 font-mono text-[0.85em] text-blue-100 light:bg-slate-200 light:text-blue-900">{children}</code>,
+    pre: ({ children }) => <pre className="my-4 overflow-x-auto rounded-xl border border-white/10 bg-black/30 p-3 text-xs leading-5 light:border-slate-200 light:bg-slate-100 light:text-slate-800">{children}</pre>,
+    hr: () => <hr className="my-5 border-white/10 light:border-slate-200" />
 };
 
 const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettings }) => {
@@ -106,7 +106,7 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
     ];
 
     return (
-        <div className="flex h-full min-h-0 flex-col overflow-hidden">
+        <div className="theme-summary flex h-full min-h-0 flex-col overflow-hidden">
             {!summary || isConfiguringSummary ? (
                 <div className="flex h-full min-h-0 flex-col gap-3">
                     {summary && (
@@ -114,32 +114,32 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
                             type="button"
                             onClick={() => setIsConfiguringSummary(false)}
                             disabled={generating}
-                            className="flex w-fit items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-300 transition hover:bg-white/[0.08] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 disabled:cursor-wait disabled:opacity-50"
+                            className="flex w-fit items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-300 transition hover:bg-white/[0.08] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 disabled:cursor-wait disabled:opacity-50 light:border-slate-300 light:bg-slate-50 light:text-slate-700 light:hover:bg-slate-100 light:hover:text-slate-950"
                         >
                             <ArrowLeft size={13} /> Back to summary
                         </button>
                     )}
-                    <div className="rounded-2xl border border-blue-400/20 bg-blue-400/10 p-4">
-                        <div className="mb-2 flex items-center gap-2 text-blue-200">
+                    <div className="rounded-2xl border border-blue-400/20 bg-blue-400/10 p-4 light:border-blue-200 light:bg-blue-50">
+                        <div className="mb-2 flex items-center gap-2 text-blue-200 light:text-blue-800">
                             <Sparkles size={17} />
                             <h3 className="text-sm font-black uppercase tracking-[0.16em]">AI Summary</h3>
                         </div>
-                        <p className="text-sm leading-5 text-blue-100/70">
+                        <p className="text-sm leading-5 text-blue-100/70 light:text-blue-900">
                             Convert this meeting into summary, actions, and questions.
                         </p>
                     </div>
 
                     <div className="flex flex-wrap gap-2">
                         {['Summary', 'Actions', 'Questions'].map((item) => (
-                            <span key={item} className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                            <span key={item} className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 light:border-slate-300 light:bg-slate-100 light:text-slate-700">
                                 {item}
                             </span>
                         ))}
                     </div>
 
                     {/* Time range selector */}
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-500 mb-2">Summarize</p>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 light:border-slate-200 light:bg-white">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-500 light:text-slate-600 mb-2">Summarize</p>
                         <div className="grid grid-cols-4 gap-1.5">
                             {timeRangeOptions.map((opt) => (
                                 <button
@@ -148,8 +148,8 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
                                     disabled={generating}
                                     className={`rounded-xl py-2 text-[10px] font-black uppercase tracking-[0.12em] transition-all ${
                                         timeRange === opt.value
-                                            ? 'bg-blue-500/20 border border-blue-400/30 text-blue-200'
-                                            : 'bg-white/[0.04] border border-white/10 text-gray-500 hover:text-gray-300 hover:bg-white/[0.08]'
+                                            ? 'bg-blue-500/20 border border-blue-400/30 text-blue-200 light:bg-blue-50 light:border-blue-200 light:text-blue-800'
+                                            : 'bg-white/[0.04] border border-white/10 text-gray-500 hover:text-gray-300 hover:bg-white/[0.08] light:bg-slate-50 light:border-slate-200 light:text-slate-600 light:hover:text-slate-900 light:hover:bg-slate-100'
                                     } disabled:cursor-wait disabled:opacity-50`}
                                 >
                                     {opt.label}
@@ -160,15 +160,15 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
 
                     <div className="mt-auto">
                         {!hasApiKey ? (
-                            <div className="rounded-2xl border border-violet-400/20 bg-violet-400/10 p-4">
-                                <div className="mb-2 flex items-center gap-2 text-violet-200">
+                            <div className="rounded-2xl border border-violet-400/20 bg-violet-400/10 p-4 light:border-violet-200 light:bg-violet-50">
+                                <div className="mb-2 flex items-center gap-2 text-violet-200 light:text-violet-800">
                                     <Settings size={16} />
                                     <h4 className="text-[10px] font-black uppercase tracking-[0.18em]">API key required</h4>
                                 </div>
-                                <p className="text-xs leading-5 text-violet-100/65">Add a provider key to generate notes.</p>
+                                <p className="text-xs leading-5 text-violet-100/65 light:text-violet-900">Add a provider key to generate notes.</p>
                                 <button
                                     onClick={onOpenSettings}
-                                    className="mt-3 w-full rounded-xl border border-violet-300/20 bg-violet-400/15 px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-violet-100 transition hover:bg-violet-400/25"
+                                    className="mt-3 w-full rounded-xl border border-violet-300/20 bg-violet-400/15 px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-violet-100 transition hover:bg-violet-400/25 light:border-violet-300 light:bg-violet-100 light:text-violet-900 light:hover:bg-violet-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600"
                                 >
                                     Settings
                                 </button>
@@ -177,7 +177,7 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
                             <button
                                 onClick={handleGenerate}
                                 disabled={generating}
-                                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-violet-500 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110 disabled:cursor-wait disabled:opacity-60"
+                                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-violet-500 light:from-blue-700 light:to-violet-800 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:brightness-110 disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
                             >
                                 <Sparkles size={16} className={generating ? 'animate-spin' : ''} />
                                 {generating ? 'Reading transcript...' : 'Generate summary'}
@@ -188,18 +188,18 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
             ) : (
                 <div className="h-full min-h-0 overflow-y-auto pr-1">
                     <div className="space-y-3 pb-1">
-                        <header className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-3">
+                        <header className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-3 light:border-slate-200 light:bg-white">
                             <div className="min-w-0">
-                                <div className="flex items-center gap-2 text-blue-200">
+                                <div className="flex items-center gap-2 text-blue-200 light:text-blue-800">
                                     <FileText size={15} className="shrink-0" />
                                     <h3 className="text-xs font-black uppercase tracking-[0.16em]">Meeting summary</h3>
                                 </div>
                                 {summary._meta?.type === 'rolling' && (
-                                    <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                                    <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 light:text-slate-600">
                                         Rolling · {summary._meta.segmentCount} segments
                                     </p>
                                 )}
-                                <p className="mt-1 truncate text-[10px] font-bold text-slate-500">
+                                <p className="mt-1 truncate text-[10px] font-bold text-slate-500 light:text-slate-600">
                                     {generatedProvider.label} · {generatedModel.label}
                                 </p>
                             </div>
@@ -209,7 +209,7 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
                                     onClick={handleStartAnotherSummary}
                                     title="Generate another summary"
                                     aria-label="Generate another summary"
-                                    className="grid size-9 place-items-center rounded-xl border border-blue-400/15 bg-blue-400/[0.07] text-blue-200 transition hover:bg-blue-400/15 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+                                    className="grid size-9 place-items-center rounded-xl border border-blue-400/15 bg-blue-400/[0.07] text-blue-200 transition hover:bg-blue-400/15 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 light:border-blue-200 light:bg-blue-50 light:text-blue-800 light:hover:bg-blue-100 light:hover:text-blue-950"
                                 >
                                     <RefreshCw size={15} />
                                 </button>
@@ -218,7 +218,7 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
                                     onClick={handleCopy}
                                     title={actionFeedback === 'copied' ? 'Copied' : 'Copy summary'}
                                     aria-label={actionFeedback === 'copied' ? 'Summary copied' : 'Copy summary'}
-                                    className="grid size-9 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-slate-300 transition hover:bg-white/[0.1] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+                                    className="grid size-9 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-slate-300 transition hover:bg-white/[0.1] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 light:border-slate-300 light:bg-slate-50 light:text-slate-700 light:hover:bg-slate-100 light:hover:text-slate-950"
                                 >
                                     {actionFeedback === 'copied' ? <Check size={15} className="text-emerald-300" /> : <ClipboardCopy size={15} />}
                                 </button>
@@ -227,7 +227,7 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
                                     onClick={handleShare}
                                     title={actionFeedback === 'shared' ? 'Shared' : 'Share summary'}
                                     aria-label={actionFeedback === 'shared' ? 'Summary shared' : 'Share summary'}
-                                    className="grid size-9 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-slate-300 transition hover:bg-white/[0.1] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+                                    className="grid size-9 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-slate-300 transition hover:bg-white/[0.1] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 light:border-slate-300 light:bg-slate-50 light:text-slate-700 light:hover:bg-slate-100 light:hover:text-slate-950"
                                 >
                                     {actionFeedback === 'shared' ? <Check size={15} className="text-emerald-300" /> : <Share2 size={15} />}
                                 </button>
@@ -238,15 +238,15 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
                         </header>
 
                         {typeof summary.raw === 'string' && summary.raw.trim() && summary.executive && (
-                            <section className="rounded-2xl border border-blue-400/15 bg-blue-400/[0.07] p-3.5">
-                                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-blue-300">Overview</div>
-                                <p className="text-sm font-medium leading-6 text-slate-200">{summary.executive}</p>
+                            <section className="rounded-2xl border border-blue-400/15 bg-blue-400/[0.07] p-3.5 light:border-blue-200 light:bg-blue-50">
+                                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-blue-300 light:text-blue-800">Overview</div>
+                                <p className="text-sm font-medium leading-6 text-slate-200 light:text-slate-800">{summary.executive}</p>
                             </section>
                         )}
 
-                        <section className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
-                            <div className="mb-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                                <Sparkles size={13} className="text-blue-300" /> Detailed notes
+                        <section className="rounded-2xl border border-white/10 bg-white/[0.025] p-4 light:border-slate-200 light:bg-white">
+                            <div className="mb-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 light:text-slate-600">
+                                <Sparkles size={13} className="text-blue-300 light:text-blue-700" /> Detailed notes
                             </div>
                             <div className="min-w-0 [overflow-wrap:anywhere]">
                                 <ReactMarkdown components={markdownComponents}>
@@ -255,52 +255,52 @@ const SummaryPanel = ({ summary, onGenerate, generating, llmConfig, onOpenSettin
                             </div>
                         </section>
 
-                        <section className="overflow-hidden rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.06]">
+                        <section className="overflow-hidden rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.06] light:border-emerald-200 light:bg-emerald-50">
                             <button
                                 type="button"
                                 onClick={() => setActionsOpen((open) => !open)}
                                 aria-expanded={actionsOpen}
                                 aria-controls="summary-actions"
-                                className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left transition hover:bg-emerald-300/[0.06] focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-emerald-300"
+                                className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left transition hover:bg-emerald-300/[0.06] focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-emerald-300 light:hover:bg-emerald-100"
                             >
-                                <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300">
+                                <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300 light:text-emerald-800">
                                     <CheckCircle2 size={13} /> Actions
-                                    <span className="rounded-full bg-emerald-300/10 px-2 py-0.5 text-[9px] text-emerald-200">
+                                    <span className="rounded-full bg-emerald-300/10 px-2 py-0.5 text-[9px] text-emerald-200 light:bg-emerald-100 light:text-emerald-800">
                                         {Array.isArray(summary.actions) ? summary.actions.length : 0}
                                     </span>
                                 </span>
-                                <ChevronDown size={15} className={`text-emerald-200 transition-transform ${actionsOpen ? 'rotate-180' : ''}`} />
+                                <ChevronDown size={15} className={`text-emerald-200 light:text-emerald-700 transition-transform ${actionsOpen ? 'rotate-180' : ''}`} />
                             </button>
                             {actionsOpen && (
-                                <div id="summary-actions" className="space-y-2 border-t border-emerald-300/10 p-3">
+                                <div id="summary-actions" className="space-y-2 border-t border-emerald-300/10 p-3 light:border-emerald-200">
                                     {Array.isArray(summary.actions) && summary.actions.length > 0 ? summary.actions.map((item, index) => (
-                                        <div key={index} className="flex items-start gap-2.5 rounded-xl bg-black/10 p-2.5">
+                                        <div key={index} className="flex items-start gap-2.5 rounded-xl bg-black/10 p-2.5 light:bg-emerald-100">
                                             <span className="mt-2 size-1.5 shrink-0 rounded-full bg-emerald-300" />
-                                            <span className="min-w-0 break-words text-xs font-medium leading-5 text-slate-300">{item}</span>
+                                            <span className="min-w-0 break-words text-xs font-medium leading-5 text-slate-300 light:text-emerald-950">{item}</span>
                                         </div>
                                     )) : (
-                                        <p className="px-1 text-xs leading-5 text-slate-400">No action items detected.</p>
+                                        <p className="px-1 text-xs leading-5 text-slate-400 light:text-slate-700">No action items detected.</p>
                                     )}
                                 </div>
                             )}
                         </section>
 
-                        <section className="overflow-hidden rounded-2xl border border-amber-300/15 bg-amber-300/[0.07]">
+                        <section className="overflow-hidden rounded-2xl border border-amber-300/15 bg-amber-300/[0.07] light:border-amber-200 light:bg-amber-50">
                             <button
                                 type="button"
                                 onClick={() => setQuestionsOpen((open) => !open)}
                                 aria-expanded={questionsOpen}
                                 aria-controls="summary-questions"
-                                className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left transition hover:bg-amber-300/[0.06] focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-amber-200"
+                                className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left transition hover:bg-amber-300/[0.06] focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-amber-200 light:hover:bg-amber-100"
                             >
-                                <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-amber-200">
+                                <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-amber-200 light:text-amber-800">
                                     <CircleHelp size={13} /> Open questions
                                 </span>
-                                <ChevronDown size={15} className={`text-amber-100/70 transition-transform ${questionsOpen ? 'rotate-180' : ''}`} />
+                                <ChevronDown size={15} className={`text-amber-100/70 light:text-amber-700 transition-transform ${questionsOpen ? 'rotate-180' : ''}`} />
                             </button>
                             {questionsOpen && (
-                                <div id="summary-questions" className="border-t border-amber-300/10 px-3.5 py-3">
-                                    <p className="whitespace-pre-wrap break-words text-xs font-medium leading-5 text-amber-50/75">
+                                <div id="summary-questions" className="border-t border-amber-300/10 px-3.5 py-3 light:border-amber-200">
+                                    <p className="whitespace-pre-wrap break-words text-xs font-medium leading-5 text-amber-50/75 light:text-amber-950">
                                         {summary.questions || 'No open questions detected.'}
                                     </p>
                                 </div>

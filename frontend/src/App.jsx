@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import io from 'socket.io-client';
 import {
   Video,
@@ -20,10 +20,13 @@ import SummaryPanel from './components/SummaryPanel';
 import SettingsModal from './components/SettingsModal';
 import SttStatusBar from './components/SttStatusBar';
 import VideoView from './components/VideoView';
+import ThemeToggle from './components/ThemeToggle';
 import { useWebRTC } from './hooks/useWebRTC';
 import { useAudioPipeline } from './hooks/useAudioPipeline';
 import { getActiveApiKey, getSelectedModelId, normalizeLlmConfig } from './config/llmModels';
 import { mergeCaptions } from './utils/captions';
+import { getThemePreference, setThemePreference } from './utils/themePreference';
+import { getBackgroundBlurPreference, setBackgroundBlurPreference } from './utils/backgroundBlurPreference';
 
 
 const getRuntimeConfig = async () => {
@@ -96,6 +99,7 @@ function App() {
   const [captionHistoryError, setCaptionHistoryError] = useState(null);
   const activeMeetingIdRef = useRef(null);
   const activeSessionStartedAtRef = useRef(null);
+  const themeInitializedRef = useRef(false);
   const activeJoinRequestIdRef = useRef(null);
   const captionHistoryRequestIdRef = useRef(0);
   const [summary, setSummary] = useState(null);
@@ -139,6 +143,32 @@ function App() {
   const [isMuted, setIsMuted] = useState(true);
   const [isVideoOff, setIsVideoOff] = useState(true);
   const [recentRooms, setRecentRooms] = useState([]);
+  const [theme, setTheme] = useState(() => getThemePreference());
+  const [backgroundBlurEnabled, setBackgroundBlurEnabled] = useState(() => getBackgroundBlurPreference());
+
+  useLayoutEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+
+    const root = document.documentElement;
+    root.dataset.theme = theme;
+    root.style.colorScheme = theme;
+
+    if (!themeInitializedRef.current) {
+      themeInitializedRef.current = true;
+      return undefined;
+    }
+
+    root.classList.add('theme-transition');
+    const timeoutId = window.setTimeout(() => root.classList.remove('theme-transition'), 220);
+    return () => {
+      window.clearTimeout(timeoutId);
+      root.classList.remove('theme-transition');
+    };
+  }, [theme]);
+
+  const handleThemeChange = useCallback((nextTheme) => {
+    setTheme(setThemePreference(nextTheme));
+  }, []);
 
   const effectiveRuntimeConfig = useMemo(() => (
     runtimeConfig
@@ -159,8 +189,18 @@ function App() {
     remoteStatus,
     isHost,
     hostId,
+    backgroundBlurStatus,
     leave
-  } = useWebRTC(socket, meetingId, userDisplayName, isMuted, isVideoOff, selectedDevices.video, selectedDevices.audio);
+  } = useWebRTC(
+    socket,
+    meetingId,
+    userDisplayName,
+    isMuted,
+    isVideoOff,
+    selectedDevices.video,
+    selectedDevices.audio,
+    backgroundBlurEnabled
+  );
 
   const handleSttMetric = useCallback((metric) => {
     setSttMetrics((prev) => [...prev.slice(-199), { id: `${Date.now()}-${Math.random()}`, ...metric }]);
@@ -187,6 +227,10 @@ function App() {
 
   const toggleVideo = useCallback(() => {
     setIsVideoOff(prev => !prev);
+  }, []);
+
+  const handleBackgroundBlurChange = useCallback((enabled) => {
+    setBackgroundBlurEnabled(setBackgroundBlurPreference(enabled));
   }, []);
 
   useEffect(() => {
@@ -659,10 +703,10 @@ function App() {
 
   if (startupError) {
     return (
-      <div className="h-screen bg-[#0a0a0a] text-white flex items-center justify-center font-sans p-6">
-        <div className="max-w-md rounded-3xl border border-red-500/20 bg-red-500/10 p-6 text-center shadow-2xl shadow-red-950/30">
-          <div className="text-sm font-black uppercase tracking-widest text-red-300">Desktop launch required</div>
-          <p className="mt-3 text-sm leading-6 text-red-100/80">{startupError}</p>
+      <div className="theme-shell h-screen bg-[#0a0a0a] text-white light:bg-slate-50 light:text-slate-900 flex items-center justify-center font-sans p-6">
+        <div className="max-w-md rounded-3xl border border-red-500/20 bg-red-500/10 p-6 text-center shadow-2xl shadow-red-950/30 light:border-red-200 light:bg-red-50 light:shadow-red-100/50">
+          <div className="text-sm font-black uppercase tracking-widest text-red-300 light:text-red-800">Desktop launch required</div>
+          <p className="mt-3 text-sm leading-6 text-red-100/80 light:text-red-700">{startupError}</p>
         </div>
       </div>
     );
@@ -670,8 +714,8 @@ function App() {
 
   if (!runtimeConfig || !socket) {
     return (
-      <div className="h-screen bg-[#0a0a0a] text-white flex items-center justify-center font-sans">
-        <div className="text-sm font-bold uppercase tracking-widest text-gray-500">Starting MeetSummarizer...</div>
+      <div className="theme-shell h-screen bg-[#0a0a0a] text-white light:bg-slate-50 light:text-slate-900 flex items-center justify-center font-sans">
+        <div className="text-sm font-bold uppercase tracking-widest text-gray-500 light:text-slate-600">Starting MeetSummarizer...</div>
       </div>
     );
   }
@@ -704,14 +748,19 @@ function App() {
         sttModeLabel={sttModeLabel}
         sttModeDetail={sttModeDetail}
         nativeSttRunning={nativeSttRunning}
+        theme={theme}
+        onThemeChange={handleThemeChange}
+        backgroundBlurEnabled={backgroundBlurEnabled}
+        backgroundBlurStatus={backgroundBlurStatus}
+        onBackgroundBlurChange={handleBackgroundBlurChange}
       />
     );
   }
 
   return (
-    <div className="h-screen bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.16),transparent_30%),#080a10] text-white flex flex-col font-sans overflow-hidden">
+    <div className="theme-shell meeting-shell h-screen bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.16),transparent_30%),#080a10] text-white light:bg-slate-100 light:text-slate-900 flex flex-col font-sans overflow-hidden">
       {/* Top Header */}
-      <header className="min-h-16 bg-slate-950/70 backdrop-blur-xl border-b border-white/10 flex items-center justify-between px-4 sm:px-6 shrink-0 z-50 gap-4">
+      <header className="min-h-16 bg-slate-950/70 backdrop-blur-xl border-b border-white/10 flex items-center justify-between px-4 sm:px-6 shrink-0 z-50 gap-4 light:bg-white/90 light:border-slate-200">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-violet-500 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20">
@@ -719,32 +768,36 @@ function App() {
             </div>
             <div className="flex flex-col">
               <span className="font-bold text-base tracking-tight leading-none">MeetSummarizer</span>
-              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Live Meeting</span>
+              <span className="text-[10px] text-gray-500 light:text-slate-500 font-bold uppercase tracking-widest mt-1">Live Meeting</span>
             </div>
           </div>
 
-          <div className="h-8 w-px bg-white/5 mx-2"></div>
+          <div className="h-8 w-px bg-white/5 mx-2 light:bg-slate-200"></div>
 
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 group cursor-pointer bg-white/[0.06] hover:bg-white/10 px-4 py-2 rounded-2xl border border-white/10 transition-all" onClick={copyToClipboard}>
-              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">ID: <span className="text-gray-200 font-mono tracking-normal ml-1">{meetingId}</span></span>
-              {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} className="text-gray-500 group-hover:text-blue-400 transition-colors" />}
-            </div>
+            <button type="button" aria-label="Copy meeting ID" title="Copy meeting ID" className="hidden sm:flex items-center gap-2 group cursor-pointer bg-white/[0.06] hover:bg-white/10 px-4 py-2 rounded-2xl border border-white/10 transition-all light:bg-slate-100 light:hover:bg-slate-200 light:border-slate-300" onClick={copyToClipboard}>
+              <span className="text-xs font-bold text-gray-400 light:text-slate-600 uppercase tracking-wider">ID: <span className="text-gray-200 light:text-slate-800 font-mono tracking-normal ml-1">{meetingId}</span></span>
+              {copied ? <Check size={14} className="text-emerald-500 light:text-emerald-700" /> : <Copy size={14} className="text-gray-500 group-hover:text-blue-400 transition-colors" />}
+            </button>
           </div>
         </div>
 
         <div className="flex items-center gap-4">
-          <div className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border ${nativeSttRunning ? 'bg-purple-500/10 border-purple-500/20' : 'bg-blue-500/10 border-blue-500/20'}`} title={sttModeDetail}>
-            <MessageSquare size={14} className={nativeSttRunning ? 'text-purple-400' : 'text-blue-400'} />
-            <span className={`text-[10px] font-black uppercase tracking-widest ${nativeSttRunning ? 'text-purple-400' : 'text-blue-400'}`}>STT: {sttModeLabel}</span>
+          <div className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border ${nativeSttRunning ? 'bg-purple-500/10 border-purple-500/20 light:bg-purple-50 light:border-purple-200' : 'bg-blue-500/10 border-blue-500/20 light:bg-blue-50 light:border-blue-200'}`} title={sttModeDetail}>
+            <MessageSquare size={14} className={nativeSttRunning ? 'text-purple-400 light:text-purple-700' : 'text-blue-400 light:text-blue-700'} />
+            <span className={`text-[10px] font-black uppercase tracking-widest ${nativeSttRunning ? 'text-purple-400 light:text-purple-700' : 'text-blue-400 light:text-blue-700'}`}>STT: {sttModeLabel}</span>
           </div>
-          <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
-            <ShieldCheck size={14} className="text-emerald-400" />
-            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">End-to-End Encrypted</span>
+          <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full light:bg-emerald-50 light:border-emerald-200">
+            <ShieldCheck size={14} className="text-emerald-400 light:text-emerald-700" />
+            <span className="text-[10px] font-black text-emerald-400 light:text-emerald-700 uppercase tracking-widest">End-to-End Encrypted</span>
           </div>
+          <ThemeToggle theme={theme} onThemeChange={handleThemeChange} />
           <button
+            type="button"
+            aria-label={showSidebar ? 'Hide meeting sidebar' : 'Show meeting sidebar'}
+            title={showSidebar ? 'Hide meeting sidebar' : 'Show meeting sidebar'}
             onClick={() => setShowSidebar(!showSidebar)}
-            className={`p-2.5 rounded-xl transition-all border ${showSidebar ? 'bg-[#0E71EB]/10 border-[#0E71EB]/30 text-[#0E71EB]' : 'text-gray-500 border-transparent hover:bg-white/5 hover:text-gray-300'}`}
+            className={`p-2.5 rounded-xl transition-all border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 ${showSidebar ? 'bg-[#0E71EB]/10 border-[#0E71EB]/30 text-[#0E71EB] light:bg-blue-50 light:border-blue-200 light:text-blue-700' : 'text-gray-500 border-transparent hover:bg-white/5 hover:text-gray-300 light:text-slate-500 light:hover:bg-slate-100 light:hover:text-slate-800'}`}
           >
             {showSidebar ? <PanelRightClose size={22} /> : <PanelRightOpen size={22} />}
           </button>
@@ -787,9 +840,9 @@ function App() {
                 <div className="flex-1 flex p-3 sm:p-4 md:p-5 gap-3 md:gap-5 overflow-hidden min-h-0 pb-24 sm:pb-28">
                   {!main && participants.length === 0 ? (
                     <div className="flex-1 flex items-center justify-center">
-                      <div className="flex flex-col items-center space-y-4 opacity-20">
+                      <div className="flex flex-col items-center space-y-4 text-slate-300 light:text-slate-600">
                         <Users size={64} />
-                        <span className="text-sm font-bold uppercase tracking-widest">Waiting for others...</span>
+                        <span className="text-sm font-bold uppercase tracking-widest text-slate-200 light:text-slate-700">Waiting for others...</span>
                       </div>
                     </div>
                   ) : (
@@ -850,32 +903,35 @@ function App() {
                       onToggleVideo={toggleVideo}
                       onLeave={handleLeave}
                       onSettingsClick={() => setShowSettings(true)}
+                      backgroundBlurEnabled={backgroundBlurEnabled}
+                      backgroundBlurStatus={backgroundBlurStatus}
+                      onToggleBackgroundBlur={() => handleBackgroundBlurChange(!backgroundBlurEnabled)}
                     />
                   </div>
                 </div>
               </main>
 
               {/* Sidebar: Integrated Design */}
-              <aside className={`h-full min-h-0 bg-slate-950/80 backdrop-blur-xl border-l border-white/10 flex flex-col transition-all duration-500 ease-in-out ${showSidebar ? 'w-[min(420px,40vw)] max-lg:absolute max-lg:right-0 max-lg:top-0 max-lg:bottom-0 max-lg:w-[min(390px,100vw)] max-lg:z-30' : 'w-0 opacity-0 pointer-events-none overflow-hidden'}`}>
+              <aside className={`h-full min-h-0 bg-slate-950/80 backdrop-blur-xl border-l border-white/10 flex flex-col transition-all duration-500 ease-in-out light:bg-white/90 light:border-slate-200 ${showSidebar ? 'w-[min(420px,40vw)] max-lg:absolute max-lg:right-0 max-lg:top-0 max-lg:bottom-0 max-lg:w-[min(390px,100vw)] max-lg:z-30' : 'w-0 opacity-0 pointer-events-none overflow-hidden'}`}>
                 {/* Tabs */}
-                <div className="shrink-0 flex border-b border-white/10 bg-slate-950/80 p-1.5 gap-1.5">
+                <div className="shrink-0 flex border-b border-white/10 bg-slate-950/80 p-1.5 gap-1.5 light:bg-white/90 light:border-slate-200">
                   <button
                     onClick={() => setSidebarTab('summary')}
-                    className={`flex-1 rounded-xl py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all flex items-center justify-center gap-2 ${sidebarTab === 'summary' ? 'text-blue-200 bg-blue-500/15 border border-blue-400/20' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent'}`}
+                    className={`flex-1 rounded-xl py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all flex items-center justify-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 ${sidebarTab === 'summary' ? 'text-blue-200 bg-blue-500/15 border border-blue-400/20 light:text-blue-800 light:bg-blue-50 light:border-blue-200' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent light:text-slate-600 light:hover:text-slate-900 light:hover:bg-slate-100'}`}
                   >
                     <FileText size={16} />
                     Summary
                   </button>
                   <button
                     onClick={() => setSidebarTab('transcript')}
-                    className={`flex-1 rounded-xl py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all flex items-center justify-center gap-2 ${sidebarTab === 'transcript' ? 'text-blue-200 bg-blue-500/15 border border-blue-400/20' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent'}`}
+                    className={`flex-1 rounded-xl py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all flex items-center justify-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 ${sidebarTab === 'transcript' ? 'text-blue-200 bg-blue-500/15 border border-blue-400/20 light:text-blue-800 light:bg-blue-50 light:border-blue-200' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent light:text-slate-600 light:hover:text-slate-900 light:hover:bg-slate-100'}`}
                   >
                     <MessageSquare size={16} />
                     Transcript
                   </button>
                   <button
                     onClick={() => setSidebarTab('benchmarks')}
-                    className={`flex-1 rounded-xl py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all flex items-center justify-center gap-2 ${sidebarTab === 'benchmarks' ? 'text-blue-200 bg-blue-500/15 border border-blue-400/20' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent'}`}
+                    className={`flex-1 rounded-xl py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all flex items-center justify-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 ${sidebarTab === 'benchmarks' ? 'text-blue-200 bg-blue-500/15 border border-blue-400/20 light:text-blue-800 light:bg-blue-50 light:border-blue-200' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent light:text-slate-600 light:hover:text-slate-900 light:hover:bg-slate-100'}`}
                   >
                     <Monitor size={16} />
                     Bench
@@ -933,16 +989,17 @@ function App() {
                     />
                   ) : (
                     <div className="h-full overflow-y-auto no-scrollbar space-y-4">
-                      <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10">
+                      <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 light:bg-white light:border-slate-200">
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">STT Benchmark Monitor</p>
-                            <p className="text-sm font-bold text-white mt-1">{sttModeLabel}</p>
-                            <p className="text-[11px] text-gray-500 mt-1">{sttBenchmarkSummary.sampleCount} telemetry events · {sttBenchmarkSummary.captionCount} captions</p>
+                            <p className="text-[10px] font-black text-gray-500 light:text-slate-600 uppercase tracking-widest">STT Benchmark Monitor</p>
+                            <p className="text-sm font-bold text-white light:text-slate-900 mt-1">{sttModeLabel}</p>
+                            <p className="text-[11px] text-gray-500 light:text-slate-600 mt-1">{sttBenchmarkSummary.sampleCount} telemetry events · {sttBenchmarkSummary.captionCount} captions</p>
                           </div>
                           <button
+                            type="button"
                             onClick={() => setSttMetrics([])}
-                            className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-black uppercase tracking-widest text-gray-400"
+                            className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-black uppercase tracking-widest text-gray-400 light:bg-slate-100 light:hover:bg-slate-200 light:border-slate-300 light:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
                           >
                             Reset
                           </button>
@@ -960,16 +1017,16 @@ function App() {
                           ['Dropped', sttBenchmarkSummary.droppedChunkCount],
                           ['Errors', sttBenchmarkSummary.errorCount]
                         ].map(([label, value]) => (
-                          <div key={label} className="p-4 rounded-2xl bg-slate-900/70 border border-white/10">
-                            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{label}</p>
-                            <p className="text-xl font-black text-white mt-1">{value}</p>
+                          <div key={label} className="p-4 rounded-2xl bg-slate-900/70 border border-white/10 light:bg-white light:border-slate-200">
+                            <p className="text-[10px] font-black text-gray-500 light:text-slate-600 uppercase tracking-widest">{label}</p>
+                            <p className="text-xl font-black text-white light:text-slate-900 mt-1">{value}</p>
                           </div>
                         ))}
                       </div>
 
-                      <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/20">
-                        <p className="text-[10px] font-black text-purple-300 uppercase tracking-widest">Resume Metrics</p>
-                        <ul className="mt-3 space-y-2 text-xs text-purple-100/80 leading-relaxed list-disc pl-4">
+                      <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/20 light:bg-purple-50 light:border-purple-200">
+                        <p className="text-[10px] font-black text-purple-300 light:text-purple-800 uppercase tracking-widest">Resume Metrics</p>
+                        <ul className="mt-3 space-y-2 text-xs text-purple-100/80 light:text-purple-900 leading-relaxed list-disc pl-4">
                           <li>Realtime factor p50/p95 across WebGPU and whisper.cpp.</li>
                           <li>Caption latency p50/p95 from audio chunk to transcript.</li>
                           <li>Dropped chunks, inference time, duplicate suppression, and fallback errors.</li>
@@ -977,20 +1034,20 @@ function App() {
                       </div>
 
                       <div className="space-y-2">
-                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-1">Recent Events</p>
+                        <p className="text-[10px] font-black text-gray-500 light:text-slate-600 uppercase tracking-widest px-1">Recent Events</p>
                         {sttMetrics.slice(-12).reverse().map((metric) => (
-                          <div key={metric.id} className="p-3 rounded-xl bg-white/[0.03] border border-white/10">
+                          <div key={metric.id} className="p-3 rounded-xl bg-white/[0.03] border border-white/10 light:bg-slate-50 light:border-slate-200">
                             <div className="flex items-center justify-between gap-3">
-                              <span className="text-xs font-bold text-white">{metric.event || 'metric'}</span>
-                              <span className="text-[10px] font-black uppercase text-blue-300">{metric.backend || 'n/a'}</span>
+                              <span className="text-xs font-bold text-white light:text-slate-800">{metric.event || 'metric'}</span>
+                              <span className="text-[10px] font-black uppercase text-blue-300 light:text-blue-700">{metric.backend || 'n/a'}</span>
                             </div>
-                            <p className="text-[11px] text-gray-500 mt-1">
+                            <p className="text-[11px] text-gray-500 light:text-slate-600 mt-1">
                               RTF {formatMetric(metric.realtimeFactor, 'x')} · Infer {formatMetric(metric.inferenceTimeMs, 'ms', 0)} · Latency {formatMetric(metric.captionLatencyMs, 'ms', 0)}
                             </p>
                           </div>
                         ))}
                         {sttMetrics.length === 0 && (
-                          <div className="p-6 rounded-2xl border border-dashed border-white/10 text-center text-xs text-gray-500 font-bold">
+                          <div className="p-6 rounded-2xl border border-dashed border-white/10 text-center text-xs text-gray-500 light:text-slate-600 light:border-slate-300 font-bold">
                             Start speaking to collect STT benchmark events.
                           </div>
                         )}
@@ -1036,6 +1093,11 @@ function App() {
           sttModeLabel={sttModeLabel}
           sttModeDetail={sttModeDetail}
           nativeSttRunning={nativeSttRunning}
+          theme={theme}
+          onThemeChange={handleThemeChange}
+          backgroundBlurEnabled={backgroundBlurEnabled}
+          backgroundBlurStatus={backgroundBlurStatus}
+          onBackgroundBlurChange={handleBackgroundBlurChange}
           llmConfig={llmConfig}
           setLlmConfig={setLllmConfig}
         />

@@ -26,7 +26,7 @@ const VideoView = ({
     return (
         <div
             onClick={onClick}
-            className={`relative isolate max-h-full max-w-full overflow-hidden rounded-[2rem] border bg-slate-950 shadow-2xl [contain:layout_paint] transition duration-300 ${!pinned ? 'aspect-video' : 'h-full w-full'} ${pinned ? 'border-blue-400/25 shadow-blue-950/20' : 'border-white/10'} ${onClick ? 'cursor-pointer hover:border-blue-300/35 hover:brightness-110' : ''} ${className}`}
+            className={`media-surface relative isolate max-h-full max-w-full overflow-hidden rounded-[2rem] border bg-slate-950 shadow-2xl [contain:layout_paint] transition duration-300 ${!pinned ? 'aspect-video' : 'h-full w-full'} ${pinned ? 'border-blue-400/25 shadow-blue-950/20' : 'border-white/10'} ${onClick ? 'cursor-pointer hover:border-blue-300/35 hover:brightness-110' : ''} ${className}`}
         >
             <div className="pointer-events-none absolute inset-0 z-10 rounded-[inherit] bg-gradient-to-b from-black/20 via-transparent to-black/55" />
             <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.16),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(124,58,237,0.14),transparent_35%)]" />
