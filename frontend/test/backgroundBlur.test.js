@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   BACKGROUND_BLUR_OUTPUT_FRAME_RATE,
+  BACKGROUND_BLUR_SEGMENTATION_FRAME_RATE,
   BACKGROUND_BLUR_SEGMENTATION_INTERVAL_MS,
   BackgroundBlurProcessor,
   getBlurOutputDimensions,
@@ -15,8 +16,9 @@ test('background blur bounds landscape and portrait output dimensions', () => {
   assert.deepEqual(getBlurOutputDimensions(1080, 1920), { width: 203, height: 360 });
 });
 
-test('background blur waits for the eight FPS segmentation budget', () => {
+test('background blur waits for the sixteen FPS segmentation budget', () => {
   assert.equal(BACKGROUND_BLUR_OUTPUT_FRAME_RATE, 30);
+  assert.equal(BACKGROUND_BLUR_SEGMENTATION_FRAME_RATE, 16);
   assert.equal(getNextBlurFrameDelay(100, 100), BACKGROUND_BLUR_SEGMENTATION_INTERVAL_MS);
   assert.equal(getNextBlurFrameDelay(100, 100 + BACKGROUND_BLUR_SEGMENTATION_INTERVAL_MS), 0);
 });

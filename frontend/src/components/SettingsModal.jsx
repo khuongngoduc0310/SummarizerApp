@@ -122,7 +122,7 @@ const SettingsModal = ({
               </button>
             </div>
             <p role="status" className="mt-3 text-[11px] font-semibold text-violet-200/70 light:text-violet-800">
-              {backgroundBlurStatus === 'loading' ? 'Preparing background blur…' : backgroundBlurStatus === 'active' ? 'Background blur is active at up to 30 FPS.' : 'Uses bundled on-device segmentation at 8 FPS with output up to 30 FPS.'}
+              {backgroundBlurStatus === 'loading' ? 'Preparing background blur…' : backgroundBlurStatus === 'active' ? 'Background blur is active at up to 30 FPS.' : 'Uses bundled on-device segmentation at 16 FPS with output up to 30 FPS.'}
             </p>
           </section>
 

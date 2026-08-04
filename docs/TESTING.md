@@ -172,7 +172,7 @@ Do not use `docker compose up --build` as the documented application startup pat
 5. Turn the first camera off and back on, then switch to another camera if available. Confirm blur resumes when enabled and the remote peer continues receiving video.
 6. Join the first client with its camera off while the second client shares video, then enable the first camera. Confirm the second client receives it after WebRTC renegotiation.
 7. On a device where the effect cannot initialize or during a forced runtime failure, confirm the app reports it as unavailable and continues sharing the unfiltered camera stream without a black frame.
-8. With a 1080p camera, confirm 30 FPS blurred output remains smooth at the 640 x 360 limit while captions, controls, and audio remain responsive. Fast movement may briefly show mask-edge lag because segmentation runs at 8 FPS.
+8. With a 1080p camera, confirm 30 FPS blurred output remains smooth at the 640 x 360 limit while captions, controls, and audio remain responsive. Fast movement may briefly show mask-edge lag because segmentation runs at 16 FPS.
 
 ### Optional CUDA backend smoke test
 
